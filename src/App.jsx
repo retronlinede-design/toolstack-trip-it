@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * ToolStack — Trip-It (Duty Trip Log) — MVP
- *
- * Goal: Consulate-friendly duty-trip logging + printable trip report.
+ * ToolStack — Trip-It (Duty Trip Log) — MVP (Styled v1: neutral + lime accent)
  *
  * Features:
  * - Log trips (date, from/to, purpose, vehicle, driver, passengers)
@@ -65,21 +63,40 @@ function downloadBlob(filename, text, mime = "text/plain") {
   URL.revokeObjectURL(url);
 }
 
-function Pill({ children }) {
+const btnSecondary =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+const btnPrimary =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-900 bg-neutral-900 text-white shadow-sm hover:bg-neutral-800 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+const btnDanger =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+const inputBase =
+  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
+const inputMuted =
+  "w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm";
+const card =
+  "rounded-2xl bg-white border border-neutral-200 shadow-sm";
+const cardHead =
+  "px-4 py-3 border-b border-neutral-100";
+const cardPad =
+  "p-4";
+
+function Pill({ children, tone = "default" }) {
+  const cls =
+    tone === "accent"
+      ? "border-lime-200 bg-lime-50 text-neutral-800"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-neutral-800"
+        : "border-neutral-200 bg-white text-neutral-700";
+
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-700">
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>
       {children}
     </span>
   );
 }
 
 function SmallButton({ children, onClick, tone = "default", disabled, title, className = "", type = "button" }) {
-  const cls =
-    tone === "primary"
-      ? "bg-slate-900 hover:bg-slate-800 text-white border-slate-900"
-      : tone === "danger"
-        ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-700"
-        : "bg-white hover:bg-slate-50 text-slate-900 border-slate-200";
+  const cls = tone === "primary" ? btnPrimary : tone === "danger" ? btnDanger : btnSecondary;
 
   return (
     <button
@@ -87,7 +104,7 @@ function SmallButton({ children, onClick, tone = "default", disabled, title, cla
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed ${cls} ${className}`}
+      className={`${cls} ${className}`}
     >
       {children}
     </button>
@@ -98,8 +115,8 @@ function Field({ label, hint, children }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <label className="text-sm text-slate-700 font-medium">{label}</label>
-        {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
+        <label className="text-sm text-neutral-700 font-medium">{label}</label>
+        {hint ? <span className="text-xs text-neutral-500">{hint}</span> : null}
       </div>
       <div className="mt-2">{children}</div>
     </div>
@@ -111,22 +128,23 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-lg">
-        <div className="p-4 border-b border-slate-100">
-          <div className="text-lg font-semibold text-slate-900">{title}</div>
-          <div className="text-sm text-slate-600 mt-1">{message}</div>
+      <div className="relative w-full max-w-md rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
+        <div className="p-4 border-b border-neutral-100">
+          <div className="text-lg font-semibold text-neutral-900">{title}</div>
+          <div className="text-sm text-neutral-600 mt-1">{message}</div>
+          <div className="mt-3 h-[2px] w-40 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
         </div>
         <div className="p-4 flex items-center justify-end gap-2">
           <button
             type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 transition"
+            className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-rose-700 bg-rose-600 hover:bg-rose-700 text-white transition"
+            className="px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition"
             onClick={onConfirm}
           >
             {confirmText}
@@ -257,7 +275,6 @@ export default function TripItApp() {
     const rate = money(profile.mileageRate);
     const mileageClaim = rate ? sumKm * rate : 0;
 
-    // currency: assume consistent; show chosen profile currency label
     const currency = profile.defaultCurrency || "EUR";
 
     return {
@@ -286,7 +303,6 @@ export default function TripItApp() {
     if (!String(form.from || "").trim()) return "From is required";
     if (!String(form.to || "").trim()) return "To is required";
     if (!String(form.purpose || "").trim()) return "Purpose is required";
-    // Optional: odometer
     const s = form.startKm === "" ? null : km(form.startKm);
     const e = form.endKm === "" ? null : km(form.endKm);
     if (s != null && e != null && e < s) return "End km must be >= start km";
@@ -312,7 +328,6 @@ export default function TripItApp() {
     });
 
     notify("Saved");
-    // Keep month filter synced to saved trip
     setUi((p) => ({ ...p, month: monthKeyFromDate(form.date) || p.month }));
     resetForm();
   };
@@ -415,7 +430,7 @@ export default function TripItApp() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-neutral-50 text-neutral-900">
       {/* Print rules */}
       <style>{`
         @media print { .print\\:hidden { display: none !important; } }
@@ -462,39 +477,40 @@ export default function TripItApp() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white border border-slate-200 shadow-lg overflow-auto max-h-[80vh]">
+            <div className="rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-auto max-h-[80vh]">
               <div id="tripit-print" className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-2xl font-semibold text-slate-900">Trip Report</div>
-                    <div className="text-sm text-slate-600 mt-1">{profile.orgName || "—"}</div>
-                    <div className="text-sm text-slate-600">Period: {ui.month || "All"}</div>
+                    <div className="text-2xl font-bold tracking-tight text-neutral-900">Trip Report</div>
+                    <div className="text-sm text-neutral-600 mt-1">{profile.orgName || "—"}</div>
+                    <div className="text-sm text-neutral-600">Period: {ui.month || "All"}</div>
+                    <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
                   </div>
-                  <div className="text-sm text-slate-600">Generated: {new Date().toLocaleString()}</div>
+                  <div className="text-sm text-neutral-600">Generated: {new Date().toLocaleString()}</div>
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="text-xs text-slate-500">Trips</div>
-                    <div className="text-xl font-semibold text-slate-900 mt-1">{totals.count}</div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-xs text-neutral-500">Trips</div>
+                    <div className="text-xl font-semibold text-neutral-900 mt-1">{totals.count}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="text-xs text-slate-500">Total km</div>
-                    <div className="text-xl font-semibold text-slate-900 mt-1">{totals.km.toFixed(0)}</div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-xs text-neutral-500">Total km</div>
+                    <div className="text-xl font-semibold text-neutral-900 mt-1">{totals.km.toFixed(0)}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="text-xs text-slate-500">Out-of-pocket costs</div>
-                    <div className="text-xl font-semibold text-slate-900 mt-1">{fmtMoney(totals.costs, totals.currency)}</div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-xs text-neutral-500">Out-of-pocket costs</div>
+                    <div className="text-xl font-semibold text-neutral-900 mt-1">{fmtMoney(totals.costs, totals.currency)}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="text-xs text-slate-500">Mileage claim</div>
-                    <div className="text-xl font-semibold text-slate-900 mt-1">{totals.rate ? fmtMoney(totals.mileageClaim, totals.currency) : "—"}</div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-xs text-neutral-500">Mileage claim</div>
+                    <div className="text-xl font-semibold text-neutral-900 mt-1">{totals.rate ? fmtMoney(totals.mileageClaim, totals.currency) : "—"}</div>
                   </div>
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="mt-5 rounded-2xl border border-neutral-200 overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-slate-700">
+                    <thead className="bg-neutral-50 text-neutral-700">
                       <tr>
                         <th className="text-left p-3">Date</th>
                         <th className="text-left p-3">Route</th>
@@ -510,9 +526,11 @@ export default function TripItApp() {
                         const dist = km(t.distanceKm || (km(t.endKm) - km(t.startKm)));
                         const costs = money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
                         return (
-                          <tr key={t.id} className="border-t border-slate-100">
+                          <tr key={t.id} className="border-t border-neutral-100">
                             <td className="p-3">{t.date}</td>
-                            <td className="p-3">{t.from} → {t.to}</td>
+                            <td className="p-3">
+                              {t.from} → {t.to}
+                            </td>
                             <td className="p-3">{t.purpose || "—"}</td>
                             <td className="p-3">{t.vehicle || "—"}</td>
                             <td className="p-3 text-right">{dist ? dist.toFixed(0) : "—"}</td>
@@ -523,14 +541,16 @@ export default function TripItApp() {
                       })}
                       {!filteredTrips.length ? (
                         <tr>
-                          <td className="p-3 text-slate-500" colSpan={7}>(no trips)</td>
+                          <td className="p-3 text-neutral-500" colSpan={7}>
+                            (no trips)
+                          </td>
                         </tr>
                       ) : null}
                     </tbody>
                   </table>
                 </div>
 
-                <div className="mt-6 text-xs text-slate-500">ToolStack • Trip-It</div>
+                <div className="mt-6 text-xs text-neutral-500">ToolStack • Trip-It</div>
               </div>
             </div>
           </div>
@@ -538,25 +558,32 @@ export default function TripItApp() {
       ) : null}
 
       {/* Main */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+        {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-2xl font-semibold text-slate-900">Trip-It</div>
-            <div className="text-sm text-slate-600">Duty trips, mileage, and printable reports.</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Pill>{filteredTrips.length} trips</Pill>
+            <div className="text-2xl font-bold tracking-tight text-neutral-900">Trip-It</div>
+            <div className="text-sm text-neutral-600">Duty trips, mileage, and printable reports.</div>
+            <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Pill tone="accent">{filteredTrips.length} trips</Pill>
               <Pill>{totals.km.toFixed(0)} km</Pill>
               <Pill>{fmtMoney(totals.costs, totals.currency)} costs</Pill>
-              {totals.rate ? <Pill>{fmtMoney(totals.mileageClaim, totals.currency)} mileage</Pill> : null}
+              {totals.rate ? <Pill tone="warn">{fmtMoney(totals.mileageClaim, totals.currency)} mileage</Pill> : null}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <SmallButton onClick={() => setUi((p) => ({ ...p, previewOpen: true }))}>Preview</SmallButton>
-            <SmallButton onClick={() => window.print()} disabled={!filteredTrips.length}>Print / Save PDF</SmallButton>
-            <SmallButton onClick={exportCSV} disabled={!filteredTrips.length}>Export CSV</SmallButton>
+            <SmallButton onClick={() => window.print()} disabled={!filteredTrips.length}>
+              Print / Save PDF
+            </SmallButton>
+            <SmallButton onClick={exportCSV} disabled={!filteredTrips.length}>
+              Export CSV
+            </SmallButton>
             <SmallButton onClick={exportJSON}>Export</SmallButton>
-            <label className="print:hidden px-3 py-2 rounded-xl text-sm font-medium bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 cursor-pointer">
+
+            <label className={`${btnPrimary} cursor-pointer`}>
               Import
               <input type="file" className="hidden" accept="application/json" onChange={(e) => importJSON(e.target.files?.[0] || null)} />
             </label>
@@ -565,19 +592,19 @@ export default function TripItApp() {
 
         {/* Controls */}
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="rounded-2xl bg-white shadow-sm border border-slate-200">
-            <div className="px-4 py-3 border-b border-slate-100">
-              <div className="font-semibold text-slate-900">Defaults</div>
+          <div className={card}>
+            <div className={cardHead}>
+              <div className="font-semibold text-neutral-900">Defaults</div>
             </div>
-            <div className="p-4 space-y-3">
+            <div className={`${cardPad} space-y-3`}>
               <Field label="Organization">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={profile.orgName} onChange={(e) => setProfile((p) => ({ ...p, orgName: e.target.value }))} />
+                <input className={inputBase} value={profile.orgName} onChange={(e) => setProfile((p) => ({ ...p, orgName: e.target.value }))} />
               </Field>
               <Field label="Default vehicle">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={profile.defaultVehicle} onChange={(e) => setProfile((p) => ({ ...p, defaultVehicle: e.target.value }))} />
+                <input className={inputBase} value={profile.defaultVehicle} onChange={(e) => setProfile((p) => ({ ...p, defaultVehicle: e.target.value }))} />
               </Field>
               <Field label="Default currency">
-                <select className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={profile.defaultCurrency} onChange={(e) => setProfile((p) => ({ ...p, defaultCurrency: e.target.value }))}>
+                <select className={inputBase} value={profile.defaultCurrency} onChange={(e) => setProfile((p) => ({ ...p, defaultCurrency: e.target.value }))}>
                   <option value="EUR">EUR</option>
                   <option value="USD">USD</option>
                   <option value="ZAR">ZAR</option>
@@ -586,7 +613,7 @@ export default function TripItApp() {
               </Field>
               <Field label="Mileage rate (optional)" hint="per km">
                 <input
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  className={inputBase}
                   value={profile.mileageRate}
                   onChange={(e) => setProfile((p) => ({ ...p, mileageRate: e.target.value }))}
                   placeholder="e.g., 0.30"
@@ -596,74 +623,76 @@ export default function TripItApp() {
           </div>
 
           {/* Form */}
-          <div className="lg:col-span-2 rounded-2xl bg-white shadow-sm border border-slate-200">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className={`lg:col-span-2 ${card}`}>
+            <div className={`${cardHead} flex items-center justify-between gap-3`}>
               <div>
-                <div className="font-semibold text-slate-900">Add / Edit trip</div>
-                <div className="text-xs text-slate-500">Required: date, from, to, purpose</div>
+                <div className="font-semibold text-neutral-900">Add / Edit trip</div>
+                <div className="text-xs text-neutral-500">Required: date, from, to, purpose</div>
               </div>
               <div className="flex items-center gap-2">
                 <SmallButton onClick={resetForm}>New</SmallButton>
-                <SmallButton tone="primary" onClick={upsertTrip}>Save</SmallButton>
+                <SmallButton tone="primary" onClick={upsertTrip}>
+                  Save
+                </SmallButton>
               </div>
             </div>
 
-            <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className={`${cardPad} grid grid-cols-1 md:grid-cols-3 gap-3`}>
               <Field label="Date" hint="Required">
-                <input type="date" className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
+                <input type="date" className={inputBase} value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
               </Field>
               <Field label="Start time">
-                <input type="time" className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} />
+                <input type="time" className={inputBase} value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} />
               </Field>
               <Field label="End time">
-                <input type="time" className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.endTime} onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))} />
+                <input type="time" className={inputBase} value={form.endTime} onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))} />
               </Field>
 
               <Field label="From" hint="Required">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.from} onChange={(e) => setForm((p) => ({ ...p, from: e.target.value }))} placeholder="e.g., Consulate" />
+                <input className={inputBase} value={form.from} onChange={(e) => setForm((p) => ({ ...p, from: e.target.value }))} placeholder="e.g., Consulate" />
               </Field>
               <Field label="To" hint="Required">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.to} onChange={(e) => setForm((p) => ({ ...p, to: e.target.value }))} placeholder="e.g., Landshut" />
+                <input className={inputBase} value={form.to} onChange={(e) => setForm((p) => ({ ...p, to: e.target.value }))} placeholder="e.g., Landshut" />
               </Field>
               <Field label="Purpose" hint="Required">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} placeholder="e.g., Official pickup" />
+                <input className={inputBase} value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} placeholder="e.g., Official pickup" />
               </Field>
 
               <Field label="Vehicle">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.vehicle} onChange={(e) => setForm((p) => ({ ...p, vehicle: e.target.value }))} />
+                <input className={inputBase} value={form.vehicle} onChange={(e) => setForm((p) => ({ ...p, vehicle: e.target.value }))} />
               </Field>
               <Field label="Driver">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.driver} onChange={(e) => setForm((p) => ({ ...p, driver: e.target.value }))} />
+                <input className={inputBase} value={form.driver} onChange={(e) => setForm((p) => ({ ...p, driver: e.target.value }))} />
               </Field>
               <Field label="Passengers">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.passengers} onChange={(e) => setForm((p) => ({ ...p, passengers: e.target.value }))} placeholder="Names or count" />
+                <input className={inputBase} value={form.passengers} onChange={(e) => setForm((p) => ({ ...p, passengers: e.target.value }))} placeholder="Names or count" />
               </Field>
 
               <Field label="Start km">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.startKm} onChange={(e) => setForm((p) => ({ ...p, startKm: e.target.value }))} />
+                <input className={inputBase} value={form.startKm} onChange={(e) => setForm((p) => ({ ...p, startKm: e.target.value }))} />
               </Field>
               <Field label="End km">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.endKm} onChange={(e) => setForm((p) => ({ ...p, endKm: e.target.value }))} />
+                <input className={inputBase} value={form.endKm} onChange={(e) => setForm((p) => ({ ...p, endKm: e.target.value }))} />
               </Field>
               <Field label="Distance (km)" hint="auto">
-                <input className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" value={form.distanceKm} readOnly />
+                <input className={inputMuted} value={form.distanceKm} readOnly />
               </Field>
 
               <Field label="Fuel">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.fuelCost} onChange={(e) => setForm((p) => ({ ...p, fuelCost: e.target.value }))} />
+                <input className={inputBase} value={form.fuelCost} onChange={(e) => setForm((p) => ({ ...p, fuelCost: e.target.value }))} />
               </Field>
               <Field label="Tolls">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.tollCost} onChange={(e) => setForm((p) => ({ ...p, tollCost: e.target.value }))} />
+                <input className={inputBase} value={form.tollCost} onChange={(e) => setForm((p) => ({ ...p, tollCost: e.target.value }))} />
               </Field>
               <Field label="Parking">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.parkingCost} onChange={(e) => setForm((p) => ({ ...p, parkingCost: e.target.value }))} />
+                <input className={inputBase} value={form.parkingCost} onChange={(e) => setForm((p) => ({ ...p, parkingCost: e.target.value }))} />
               </Field>
 
               <Field label="Other costs">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.otherCost} onChange={(e) => setForm((p) => ({ ...p, otherCost: e.target.value }))} />
+                <input className={inputBase} value={form.otherCost} onChange={(e) => setForm((p) => ({ ...p, otherCost: e.target.value }))} />
               </Field>
               <Field label="Currency">
-                <select className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.currency} onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}>
+                <select className={inputBase} value={form.currency} onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}>
                   <option value="EUR">EUR</option>
                   <option value="USD">USD</option>
                   <option value="ZAR">ZAR</option>
@@ -671,12 +700,12 @@ export default function TripItApp() {
                 </select>
               </Field>
               <Field label="Proof reference" hint="receipt/email/pdf link">
-                <input className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.proof} onChange={(e) => setForm((p) => ({ ...p, proof: e.target.value }))} />
+                <input className={inputBase} value={form.proof} onChange={(e) => setForm((p) => ({ ...p, proof: e.target.value }))} />
               </Field>
 
               <div className="md:col-span-3">
                 <Field label="Notes">
-                  <textarea className="w-full min-h-[90px] rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+                  <textarea className={`${inputBase} min-h-[90px]`} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
                 </Field>
               </div>
             </div>
@@ -684,64 +713,84 @@ export default function TripItApp() {
         </div>
 
         {/* List */}
-        <div className="mt-5 rounded-2xl bg-white shadow-sm border border-slate-200">
-          <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <div className={`mt-5 ${card}`}>
+          <div className={`${cardHead} flex flex-wrap items-center justify-between gap-3`}>
             <div>
-              <div className="font-semibold text-slate-900">Trips</div>
-              <div className="text-xs text-slate-500">Filter by month and export reports.</div>
+              <div className="font-semibold text-neutral-900">Trips</div>
+              <div className="text-xs text-neutral-500">Filter by month and export reports.</div>
             </div>
             <div className="flex items-center gap-2">
               <select
-                className="print:hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="print:hidden rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300"
                 value={ui.month}
                 onChange={(e) => setUi((p) => ({ ...p, month: e.target.value }))}
               >
                 {monthOptions.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
               </select>
               <input
-                className="print:hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm w-64"
+                className="print:hidden rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300"
                 value={ui.search}
                 onChange={(e) => setUi((p) => ({ ...p, search: e.target.value }))}
                 placeholder="Search route/purpose…"
               />
-              <SmallButton onClick={() => setUi((p) => ({ ...p, previewOpen: true }))} disabled={!filteredTrips.length}>Preview</SmallButton>
+              <SmallButton onClick={() => setUi((p) => ({ ...p, previewOpen: true }))} disabled={!filteredTrips.length}>
+                Preview
+              </SmallButton>
             </div>
           </div>
 
-          <div className="p-4">
+          <div className={cardPad}>
             {filteredTrips.length ? (
               <div className="space-y-3">
                 {filteredTrips.map((t) => {
                   const dist = km(t.distanceKm || (km(t.endKm) - km(t.startKm)));
                   const costs = money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
                   return (
-                    <div key={t.id} className="rounded-2xl border border-slate-200 p-4">
+                    <div key={t.id} className="rounded-2xl border border-neutral-200 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-sm text-slate-500">{t.date}{t.startTime ? ` • ${t.startTime}` : ""}{t.endTime ? `–${t.endTime}` : ""}</div>
-                          <div className="text-lg font-semibold text-slate-900 truncate">{t.from} → {t.to}</div>
-                          <div className="text-sm text-slate-700 mt-1">{t.purpose || "—"}</div>
+                          <div className="text-sm text-neutral-500">
+                            {t.date}
+                            {t.startTime ? ` • ${t.startTime}` : ""}
+                            {t.endTime ? `–${t.endTime}` : ""}
+                          </div>
+                          <div className="text-lg font-semibold text-neutral-900 truncate">
+                            {t.from} → {t.to}
+                          </div>
+                          <div className="text-sm text-neutral-700 mt-1">{t.purpose || "—"}</div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Pill>{t.vehicle || "vehicle"}</Pill>
                             {dist ? <Pill>{dist.toFixed(0)} km</Pill> : <Pill>km —</Pill>}
                             {costs ? <Pill>{fmtMoney(costs, t.currency || totals.currency)}</Pill> : <Pill>costs —</Pill>}
-                            {t.proof ? <Pill>proof ✓</Pill> : <Pill>proof —</Pill>}
+                            {t.proof ? <Pill tone="accent">proof ✓</Pill> : <Pill>proof —</Pill>}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2">
                           <SmallButton onClick={() => editTrip(t)}>Edit</SmallButton>
                           <SmallButton onClick={() => duplicateTrip(t)}>Duplicate</SmallButton>
-                          <SmallButton tone="danger" onClick={() => requestDelete(t.id)}>Delete</SmallButton>
+                          <SmallButton tone="danger" onClick={() => requestDelete(t.id)}>
+                            Delete
+                          </SmallButton>
                         </div>
                       </div>
 
-                      {(t.passengers || t.driver || t.notes) ? (
-                        <div className="mt-3 text-sm text-slate-600">
-                          {t.driver ? <div><span className="text-slate-500">Driver:</span> {t.driver}</div> : null}
-                          {t.passengers ? <div><span className="text-slate-500">Passengers:</span> {t.passengers}</div> : null}
+                      {t.passengers || t.driver || t.notes ? (
+                        <div className="mt-3 text-sm text-neutral-600">
+                          {t.driver ? (
+                            <div>
+                              <span className="text-neutral-500">Driver:</span> {t.driver}
+                            </div>
+                          ) : null}
+                          {t.passengers ? (
+                            <div>
+                              <span className="text-neutral-500">Passengers:</span> {t.passengers}
+                            </div>
+                          ) : null}
                           {t.notes ? <div className="mt-2 whitespace-pre-wrap">{t.notes}</div> : null}
                         </div>
                       ) : null}
@@ -750,13 +799,13 @@ export default function TripItApp() {
                 })}
               </div>
             ) : (
-              <div className="text-sm text-slate-500">No trips for this filter yet.</div>
+              <div className="text-sm text-neutral-500">No trips for this filter yet.</div>
             )}
           </div>
         </div>
 
         {toast ? (
-          <div className="fixed bottom-6 right-6 rounded-2xl bg-slate-900 text-white px-4 py-3 shadow-lg print:hidden">
+          <div className="fixed bottom-6 right-6 rounded-2xl bg-neutral-900 text-white px-4 py-3 shadow-xl print:hidden">
             <div className="text-sm">{toast}</div>
           </div>
         ) : null}
