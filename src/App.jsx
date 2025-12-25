@@ -3,20 +3,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Ultimate v1 (Styled v1: neutral + lime accent)
  *
- * Upgrades:
- * - Quick Add mode (10-sec logging)
- * - Templates / Presets (one-tap fill)
- * - Period filters: Today / This Week / This Month / Custom / All
+ * Includes:
+ * - Quick Add mode
+ * - Templates / Presets + Template Manager (add/edit/delete)
+ * - Period filters: Today / This Week / Month / Custom / All
  * - Vehicle + Category filters + global search
- * - Duration calculation from start/end time
- * - Insights: totals by vehicle + category
- * - Email report (mailto text summary)
- * - Export/Import JSON (includes templates) + Export CSV (adds category + duration)
- * - Autosave to localStorage with safe migration
- *
- * Notes:
- * - Uses same LS_KEY to preserve existing saved data.
- * - AI can be added later as a bounded “report/gap checker” layer.
+ * - Duration calc (start/end time)
+ * - Insights (by vehicle/category)
+ * - Email report (mailto text summary, no attachment)
+ * - Weekly Backup (ENTIRE DATABASE) with ISO week filename
+ * - Export/Import JSON (includes templates + ui prefs) + Export CSV
+ * - Autosave to localStorage + safe migration
  */
 
 const LS_KEY = "toolstack_tripit_v1"; // keep to preserve existing saves
@@ -124,6 +121,16 @@ function clampDateRange(a, b) {
   return { from: a || "", to: b || "" };
 }
 
+// ISO week filename (YYYY-Www)
+function isoWeekKey(date = new Date()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // Thursday in current week decides the year
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
 const btnSecondary =
   "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
 const btnPrimary =
@@ -212,6 +219,35 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
   );
 }
 
+function ModalShell({ open, title, subtitle, onClose, children, actions }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 print:hidden">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-3xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
+        <div className="p-4 border-b border-neutral-100">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-neutral-900">{title}</div>
+              {subtitle ? <div className="text-sm text-neutral-600 mt-1">{subtitle}</div> : null}
+              <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+            </div>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <div className="p-4">{children}</div>
+        {actions ? <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">{actions}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 const DEFAULT_CATEGORIES = ["Official", "Errand", "Maintenance", "Training", "Private"];
 
 const blankTrip = () => ({
@@ -244,7 +280,6 @@ const blankTrip = () => ({
 
 function normalizeTrip(t, profile) {
   const base = { ...blankTrip(), ...t };
-  // preserve existing ids/dates
   base.id = t?.id || uid();
   base.date = t?.date || isoToday();
   base.vehicle = base.vehicle || profile?.defaultVehicle || "Vehicle";
@@ -293,9 +328,8 @@ export default function TripItApp() {
     orgName: "South African Consulate, Munich",
     defaultVehicle: "BMW 530i",
     defaultCurrency: "EUR",
-    mileageRate: "", // optional
+    mileageRate: "",
     vehicles: ["BMW 530i", "Mercedes Vito 119"],
-    drivers: [""],
     categories: DEFAULT_CATEGORIES,
   });
 
@@ -328,7 +362,7 @@ export default function TripItApp() {
       previewOpen: false,
       quickMode: pref.quickMode ?? true,
 
-      period: pref.period || "month", // today | week | month | custom | all
+      period: pref.period || "month",
       month: pref.month || monthKeyFromDate(isoToday()),
       customFrom: pref.customFrom || "",
       customTo: pref.customTo || "",
@@ -338,7 +372,11 @@ export default function TripItApp() {
       categoryFilter: "all",
 
       showInsights: pref.showInsights ?? true,
-      showTemplatePanel: pref.showTemplatePanel ?? true,
+
+      templateManagerOpen: false,
+      templateDraft: null, // {id,name,from,to,purpose,category,vehicle}
+      templateDeleteConfirm: { open: false, id: null },
+      lastBackupAt: pref.lastBackupAt || "",
     };
   });
 
@@ -352,7 +390,7 @@ export default function TripItApp() {
     toastTimer.current = setTimeout(() => setToast(null), 2200);
   };
 
-  // Load profile/templates + migrate safely
+  // Load saved + migrate safely
   useEffect(() => {
     const saved = localStorage.getItem(LS_KEY);
     const data = saved ? safeParse(saved, null) : null;
@@ -362,7 +400,6 @@ export default function TripItApp() {
         const merged = { ...p, ...data.profile };
         merged.vehicles = Array.isArray(merged.vehicles) && merged.vehicles.length ? merged.vehicles : p.vehicles;
         merged.categories = Array.isArray(merged.categories) && merged.categories.length ? merged.categories : p.categories;
-        merged.drivers = Array.isArray(merged.drivers) ? merged.drivers : p.drivers;
         return merged;
       });
     }
@@ -382,15 +419,9 @@ export default function TripItApp() {
     }
 
     if (Array.isArray(data?.trips)) {
-      setTrips((prev) => {
-        const raw = data.trips;
-        const normalized = raw.map((t) => normalizeTrip(t, data.profile || profile));
-        // if previous state already has data, prefer saved
-        return normalized;
-      });
+      setTrips(data.trips);
     }
 
-    // align form with defaults
     setForm((f) => ({
       ...f,
       vehicle: (data?.profile?.defaultVehicle || f.vehicle) || "Vehicle",
@@ -408,10 +439,21 @@ export default function TripItApp() {
       customFrom: ui.customFrom,
       customTo: ui.customTo,
       showInsights: ui.showInsights,
-      showTemplatePanel: ui.showTemplatePanel,
+      lastBackupAt: ui.lastBackupAt,
     };
     localStorage.setItem(LS_KEY, JSON.stringify({ profile, templates, trips, uiPrefs }));
-  }, [profile, templates, trips, ui.quickMode, ui.period, ui.month, ui.customFrom, ui.customTo, ui.showInsights, ui.showTemplatePanel]);
+  }, [
+    profile,
+    templates,
+    trips,
+    ui.quickMode,
+    ui.period,
+    ui.month,
+    ui.customFrom,
+    ui.customTo,
+    ui.showInsights,
+    ui.lastBackupAt,
+  ]);
 
   // Keep form distance updated
   useEffect(() => {
@@ -425,16 +467,18 @@ export default function TripItApp() {
   const vehicles = useMemo(() => {
     const fromProfile = Array.isArray(profile.vehicles) ? profile.vehicles.filter(Boolean) : [];
     const fromTrips = Array.from(new Set(trips.map((t) => (t.vehicle || "").trim()).filter(Boolean)));
-    const all = Array.from(new Set([...fromProfile, ...fromTrips]));
+    const fromTemplates = Array.from(new Set(templates.map((t) => (t.vehicle || "").trim()).filter(Boolean)));
+    const all = Array.from(new Set([...fromProfile, ...fromTrips, ...fromTemplates]));
     return all.length ? all : ["Vehicle"];
-  }, [profile.vehicles, trips]);
+  }, [profile.vehicles, trips, templates]);
 
   const categories = useMemo(() => {
     const fromProfile = Array.isArray(profile.categories) ? profile.categories.filter(Boolean) : [];
     const fromTrips = Array.from(new Set(trips.map((t) => (t.category || "").trim()).filter(Boolean)));
-    const all = Array.from(new Set([...fromProfile, ...fromTrips]));
+    const fromTemplates = Array.from(new Set(templates.map((t) => (t.category || "").trim()).filter(Boolean)));
+    const all = Array.from(new Set([...fromProfile, ...fromTrips, ...fromTemplates]));
     return all.length ? all : DEFAULT_CATEGORIES;
-  }, [profile.categories, trips]);
+  }, [profile.categories, trips, templates]);
 
   // Period boundaries
   const periodRange = useMemo(() => {
@@ -445,7 +489,6 @@ export default function TripItApp() {
     if (ui.period === "month") {
       const m = ui.month || monthKeyFromDate(today);
       const from = `${m}-01`;
-      // compute last day of month:
       const d = new Date(from + "T00:00:00");
       d.setMonth(d.getMonth() + 1);
       d.setDate(0);
@@ -511,10 +554,6 @@ export default function TripItApp() {
     return {
       count: list.length,
       km: sumKm,
-      fuel: sumFuel,
-      toll: sumToll,
-      parking: sumPark,
-      other: sumOther,
       costs: sumCosts,
       durationMin: sumDur,
       mileageClaim,
@@ -629,8 +668,30 @@ export default function TripItApp() {
     notify("Deleted");
   };
 
+  const getDBPackage = () => {
+    const uiPrefs = {
+      quickMode: ui.quickMode,
+      period: ui.period,
+      month: ui.month,
+      customFrom: ui.customFrom,
+      customTo: ui.customTo,
+      showInsights: ui.showInsights,
+      lastBackupAt: ui.lastBackupAt,
+    };
+    return { profile, templates, trips, uiPrefs };
+  };
+
+  const weeklyBackup = () => {
+    const key = isoWeekKey(new Date());
+    const filename = `toolstack-trip-it-backup-${key}.json`;
+    downloadBlob(filename, JSON.stringify(getDBPackage(), null, 2), "application/json");
+    const stamp = new Date().toISOString();
+    setUi((p) => ({ ...p, lastBackupAt: stamp }));
+    notify(`Backup saved: ${key}`);
+  };
+
   const exportJSON = () => {
-    downloadBlob("toolstack-trip-it.json", JSON.stringify({ profile, templates, trips }, null, 2), "application/json");
+    downloadBlob("toolstack-trip-it.json", JSON.stringify(getDBPackage(), null, 2), "application/json");
   };
 
   const importJSON = async (file) => {
@@ -641,7 +702,7 @@ export default function TripItApp() {
       notify("Invalid JSON");
       return;
     }
-    setProfile((p) => ({ ...p, ...(parsed.profile || {}) }));
+    if (parsed.profile) setProfile((p) => ({ ...p, ...parsed.profile }));
     if (Array.isArray(parsed.templates)) setTemplates(parsed.templates);
     setTrips(parsed.trips);
     notify("Imported");
@@ -669,8 +730,6 @@ export default function TripItApp() {
         "parkingCost",
         "otherCost",
         "currency",
-        "issueFlag",
-        "issueNotes",
         "notes",
         "proof",
       ],
@@ -694,8 +753,6 @@ export default function TripItApp() {
         t.parkingCost,
         t.otherCost,
         t.currency,
-        t.issueFlag ? "1" : "0",
-        (t.issueNotes || "").replaceAll("\n", " "),
         (t.notes || "").replaceAll("\n", " "),
         (t.proof || "").replaceAll("\n", " "),
       ]),
@@ -733,19 +790,78 @@ export default function TripItApp() {
     window.location.href = mailto;
   };
 
-  // quick-mode helpers
-  const quickWarn = useMemo(() => {
-    const s = form.startKm === "" ? null : km(form.startKm);
-    const e = form.endKm === "" ? null : km(form.endKm);
-    if (s != null && e != null && e < s) return "End km is lower than start km.";
-    const dist = e != null && s != null ? e - s : null;
-    if (dist != null && dist > 1200) return "Big distance — double-check odometer.";
-    if (form.startTime && form.endTime && durationMinutes(form.startTime, form.endTime) === 0) return "End time is not after start time.";
-    return "";
-  }, [form.startKm, form.endKm, form.startTime, form.endTime]);
+  // Template Manager
+  const openTemplateManager = () => setUi((p) => ({ ...p, templateManagerOpen: true, templateDraft: null }));
 
-  const costsOf = (t) => money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
+  const startNewTemplateFromForm = () => {
+    setUi((p) => ({
+      ...p,
+      templateManagerOpen: true,
+      templateDraft: {
+        id: uid(),
+        name: "New template",
+        from: form.from || "",
+        to: form.to || "",
+        purpose: form.purpose || "",
+        category: form.category || "Official",
+        vehicle: form.vehicle || profile.defaultVehicle || "",
+      },
+    }));
+  };
+
+  const editTemplate = (tpl) => {
+    setUi((p) => ({
+      ...p,
+      templateManagerOpen: true,
+      templateDraft: {
+        id: tpl.id,
+        name: tpl.name || "Template",
+        from: tpl.from || "",
+        to: tpl.to || "",
+        purpose: tpl.purpose || "",
+        category: tpl.category || "Official",
+        vehicle: tpl.vehicle || "",
+      },
+    }));
+  };
+
+  const saveTemplateDraft = () => {
+    const d = ui.templateDraft;
+    if (!d) return;
+    const name = String(d.name || "").trim();
+    if (!name) {
+      notify("Template name required");
+      return;
+    }
+    const next = {
+      id: d.id || uid(),
+      name,
+      from: String(d.from || ""),
+      to: String(d.to || ""),
+      purpose: String(d.purpose || ""),
+      category: String(d.category || "Official"),
+      vehicle: String(d.vehicle || profile.defaultVehicle || ""),
+    };
+    setTemplates((prev) => {
+      const exists = prev.some((t) => t.id === next.id);
+      if (exists) return prev.map((t) => (t.id === next.id ? next : t));
+      return [next, ...prev];
+    });
+    setUi((p) => ({ ...p, templateDraft: null }));
+    notify("Template saved");
+  };
+
+  const requestDeleteTemplate = (id) => setUi((p) => ({ ...p, templateDeleteConfirm: { open: true, id } }));
+
+  const deleteTemplateNow = () => {
+    const id = ui.templateDeleteConfirm.id;
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
+    setUi((p) => ({ ...p, templateDeleteConfirm: { open: false, id: null }, templateDraft: null }));
+    notify("Template deleted");
+  };
+
   const distOf = (t) => km(t.distanceKm || (km(t.endKm) - km(t.startKm)));
+  const costsOf = (t) => money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -753,16 +869,6 @@ export default function TripItApp() {
       <style>{`
         @media print { .print\\:hidden { display: none !important; } }
       `}</style>
-
-      {ui.previewOpen ? (
-        <style>{`
-          @media print {
-            body * { visibility: hidden !important; }
-            #tripit-print, #tripit-print * { visibility: visible !important; }
-            #tripit-print { position: absolute !important; left: 0; top: 0; width: 100%; }
-          }
-        `}</style>
-      ) : null}
 
       <ConfirmModal
         open={confirm.open}
@@ -772,129 +878,179 @@ export default function TripItApp() {
         onConfirm={deleteNow}
       />
 
-      {/* Print Preview */}
-      {ui.previewOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setUi((p) => ({ ...p, previewOpen: false }))} />
-          <div className="relative w-full max-w-6xl">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="text-lg font-semibold text-white">Trip report</div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="px-3 py-2 rounded-xl text-sm font-medium border border-white/40 bg-white/10 hover:bg-white/15 text-white transition"
-                  onClick={() => window.print()}
-                >
-                  Print / Save PDF
-                </button>
-                <button
-                  className="px-3 py-2 rounded-xl text-sm font-medium border border-white/40 bg-white/10 hover:bg-white/15 text-white transition"
-                  onClick={() => setUi((p) => ({ ...p, previewOpen: false }))}
-                >
-                  Close
-                </button>
-              </div>
+      <ConfirmModal
+        open={ui.templateDeleteConfirm.open}
+        title="Delete template?"
+        message="This will remove the template permanently."
+        onCancel={() => setUi((p) => ({ ...p, templateDeleteConfirm: { open: false, id: null } }))}
+        onConfirm={deleteTemplateNow}
+      />
+
+      <ModalShell
+        open={ui.templateManagerOpen}
+        title="Template Manager"
+        subtitle="Add, edit, delete templates. Use templates to log trips in seconds."
+        onClose={() => setUi((p) => ({ ...p, templateManagerOpen: false, templateDraft: null }))}
+        actions={
+          ui.templateDraft ? (
+            <>
+              <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, templateDraft: null }))}>
+                Cancel edit
+              </SmallButton>
+              <SmallButton tone="primary" onClick={saveTemplateDraft}>
+                Save template
+              </SmallButton>
+            </>
+          ) : (
+            <>
+              <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, templateManagerOpen: false }))}>
+                Done
+              </SmallButton>
+            </>
+          )
+        }
+      >
+        {ui.templateDraft ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Template name" hint="Required">
+              <input
+                className={inputBase}
+                value={ui.templateDraft.name}
+                onChange={(e) =>
+                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, name: e.target.value } }))
+                }
+              />
+            </Field>
+
+            <Field label="Vehicle">
+              <select
+                className={inputBase}
+                value={ui.templateDraft.vehicle}
+                onChange={(e) =>
+                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, vehicle: e.target.value } }))
+                }
+              >
+                {vehicles.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Category">
+              <select
+                className={inputBase}
+                value={ui.templateDraft.category}
+                onChange={(e) =>
+                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, category: e.target.value } }))
+                }
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <div />
+
+            <Field label="From">
+              <input
+                className={inputBase}
+                value={ui.templateDraft.from}
+                onChange={(e) =>
+                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, from: e.target.value } }))
+                }
+              />
+            </Field>
+
+            <Field label="To">
+              <input
+                className={inputBase}
+                value={ui.templateDraft.to}
+                onChange={(e) =>
+                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, to: e.target.value } }))
+                }
+              />
+            </Field>
+
+            <div className="md:col-span-2">
+              <Field label="Purpose">
+                <input
+                  className={inputBase}
+                  value={ui.templateDraft.purpose}
+                  onChange={(e) =>
+                    setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, purpose: e.target.value } }))
+                  }
+                />
+              </Field>
             </div>
 
-            <div className="rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-auto max-h-[80vh]">
-              <div id="tripit-print" className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-2xl font-bold tracking-tight text-neutral-900">Trip Report</div>
-                    <div className="text-sm text-neutral-600 mt-1">{profile.orgName || "—"}</div>
-                    <div className="text-sm text-neutral-600">Period: {periodLabel}</div>
-                    {(ui.vehicleFilter !== "all" || ui.categoryFilter !== "all" || ui.search.trim()) ? (
-                      <div className="text-xs text-neutral-500 mt-1">
-                        Filters: {ui.vehicleFilter !== "all" ? `Vehicle=${ui.vehicleFilter}` : ""}
-                        {ui.categoryFilter !== "all" ? `${ui.vehicleFilter !== "all" ? " • " : ""}Category=${ui.categoryFilter}` : ""}
-                        {ui.search.trim() ? `${ui.vehicleFilter !== "all" || ui.categoryFilter !== "all" ? " • " : ""}Search="${ui.search.trim()}"` : ""}
-                      </div>
-                    ) : null}
-                    <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
-                  </div>
-                  <div className="text-sm text-neutral-600">Generated: {new Date().toLocaleString()}</div>
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 md:grid-cols-5 gap-3">
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-xs text-neutral-500">Trips</div>
-                    <div className="text-xl font-semibold text-neutral-900 mt-1">{totals.count}</div>
-                  </div>
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-xs text-neutral-500">Total km</div>
-                    <div className="text-xl font-semibold text-neutral-900 mt-1">{totals.km.toFixed(0)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-xs text-neutral-500">Logged duration</div>
-                    <div className="text-xl font-semibold text-neutral-900 mt-1">{fmtDuration(totals.durationMin)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-xs text-neutral-500">Out-of-pocket costs</div>
-                    <div className="text-xl font-semibold text-neutral-900 mt-1">{fmtMoney(totals.costs, totals.currency)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-xs text-neutral-500">Mileage claim</div>
-                    <div className="text-xl font-semibold text-neutral-900 mt-1">
-                      {totals.rate ? fmtMoney(totals.mileageClaim, totals.currency) : "—"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-2xl border border-neutral-200 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-neutral-50 text-neutral-700">
-                      <tr>
-                        <th className="text-left p-3">Date</th>
-                        <th className="text-left p-3">Route</th>
-                        <th className="text-left p-3">Purpose</th>
-                        <th className="text-left p-3">Category</th>
-                        <th className="text-left p-3">Vehicle</th>
-                        <th className="text-right p-3">Km</th>
-                        <th className="text-right p-3">Dur</th>
-                        <th className="text-right p-3">Costs</th>
-                        <th className="text-left p-3">Proof</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTrips.map((t) => {
-                        const dist = distOf(t);
-                        const costs = costsOf(t);
-                        const dur = durationMinutes(t.startTime, t.endTime);
-                        return (
-                          <tr key={t.id} className="border-t border-neutral-100">
-                            <td className="p-3">
-                              {t.date}
-                              {t.issueFlag ? <span className="ml-2 text-xs text-red-700">⚠</span> : null}
-                            </td>
-                            <td className="p-3">
-                              {t.from} → {t.to}
-                            </td>
-                            <td className="p-3">{t.purpose || "—"}</td>
-                            <td className="p-3">{t.category || "—"}</td>
-                            <td className="p-3">{t.vehicle || "—"}</td>
-                            <td className="p-3 text-right">{dist ? dist.toFixed(0) : "—"}</td>
-                            <td className="p-3 text-right">{dur ? fmtDuration(dur) : "—"}</td>
-                            <td className="p-3 text-right">{costs ? fmtMoney(costs, t.currency || totals.currency) : "—"}</td>
-                            <td className="p-3">{t.proof || "—"}</td>
-                          </tr>
-                        );
-                      })}
-                      {!filteredTrips.length ? (
-                        <tr>
-                          <td className="p-3 text-neutral-500" colSpan={9}>
-                            (no trips)
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-6 text-xs text-neutral-500">ToolStack • Trip-It</div>
-              </div>
+            <div className="md:col-span-2 flex justify-end">
+              <SmallButton tone="danger" onClick={() => requestDeleteTemplate(ui.templateDraft.id)}>
+                Delete template
+              </SmallButton>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="text-sm text-neutral-600">
+                You have <span className="font-semibold text-neutral-900">{templates.length}</span> templates.
+              </div>
+              <SmallButton tone="primary" onClick={startNewTemplateFromForm} title="Create a template from current form fields">
+                Save current form as template
+              </SmallButton>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-neutral-700">
+                  <tr>
+                    <th className="text-left p-3">Name</th>
+                    <th className="text-left p-3">Route</th>
+                    <th className="text-left p-3">Vehicle</th>
+                    <th className="text-left p-3">Category</th>
+                    <th className="text-right p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templates.map((t) => (
+                    <tr key={t.id} className="border-t border-neutral-100">
+                      <td className="p-3 font-medium text-neutral-900">{t.name}</td>
+                      <td className="p-3 text-neutral-700">
+                        {(t.from || "—")} → {(t.to || "—")}
+                      </td>
+                      <td className="p-3 text-neutral-700">{t.vehicle || "—"}</td>
+                      <td className="p-3 text-neutral-700">{t.category || "—"}</td>
+                      <td className="p-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <SmallButton onClick={() => applyTemplate(t)}>Apply</SmallButton>
+                          <SmallButton onClick={() => editTemplate(t)}>Edit</SmallButton>
+                          <SmallButton tone="danger" onClick={() => requestDeleteTemplate(t.id)}>Delete</SmallButton>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!templates.length ? (
+                    <tr>
+                      <td className="p-3 text-neutral-500" colSpan={5}>
+                        (no templates)
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="text-xs text-neutral-500 mt-3">
+              Tip: Build templates for your repeat work. Then keep Trip-It in Quick Add mode most days.
+            </div>
+          </div>
+        )}
+      </ModalShell>
 
       {/* Main */}
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
@@ -902,7 +1058,7 @@ export default function TripItApp() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-2xl font-bold tracking-tight text-neutral-900">Trip-It</div>
-            <div className="text-sm text-neutral-600">Daily duty trips, mileage, and printable reports.</div>
+            <div className="text-sm text-neutral-600">Daily duty trips, mileage, and reliable backups.</div>
             <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             <div className="mt-3 flex flex-wrap gap-2">
               <Pill tone="accent">{filteredTrips.length} trips</Pill>
@@ -915,11 +1071,9 @@ export default function TripItApp() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <SmallButton onClick={() => setUi((p) => ({ ...p, previewOpen: true }))} disabled={!filteredTrips.length}>
-              Preview
-            </SmallButton>
-            <SmallButton onClick={() => window.print()} disabled={!filteredTrips.length}>
-              Print / Save PDF
+            <SmallButton onClick={openTemplateManager}>Templates</SmallButton>
+            <SmallButton onClick={weeklyBackup} title="Exports entire database (profile + templates + trips + prefs)">
+              Weekly Backup
             </SmallButton>
             <SmallButton onClick={emailReport} disabled={!filteredTrips.length} title="Open email with report summary (no attachment)">
               Email
@@ -928,7 +1082,6 @@ export default function TripItApp() {
               Export CSV
             </SmallButton>
             <SmallButton onClick={exportJSON}>Export</SmallButton>
-
             <label className={`${btnPrimary} cursor-pointer`}>
               Import
               <input type="file" className="hidden" accept="application/json" onChange={(e) => importJSON(e.target.files?.[0] || null)} />
@@ -936,7 +1089,13 @@ export default function TripItApp() {
           </div>
         </div>
 
-        {/* Filters + Quick Settings */}
+        {ui.lastBackupAt ? (
+          <div className="mt-3 text-xs text-neutral-500">
+            Last backup: {new Date(ui.lastBackupAt).toLocaleString()}
+          </div>
+        ) : null}
+
+        {/* Filters */}
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-3">
           <div className={card}>
             <div className={cardHead}>
@@ -975,23 +1134,6 @@ export default function TripItApp() {
                   </button>
                 </div>
 
-                {ui.period === "month" ? (
-                  <div className="mt-2">
-                    <select className={inputBase} value={ui.month} onChange={(e) => setUi((p) => ({ ...p, month: e.target.value }))}>
-                      {Array.from(
-                        new Set([monthKeyFromDate(isoToday()), ...trips.map((t) => monthKeyFromDate(t.date)).filter(Boolean)])
-                      )
-                        .sort()
-                        .reverse()
-                        .map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                ) : null}
-
                 <div className="mt-2">
                   <button
                     type="button"
@@ -1008,6 +1150,23 @@ export default function TripItApp() {
                     Custom range
                   </button>
                 </div>
+
+                {ui.period === "month" ? (
+                  <div className="mt-2">
+                    <select className={inputBase} value={ui.month} onChange={(e) => setUi((p) => ({ ...p, month: e.target.value }))}>
+                      {Array.from(
+                        new Set([monthKeyFromDate(isoToday()), ...trips.map((t) => monthKeyFromDate(t.date)).filter(Boolean)])
+                      )
+                        .sort()
+                        .reverse()
+                        .map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
 
                 {ui.period === "custom" ? (
                   <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1071,7 +1230,7 @@ export default function TripItApp() {
                     }))
                   }
                 >
-                  Reset filters
+                  Reset
                 </SmallButton>
 
                 <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, showInsights: !p.showInsights }))}>
@@ -1085,13 +1244,10 @@ export default function TripItApp() {
             </div>
           </div>
 
-          {/* Defaults + Templates */}
+          {/* Defaults */}
           <div className={card}>
-            <div className={`${cardHead} flex items-center justify-between gap-3`}>
-              <div className="font-semibold text-neutral-900">Defaults & Templates</div>
-              <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, showTemplatePanel: !p.showTemplatePanel }))}>
-                {ui.showTemplatePanel ? "Hide" : "Show"}
-              </SmallButton>
+            <div className={cardHead}>
+              <div className="font-semibold text-neutral-900">Defaults</div>
             </div>
             <div className={`${cardPad} space-y-3`}>
               <Field label="Organization">
@@ -1122,30 +1278,9 @@ export default function TripItApp() {
                 </Field>
               </div>
 
-              {ui.showTemplatePanel ? (
-                <div className="pt-2 border-t border-neutral-100">
-                  <div className="text-sm font-medium text-neutral-900">Templates</div>
-                  <div className="text-xs text-neutral-500 mt-1">Tap to prefill the form.</div>
-
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {templates.map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        type="button"
-                        className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm transition"
-                        onClick={() => applyTemplate(tpl)}
-                        title={`${tpl.from || "—"} → ${tpl.to || "—"} • ${tpl.vehicle || "—"} • ${tpl.category || "—"}`}
-                      >
-                        {tpl.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 text-xs text-neutral-500">
-                    Later we can add “Manage templates” (create/edit/delete). For now: quick preset fill + keep it simple.
-                  </div>
-                </div>
-              ) : null}
+              <div className="text-xs text-neutral-500">
+                Work routine: “This week” filter → Email/CSV if needed → Friday Weekly Backup.
+              </div>
             </div>
           </div>
 
@@ -1213,9 +1348,7 @@ export default function TripItApp() {
                 </div>
               </div>
 
-              <div className="text-xs text-neutral-500">
-                Tip: Use “This week” + “Vehicle filter” for a clean weekly duty report.
-              </div>
+              <div className="text-xs text-neutral-500">Tip: “This week” + “Vehicle” = clean weekly report.</div>
             </div>
           </div>
         </div>
@@ -1227,13 +1360,16 @@ export default function TripItApp() {
               <div className="font-semibold text-neutral-900">{ui.quickMode ? "Quick Add" : "Add / Edit trip"}</div>
               <div className="text-xs text-neutral-500">Required: date, from, to, purpose</div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <SmallButton onClick={resetForm}>New</SmallButton>
               <SmallButton tone="ghost" onClick={() => setForm((p) => ({ ...p, startTime: nowTimeHHMM() }))} title="Set start time to now">
                 Start now
               </SmallButton>
               <SmallButton tone="ghost" onClick={() => setForm((p) => ({ ...p, endTime: nowTimeHHMM() }))} title="Set end time to now">
                 End now
+              </SmallButton>
+              <SmallButton tone="ghost" onClick={() => applyTemplate(templates[0] || {})} disabled={!templates.length} title="Apply first template (fast)">
+                Quick template
               </SmallButton>
               <SmallButton tone="primary" onClick={upsertTrip}>
                 Save
@@ -1302,7 +1438,6 @@ export default function TripItApp() {
               <input className={inputMuted} value={form.distanceKm} readOnly />
             </Field>
 
-            {/* QUICK MODE stops here */}
             {!ui.quickMode ? (
               <>
                 <Field label="Driver">
@@ -1338,42 +1473,16 @@ export default function TripItApp() {
                   <input className={inputBase} value={form.proof} onChange={(e) => setForm((p) => ({ ...p, proof: e.target.value }))} />
                 </Field>
 
-                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="md:col-span-1 rounded-2xl border border-neutral-200 p-3">
-                    <div className="text-sm font-medium text-neutral-900">Issue?</div>
-                    <div className="text-xs text-neutral-500 mt-1">Flag incidents for follow-up.</div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <button
-                        type="button"
-                        className={`h-6 w-10 rounded-full border transition ${
-                          form.issueFlag ? "bg-neutral-900 border-neutral-900" : "bg-white border-neutral-300"
-                        }`}
-                        onClick={() => setForm((p) => ({ ...p, issueFlag: !p.issueFlag }))}
-                        title="Toggle issue flag"
-                      >
-                        <span
-                          className={`block h-5 w-5 rounded-full bg-white shadow transition ${
-                            form.issueFlag ? "translate-x-4" : "translate-x-0.5"
-                          }`}
-                        />
-                      </button>
-                      {form.issueFlag ? <Pill tone="bad">flagged</Pill> : <Pill>none</Pill>}
-                    </div>
-                    {form.issueFlag ? (
-                      <textarea
-                        className={`${inputBase} mt-2 min-h-[70px]`}
-                        placeholder="What happened? (short)"
-                        value={form.issueNotes}
-                        onChange={(e) => setForm((p) => ({ ...p, issueNotes: e.target.value }))}
-                      />
-                    ) : null}
-                  </div>
+                <div className="md:col-span-3">
+                  <Field label="Notes">
+                    <textarea className={`${inputBase} min-h-[100px]`} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+                  </Field>
+                </div>
 
-                  <div className="md:col-span-2">
-                    <Field label="Notes">
-                      <textarea className={`${inputBase} min-h-[110px]`} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
-                    </Field>
-                  </div>
+                <div className="md:col-span-3">
+                  <SmallButton tone="primary" onClick={startNewTemplateFromForm}>
+                    Save current form as template
+                  </SmallButton>
                 </div>
               </>
             ) : (
@@ -1381,13 +1490,13 @@ export default function TripItApp() {
                 <div className="rounded-2xl border border-neutral-200 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm font-medium text-neutral-900">Quick Add tips</div>
-                    <div className="text-xs text-neutral-500">Switch to “Full form” for costs, proofs, incidents.</div>
+                    <div className="text-xs text-neutral-500">Switch to “Full form” for costs, proofs, notes.</div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <Pill>Start/End now buttons</Pill>
-                    <Pill>Templates panel</Pill>
-                    <Pill>Weekly report: “This week” + Preview</Pill>
-                    {quickWarn ? <Pill tone="warn">{quickWarn}</Pill> : <Pill tone="accent">All good</Pill>}
+                    <Pill>Templates button (top)</Pill>
+                    <Pill>Friday: Weekly Backup</Pill>
+                    <Pill>“This week” = clean report</Pill>
+                    <Pill tone="accent">Fast & safe</Pill>
                   </div>
                 </div>
               </div>
@@ -1400,13 +1509,9 @@ export default function TripItApp() {
           <div className={`${cardHead} flex flex-wrap items-center justify-between gap-3`}>
             <div>
               <div className="font-semibold text-neutral-900">Trips</div>
-              <div className="text-xs text-neutral-500">Filtered view respects period, vehicle, category and search.</div>
+              <div className="text-xs text-neutral-500">Your filtered working set for reporting.</div>
             </div>
-            <div className="flex items-center gap-2">
-              <SmallButton onClick={() => setUi((p) => ({ ...p, previewOpen: true }))} disabled={!filteredTrips.length}>
-                Preview
-              </SmallButton>
-            </div>
+            <div className="text-xs text-neutral-500">{filteredTrips.length} entries</div>
           </div>
 
           <div className={cardPad}>
@@ -1417,14 +1522,13 @@ export default function TripItApp() {
                   const costs = costsOf(t);
                   const dur = durationMinutes(t.startTime, t.endTime);
                   return (
-                    <div key={t.id} className={`rounded-2xl border p-4 ${t.issueFlag ? "border-red-200 bg-red-50" : "border-neutral-200 bg-white"}`}>
+                    <div key={t.id} className="rounded-2xl border border-neutral-200 p-4 bg-white">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm text-neutral-500">
                             {t.date}
                             {t.startTime ? ` • ${t.startTime}` : ""}
                             {t.endTime ? `–${t.endTime}` : ""}
-                            {t.issueFlag ? <span className="ml-2 text-red-700">⚠ issue</span> : null}
                           </div>
                           <div className="text-lg font-semibold text-neutral-900 truncate">
                             {t.from} → {t.to}
@@ -1450,20 +1554,19 @@ export default function TripItApp() {
                         </div>
                       </div>
 
-                      {(t.passengers || t.driver || t.notes || t.issueNotes) && !ui.quickMode ? (
-                        <div className="mt-3 text-sm text-neutral-700">
+                      {(t.passengers || t.driver || t.notes) && !ui.quickMode ? (
+                        <div className="mt-3 text-sm text-neutral-600">
                           {t.driver ? (
-                            <div className="text-neutral-600">
+                            <div>
                               <span className="text-neutral-500">Driver:</span> {t.driver}
                             </div>
                           ) : null}
                           {t.passengers ? (
-                            <div className="text-neutral-600">
+                            <div>
                               <span className="text-neutral-500">Passengers:</span> {t.passengers}
                             </div>
                           ) : null}
-                          {t.issueNotes ? <div className="mt-2 text-red-800 whitespace-pre-wrap">{t.issueNotes}</div> : null}
-                          {t.notes ? <div className="mt-2 text-neutral-600 whitespace-pre-wrap">{t.notes}</div> : null}
+                          {t.notes ? <div className="mt-2 whitespace-pre-wrap">{t.notes}</div> : null}
                         </div>
                       ) : null}
                     </div>
