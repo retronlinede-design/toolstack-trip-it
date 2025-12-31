@@ -3,12 +3,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1
  *
- * Changes (per Retro request):
- * 1) No default seeded data (new installs start empty)
- * 2) Vehicle manager (add/edit/delete vehicles)
- * 3) Trips are stored per-vehicle (select vehicle → log trips for that vehicle only)
- * 4) Normalized top actions grid (mobile-aligned buttons)
- * 5) Migration: if legacy data exists, migrate to one "Imported vehicle"
+ * Included:
+ * - Vehicles (add/edit/delete), select active vehicle
+ * - Trips stored per-vehicle + month filter
+ * - Fuel log stored per-vehicle + month filter
+ * - Monthly totals: distance + costs + fuel spend + liters
+ * - Export/Import JSON (includes fuel logs)
+ * - Export CSV for trips + fuel
+ * - Print Preview (prints only preview sheet)
  */
 
 const LS_KEY = "toolstack_tripit_v1";
@@ -16,9 +18,7 @@ const LS_KEY = "toolstack_tripit_v1";
 const uid = () => {
   try {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  } catch {
-    // ignore
-  }
+  } catch {}
   return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 };
 
@@ -40,7 +40,7 @@ const toNumber = (v) => {
 
 const money = (v, currency = "EUR") => {
   const n = toNumber(v);
-  const sym = currency === "EUR" ? "€" : currency === "USD" ? "$" : `${currency} `;
+  const sym = currency === "EUR" ? "€" : currency === "USD" ? "$" : currency === "GBP" ? "£" : `${currency} `;
   return `${sym}${n.toFixed(2)}`;
 };
 
@@ -110,7 +110,11 @@ function Pill({ children, tone = "default" }) {
       : tone === "warn"
         ? "border-amber-200 bg-amber-50 text-neutral-800"
         : "border-neutral-200 bg-white text-neutral-700";
-  return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>{children}</span>;
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>
+      {children}
+    </span>
+  );
 }
 
 function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm, onCancel }) {
@@ -151,10 +155,12 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
  *   vehicles: [{ id, name, make, model, plate, vin, notes }],
  *   activeVehicleId: string|null,
  *   tripsByVehicle: { [vehicleId]: Trip[] },
+ *   fuelByVehicle: { [vehicleId]: Fuel[] },
  *   ui: { month: "YYYY-MM" },
  * }
  *
  * Trip = { id, date, from, to, purpose, driver, passengers, odoStart, odoEnd, distance, costs:{fuel,tolls,parking,other,currency}, notes }
+ * Fuel = { id, date, odometer, liters, totalCost, currency, fullTank, station, notes }
  */
 
 function emptyApp() {
@@ -162,6 +168,7 @@ function emptyApp() {
     vehicles: [],
     activeVehicleId: null,
     tripsByVehicle: {},
+    fuelByVehicle: {},
     ui: { month: monthKey(todayISO()) },
   };
 }
@@ -172,6 +179,7 @@ function normalizeApp(raw) {
 
   const vehicles = Array.isArray(a.vehicles) ? a.vehicles.filter(Boolean) : [];
   const tripsByVehicle = a.tripsByVehicle && typeof a.tripsByVehicle === "object" ? a.tripsByVehicle : {};
+  const fuelByVehicle = a.fuelByVehicle && typeof a.fuelByVehicle === "object" ? a.fuelByVehicle : {};
   const ui = a.ui && typeof a.ui === "object" ? a.ui : base.ui;
 
   const normVehicles = vehicles.map((v) => ({
@@ -185,6 +193,8 @@ function normalizeApp(raw) {
   }));
 
   const normTripsByVehicle = {};
+  const normFuelByVehicle = {};
+
   for (const v of normVehicles) {
     const list = Array.isArray(tripsByVehicle[v.id]) ? tripsByVehicle[v.id] : [];
     normTripsByVehicle[v.id] = list
@@ -218,9 +228,23 @@ function normalizeApp(raw) {
           notes: String(t.notes ?? ""),
         };
       });
+
+    const flist = Array.isArray(fuelByVehicle[v.id]) ? fuelByVehicle[v.id] : [];
+    normFuelByVehicle[v.id] = flist
+      .filter(Boolean)
+      .map((f) => ({
+        id: f.id || uid(),
+        date: typeof f.date === "string" && f.date ? f.date : todayISO(),
+        odometer: f.odometer ?? "",
+        liters: f.liters ?? 0,
+        totalCost: f.totalCost ?? 0,
+        currency: String(f.currency ?? "EUR") || "EUR",
+        fullTank: !!f.fullTank,
+        station: String(f.station ?? ""),
+        notes: String(f.notes ?? ""),
+      }));
   }
 
-  // Ensure activeVehicleId exists
   let activeVehicleId = a.activeVehicleId || null;
   if (activeVehicleId && !normVehicles.some((x) => x.id === activeVehicleId)) activeVehicleId = null;
   if (!activeVehicleId && normVehicles.length) activeVehicleId = normVehicles[0].id;
@@ -231,19 +255,16 @@ function normalizeApp(raw) {
     vehicles: normVehicles,
     activeVehicleId,
     tripsByVehicle: normTripsByVehicle,
+    fuelByVehicle: normFuelByVehicle,
     ui: { month },
   };
 }
 
-// Legacy migration (best-effort):
-// If saved data has a `trips` array (old format), migrate into one Imported vehicle
+// Legacy migration (best-effort): if old format has `trips`, migrate into one Imported vehicle.
 function migrateLegacyIfNeeded(saved) {
   if (!saved || typeof saved !== "object") return null;
-
-  // Already new model?
   if (Array.isArray(saved.vehicles) || saved.tripsByVehicle) return saved;
 
-  // Common legacy patterns: { trips: [...] } or { items: [...] } etc.
   const legacyTrips = Array.isArray(saved.trips) ? saved.trips : null;
   if (!legacyTrips) return saved;
 
@@ -294,6 +315,7 @@ function migrateLegacyIfNeeded(saved) {
     vehicles: [importedVehicle],
     activeVehicleId: vid,
     tripsByVehicle: { [vid]: normTrips },
+    fuelByVehicle: { [vid]: [] },
     ui: { month: monthKey(todayISO()) },
   };
 }
@@ -302,10 +324,8 @@ export default function App() {
   const [app, setApp] = useState(() => {
     const savedRaw = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
     const saved = savedRaw ? safeParse(savedRaw, null) : null;
-
     const migrated = migrateLegacyIfNeeded(saved);
-    const normalized = normalizeApp(migrated ?? emptyApp());
-    return normalized;
+    return normalizeApp(migrated ?? emptyApp());
   });
 
   const [toast, setToast] = useState(null);
@@ -336,12 +356,22 @@ export default function App() {
     return Array.isArray(app.tripsByVehicle[activeVehicle.id]) ? app.tripsByVehicle[activeVehicle.id] : [];
   }, [app.tripsByVehicle, activeVehicle]);
 
+  const fuelLogs = useMemo(() => {
+    if (!activeVehicle) return [];
+    return Array.isArray(app.fuelByVehicle[activeVehicle.id]) ? app.fuelByVehicle[activeVehicle.id] : [];
+  }, [app.fuelByVehicle, activeVehicle]);
+
   const tripsForMonth = useMemo(() => {
     const m = app.ui.month;
     return trips.filter((t) => monthKey(t.date) === m).sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [trips, app.ui.month]);
 
-  const totals = useMemo(() => {
+  const fuelForMonth = useMemo(() => {
+    const m = app.ui.month;
+    return fuelLogs.filter((f) => monthKey(f.date) === m).sort((a, b) => (a.date < b.date ? 1 : -1));
+  }, [fuelLogs, app.ui.month]);
+
+  const tripTotals = useMemo(() => {
     const distance = tripsForMonth.reduce((s, t) => s + toNumber(t.distance), 0);
     const fuel = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.fuel), 0);
     const tolls = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.tolls), 0);
@@ -351,6 +381,14 @@ export default function App() {
     const totalCost = fuel + tolls + parking + other;
     return { distance, fuel, tolls, parking, other, totalCost, currency, count: tripsForMonth.length };
   }, [tripsForMonth]);
+
+  const fuelTotals = useMemo(() => {
+    const liters = fuelForMonth.reduce((s, f) => s + toNumber(f.liters), 0);
+    const spend = fuelForMonth.reduce((s, f) => s + toNumber(f.totalCost), 0);
+    const currency = fuelForMonth.find((f) => f.currency)?.currency || "EUR";
+    const avgPerLiter = liters > 0 ? spend / liters : 0;
+    return { liters, spend, currency, avgPerLiter, count: fuelForMonth.length };
+  }, [fuelForMonth]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
@@ -363,9 +401,11 @@ export default function App() {
       const exists = a.vehicles.some((v) => v.id === vehicle.id);
       const vehicles = exists ? a.vehicles.map((v) => (v.id === vehicle.id ? vehicle : v)) : [vehicle, ...a.vehicles];
       const tripsByVehicle = { ...a.tripsByVehicle };
+      const fuelByVehicle = { ...a.fuelByVehicle };
       if (!tripsByVehicle[vehicle.id]) tripsByVehicle[vehicle.id] = [];
+      if (!fuelByVehicle[vehicle.id]) fuelByVehicle[vehicle.id] = [];
       const activeVehicleId = a.activeVehicleId || vehicle.id;
-      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeVehicleId });
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, fuelByVehicle, activeVehicleId });
     });
     setVehicleModal({ open: false, mode: "new", vehicleId: null });
     notify("Vehicle saved");
@@ -377,12 +417,14 @@ export default function App() {
     setApp((a) => {
       const vehicles = a.vehicles.filter((v) => v.id !== id);
       const tripsByVehicle = { ...a.tripsByVehicle };
+      const fuelByVehicle = { ...a.fuelByVehicle };
       delete tripsByVehicle[id];
+      delete fuelByVehicle[id];
 
       let activeVehicleId = a.activeVehicleId;
       if (activeVehicleId === id) activeVehicleId = vehicles.length ? vehicles[0].id : null;
 
-      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeVehicleId });
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, fuelByVehicle, activeVehicleId });
     });
     setConfirm({ open: false, kind: null, id: null });
     notify("Vehicle deleted");
@@ -392,10 +434,7 @@ export default function App() {
 
   // ---------- Trip CRUD ----------
   const addTrip = () => {
-    if (!activeVehicle) {
-      notify("Add a vehicle first");
-      return;
-    }
+    if (!activeVehicle) return notify("Add a vehicle first");
     const t = {
       id: uid(),
       date: todayISO(),
@@ -412,8 +451,7 @@ export default function App() {
     };
     setApp((a) => {
       const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
-      const tripsByVehicle = { ...a.tripsByVehicle, [activeVehicle.id]: [t, ...list] };
-      return { ...a, tripsByVehicle };
+      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: [t, ...list] } };
     });
     notify("Trip added");
   };
@@ -425,15 +463,11 @@ export default function App() {
       const next = list.map((t) => {
         if (t.id !== tripId) return t;
         const merged = { ...t, ...patch };
+        merged.costs = { ...t.costs, ...patch.costs };
 
-        // auto distance when odo fields change (unless distance explicitly set)
-        const odoStart = merged.odoStart;
-        const odoEnd = merged.odoEnd;
-        const dist = Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+        const dist = Math.max(0, toNumber(merged.odoEnd) - toNumber(merged.odoStart));
         merged.distance = dist;
 
-        // ensure nested costs
-        merged.costs = { ...t.costs, ...patch.costs };
         return merged;
       });
       return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: next } };
@@ -444,10 +478,48 @@ export default function App() {
     if (!activeVehicle) return;
     setApp((a) => {
       const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
-      const next = list.filter((t) => t.id !== tripId);
-      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: next } };
+      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: list.filter((t) => t.id !== tripId) } };
     });
     notify("Trip deleted");
+  };
+
+  // ---------- Fuel CRUD ----------
+  const addFuel = () => {
+    if (!activeVehicle) return notify("Add a vehicle first");
+    const f = {
+      id: uid(),
+      date: todayISO(),
+      odometer: "",
+      liters: 0,
+      totalCost: 0,
+      currency: "EUR",
+      fullTank: true,
+      station: "",
+      notes: "",
+    };
+    setApp((a) => {
+      const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
+      return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: [f, ...list] } };
+    });
+    notify("Fuel entry added");
+  };
+
+  const updateFuel = (fuelId, patch) => {
+    if (!activeVehicle) return;
+    setApp((a) => {
+      const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
+      const next = list.map((f) => (f.id === fuelId ? { ...f, ...patch } : f));
+      return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: next } };
+    });
+  };
+
+  const deleteFuel = (fuelId) => {
+    if (!activeVehicle) return;
+    setApp((a) => {
+      const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
+      return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: list.filter((f) => f.id !== fuelId) } };
+    });
+    notify("Fuel entry deleted");
   };
 
   // ---------- Export / Import ----------
@@ -467,47 +539,41 @@ export default function App() {
     if (!file) return;
     const text = await file.text();
     const parsed = safeParse(text, null);
-    if (!parsed) {
-      notify("Invalid JSON");
-      return;
-    }
+    if (!parsed) return notify("Invalid JSON");
     const migrated = migrateLegacyIfNeeded(parsed);
-    const normalized = normalizeApp(migrated ?? emptyApp());
-    setApp(normalized);
+    setApp(normalizeApp(migrated ?? emptyApp()));
     notify("Imported");
   };
 
-  const exportCSVView = () => {
-    if (!activeVehicle) {
-      notify("Select a vehicle first");
-      return;
-    }
-    const rows = [];
-    rows.push([
-      "vehicle_name",
-      "vehicle_make",
-      "vehicle_model",
-      "vehicle_plate",
-      "month",
-      "date",
-      "from",
-      "to",
-      "purpose",
-      "driver",
-      "passengers",
-      "odo_start",
-      "odo_end",
-      "distance",
-      "fuel",
-      "tolls",
-      "parking",
-      "other",
-      "currency",
-      "notes",
-    ]);
-
+  const exportTripsCSV = () => {
+    if (!activeVehicle) return notify("Select a vehicle first");
     const v = activeVehicle;
     const m = app.ui.month;
+
+    const rows = [
+      [
+        "vehicle_name",
+        "make",
+        "model",
+        "plate",
+        "month",
+        "date",
+        "from",
+        "to",
+        "purpose",
+        "driver",
+        "passengers",
+        "odo_start",
+        "odo_end",
+        "distance_km",
+        "fuel",
+        "tolls",
+        "parking",
+        "other",
+        "currency",
+        "notes",
+      ],
+    ];
 
     for (const t of tripsForMonth) {
       rows.push([
@@ -537,11 +603,7 @@ export default function App() {
     const csv = rows
       .map((r) =>
         r
-          .map((cell) => {
-            const s = String(cell ?? "");
-            const escaped = s.replace(/"/g, '""');
-            return `"${escaped}"`;
-          })
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
           .join(",")
       )
       .join("\n");
@@ -550,10 +612,53 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-
     const safeName = (v.name || "vehicle").replace(/[^\w\-]+/g, "_").slice(0, 32);
-    a.download = `trip-it_${safeName}_${m}.csv`;
+    a.download = `trip-it_trips_${safeName}_${m}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
+  const exportFuelCSV = () => {
+    if (!activeVehicle) return notify("Select a vehicle first");
+    const v = activeVehicle;
+    const m = app.ui.month;
+
+    const rows = [["vehicle_name", "make", "model", "plate", "month", "date", "odometer", "liters", "total_cost", "currency", "full_tank", "station", "notes"]];
+
+    for (const f of fuelForMonth) {
+      rows.push([
+        v.name,
+        v.make,
+        v.model,
+        v.plate,
+        m,
+        f.date,
+        f.odometer,
+        String(toNumber(f.liters).toFixed(2)),
+        String(toNumber(f.totalCost).toFixed(2)),
+        f.currency || "EUR",
+        f.fullTank ? "yes" : "no",
+        (f.station || "").trim(),
+        (f.notes || "").replace(/\r?\n/g, " ").trim(),
+      ]);
+    }
+
+    const csv = rows
+      .map((r) =>
+        r
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = (v.name || "vehicle").replace(/[^\w\-]+/g, "_").slice(0, 32);
+    a.download = `trip-it_fuel_${safeName}_${m}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -562,19 +667,14 @@ export default function App() {
 
   // ---------- Print preview ----------
   const openPreview = () => {
-    if (!activeVehicle) {
-      notify("Select a vehicle first");
-      return;
-    }
+    if (!activeVehicle) return notify("Select a vehicle first");
     setPreviewOpen(true);
   };
 
-  // ---------- Modals ----------
+  // ---------- Vehicle modal state ----------
   const vehicleFormVehicle = useMemo(() => {
     if (!vehicleModal.open) return null;
-    if (vehicleModal.mode === "new") {
-      return { id: uid(), name: "", make: "", model: "", plate: "", vin: "", notes: "" };
-    }
+    if (vehicleModal.mode === "new") return { id: uid(), name: "", make: "", model: "", plate: "", vin: "", notes: "" };
     const v = app.vehicles.find((x) => x.id === vehicleModal.vehicleId);
     return v ? { ...v } : { id: uid(), name: "", make: "", model: "", plate: "", vin: "", notes: "" };
   }, [vehicleModal, app.vehicles]);
@@ -584,10 +684,7 @@ export default function App() {
     if (vehicleFormVehicle) setVehicleDraft(vehicleFormVehicle);
   }, [vehicleFormVehicle]);
 
-  const vehicleSaveDisabled = useMemo(() => {
-    const n = String(vehicleDraft?.name || "").trim();
-    return !n;
-  }, [vehicleDraft]);
+  const vehicleSaveDisabled = useMemo(() => !String(vehicleDraft?.name || "").trim(), [vehicleDraft]);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -596,13 +693,9 @@ export default function App() {
         @media print {
           body { background: white !important; }
           .print\\:hidden { display: none !important; }
-          .print\\:shadow-none { box-shadow: none !important; }
-          .print\\:border-none { border: none !important; }
-          .print\\:p-0 { padding: 0 !important; }
         }
       `}</style>
 
-      {/* When preview is open, print only preview sheet */}
       {previewOpen ? (
         <style>{`
           @media print {
@@ -616,7 +709,7 @@ export default function App() {
       <ConfirmModal
         open={confirm.open && confirm.kind === "vehicle"}
         title="Delete vehicle?"
-        message="This will delete the vehicle and all trips saved under it."
+        message="This will delete the vehicle and all trips + fuel logs saved under it."
         onCancel={() => setConfirm({ open: false, kind: null, id: null })}
         onConfirm={deleteVehicleNow}
       />
@@ -631,7 +724,7 @@ export default function App() {
                 <div className="text-lg font-semibold text-neutral-900">
                   {vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}
                 </div>
-                <div className="text-sm text-neutral-600 mt-1">Create and manage vehicles so trips are logged per vehicle.</div>
+                <div className="text-sm text-neutral-600 mt-1">Trips + fuel logs are stored per vehicle.</div>
                 <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
               </div>
               <button
@@ -759,12 +852,6 @@ export default function App() {
                       {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
                     </div>
                     <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
-                    <div className="mt-3 text-sm text-neutral-700">
-                      <div className="font-medium text-neutral-900">Vehicle info</div>
-                      <div className="text-neutral-600">
-                        {activeVehicle?.make || "-"} {activeVehicle?.model || ""} • Plate: {activeVehicle?.plate || "-"}
-                      </div>
-                    </div>
                   </div>
                   <div className="text-sm text-neutral-600">Generated: {new Date().toLocaleString()}</div>
                 </div>
@@ -772,50 +859,19 @@ export default function App() {
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-600">Trips</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.count}</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.count}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-600">Distance</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.distance.toFixed(1)} km</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.distance.toFixed(1)} km</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Costs</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.totalCost, totals.currency)}</div>
+                    <div className="text-sm text-neutral-600">Fuel spend</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Fuel</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.fuel, totals.currency)}</div>
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-2xl border border-neutral-200 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-neutral-100 font-semibold text-neutral-900">
-                    Trips ({monthLabel(app.ui.month)})
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {tripsForMonth.length === 0 ? (
-                      <div className="text-sm text-neutral-600">No trips logged for this month.</div>
-                    ) : (
-                      tripsForMonth.map((t) => (
-                        <div key={t.id} className="rounded-2xl border border-neutral-200 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold text-neutral-900">
-                                {t.date} • {t.from || "-"} → {t.to || "-"}
-                              </div>
-                              <div className="text-sm text-neutral-600 mt-1">
-                                Purpose: {t.purpose || "-"} • Driver: {t.driver || "-"}
-                              </div>
-                              {t.notes ? <div className="text-sm text-neutral-700 mt-2 whitespace-pre-wrap">{t.notes}</div> : null}
-                            </div>
-                            <div className="text-sm text-neutral-600 text-right">
-                              <div className="font-semibold text-neutral-900">{toNumber(t.distance).toFixed(1)} km</div>
-                              <div className="mt-1">{money(toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other), t.costs?.currency || "EUR")}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                    <div className="text-sm text-neutral-600">Fuel liters</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
                   </div>
                 </div>
 
@@ -831,20 +887,20 @@ export default function App() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-2xl font-semibold text-neutral-900">Trip-It</div>
-            <div className="text-sm text-neutral-600">Log duty trips per vehicle. Export, print, and keep a clean record.</div>
+            <div className="text-sm text-neutral-600">Log duty trips + fuel per vehicle.</div>
             <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             <div className="mt-3 flex flex-wrap gap-2">
               <Pill tone="accent">{activeVehicle ? activeVehicle.name : "No vehicle selected"}</Pill>
               <Pill>{monthLabel(app.ui.month)}</Pill>
-              <Pill>{totals.count} trips</Pill>
-              <Pill>{totals.distance.toFixed(1)} km</Pill>
-              <Pill>{money(totals.totalCost, totals.currency)}</Pill>
+              <Pill>{tripTotals.count} trips</Pill>
+              <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
+              <Pill>Fuel: {money(fuelTotals.spend, fuelTotals.currency)} • {fuelTotals.liters.toFixed(2)}L</Pill>
             </div>
           </div>
 
           {/* Top actions (normalized grid) */}
-          <div className="w-full sm:w-[720px]">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="w-full sm:w-[860px]">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
               <ActionButton onClick={openPreview} disabled={!activeVehicle}>
                 Preview
               </ActionButton>
@@ -855,8 +911,11 @@ export default function App() {
               <ActionFileButton onFile={(f) => importJSON(f)} tone="primary">
                 Import
               </ActionFileButton>
-              <ActionButton onClick={exportCSVView} disabled={!activeVehicle}>
-                Export CSV
+              <ActionButton onClick={exportTripsCSV} disabled={!activeVehicle}>
+                Trips CSV
+              </ActionButton>
+              <ActionButton onClick={exportFuelCSV} disabled={!activeVehicle}>
+                Fuel CSV
               </ActionButton>
             </div>
           </div>
@@ -879,11 +938,7 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
                 {app.vehicles.length ? (
-                  <select
-                    className={`${inputBase} mt-2`}
-                    value={app.activeVehicleId || ""}
-                    onChange={(e) => selectVehicle(e.target.value)}
-                  >
+                  <select className={`${inputBase} mt-2`} value={app.activeVehicleId || ""} onChange={(e) => selectVehicle(e.target.value)}>
                     {app.vehicles.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}
@@ -891,9 +946,7 @@ export default function App() {
                     ))}
                   </select>
                 ) : (
-                  <div className="mt-2 text-sm text-neutral-600">
-                    No vehicles yet. Click <span className="font-medium">Add vehicle</span> to start.
-                  </div>
+                  <div className="mt-2 text-sm text-neutral-600">No vehicles yet. Click <span className="font-medium">Add vehicle</span>.</div>
                 )}
               </div>
 
@@ -913,7 +966,7 @@ export default function App() {
                     </button>
                     <button
                       className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
-                      onClick={() => requestDeleteVehicle(activeVehicle.id)}
+                      onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
                     >
                       Delete
                     </button>
@@ -923,31 +976,22 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Month</label>
-                <input
-                  type="month"
-                  className={`${inputBase} mt-2`}
-                  value={app.ui.month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  disabled={!activeVehicle}
-                />
+                <input type="month" className={`${inputBase} mt-2`} value={app.ui.month} onChange={(e) => setMonth(e.target.value)} disabled={!activeVehicle} />
               </div>
 
-              <div className="text-xs text-neutral-500">
-                Trips are stored per-vehicle. Select a vehicle to log and view its trips.
-              </div>
+              <div className="text-xs text-neutral-500">Fuel is logged separately so you can track spend per vehicle per month.</div>
             </div>
           </div>
 
-          {/* Middle/Right: Trips */}
+          {/* Right: Trips + Fuel */}
           <div className="lg:col-span-2 space-y-3">
+            {/* Trips */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
                 <div className="font-semibold text-neutral-900">Trips</div>
                 <button
                   className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
-                    activeVehicle
-                      ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
-                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                    activeVehicle ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800" : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
                   }`}
                   onClick={addTrip}
                   disabled={!activeVehicle}
@@ -960,173 +1004,203 @@ export default function App() {
                 {!activeVehicle ? (
                   <div className="text-sm text-neutral-600">Add a vehicle to start logging trips.</div>
                 ) : tripsForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-600">No trips for this month yet. Click “Add trip”.</div>
+                  <div className="text-sm text-neutral-600">No trips for this month yet.</div>
                 ) : (
                   tripsForMonth.map((t) => (
                     <div key={t.id} className="rounded-2xl border border-neutral-200 p-4">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input
-                            type="date"
-                            className={`${inputBase} mt-2`}
-                            value={t.date}
-                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
-                          />
+                          <input type="date" className={`${inputBase} mt-2`} value={t.date} onChange={(e) => updateTrip(t.id, { date: e.target.value })} />
                         </div>
                         <div className="md:col-span-3">
                           <label className="text-xs text-neutral-600 font-medium">Route</label>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input
-                              className={inputBase}
-                              value={t.from}
-                              onChange={(e) => updateTrip(t.id, { from: e.target.value })}
-                              placeholder="From"
-                            />
-                            <input
-                              className={inputBase}
-                              value={t.to}
-                              onChange={(e) => updateTrip(t.id, { to: e.target.value })}
-                              placeholder="To"
-                            />
+                            <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
+                            <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
                           </div>
                         </div>
 
                         <div className="md:col-span-2">
                           <label className="text-xs text-neutral-600 font-medium">Purpose</label>
-                          <input
-                            className={`${inputBase} mt-2`}
-                            value={t.purpose}
-                            onChange={(e) => updateTrip(t.id, { purpose: e.target.value })}
-                            placeholder="e.g., Consulate duty trip"
-                          />
+                          <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Driver</label>
-                          <input
-                            className={`${inputBase} mt-2`}
-                            value={t.driver}
-                            onChange={(e) => updateTrip(t.id, { driver: e.target.value })}
-                            placeholder="Driver"
-                          />
+                          <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Passengers</label>
-                          <input
-                            className={`${inputBase} mt-2`}
-                            value={t.passengers}
-                            onChange={(e) => updateTrip(t.id, { passengers: e.target.value })}
-                            placeholder="Optional"
-                          />
+                          <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Odo start</label>
-                          <input
-                            className={`${inputBase} mt-2 text-right tabular-nums`}
-                            inputMode="decimal"
-                            value={t.odoStart ?? ""}
-                            onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })}
-                            placeholder="0"
-                          />
+                          <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoStart ?? ""} onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })} placeholder="0" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Odo end</label>
-                          <input
-                            className={`${inputBase} mt-2 text-right tabular-nums`}
-                            inputMode="decimal"
-                            value={t.odoEnd ?? ""}
-                            onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })}
-                            placeholder="0"
-                          />
+                          <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoEnd ?? ""} onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })} placeholder="0" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
-                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
-                            {toNumber(t.distance).toFixed(1)} km
-                          </div>
+                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
                         </div>
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Costs</label>
                           <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.fuel ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })}
-                              placeholder="Fuel"
-                              title="Fuel"
-                            />
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.tolls ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })}
-                              placeholder="Tolls"
-                              title="Tolls"
-                            />
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.parking ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })}
-                              placeholder="Parking"
-                              title="Parking"
-                            />
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.other ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })}
-                              placeholder="Other"
-                              title="Other"
-                            />
-                            <select
-                              className={inputBase}
-                              value={t.costs?.currency || "EUR"}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}
-                              title="Currency"
-                            >
+                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.fuel ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })} placeholder="Fuel" />
+                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.tolls ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })} placeholder="Tolls" />
+                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.parking ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })} placeholder="Parking" />
+                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.other ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })} placeholder="Other" />
+                            <select className={inputBase} value={t.costs?.currency || "EUR"} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}>
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
                             </select>
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-right tabular-nums">
-                              {money(
-                                toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other),
-                                t.costs?.currency || "EUR"
-                              )}
+                              {money(toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other), t.costs?.currency || "EUR")}
                             </div>
                           </div>
                         </div>
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                          <textarea
-                            className={`${inputBase} mt-2 min-h-[70px]`}
-                            value={t.notes}
-                            onChange={(e) => updateTrip(t.id, { notes: e.target.value })}
-                            placeholder="Optional notes..."
-                          />
+                          <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
                         </div>
                       </div>
 
                       <div className="mt-3 flex items-center justify-end">
-                        <button
-                          className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
-                          onClick={() => deleteTrip(t.id)}
-                        >
+                        <button className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition" onClick={() => deleteTrip(t.id)}>
                           Delete trip
                         </button>
                       </div>
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+
+            {/* Fuel */}
+            <div className={card}>
+              <div className={`${cardHead} flex items-center justify-between gap-3`}>
+                <div className="font-semibold text-neutral-900">Fuel</div>
+                <button
+                  className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
+                    activeVehicle ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800" : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                  }`}
+                  onClick={addFuel}
+                  disabled={!activeVehicle}
+                >
+                  + Add fuel
+                </button>
+              </div>
+
+              <div className={`${cardPad} space-y-3`}>
+                {!activeVehicle ? (
+                  <div className="text-sm text-neutral-600">Select a vehicle to log fuel.</div>
+                ) : fuelForMonth.length === 0 ? (
+                  <div className="text-sm text-neutral-600">No fuel entries for this month yet.</div>
+                ) : (
+                  fuelForMonth.map((f) => {
+                    const liters = toNumber(f.liters);
+                    const cost = toNumber(f.totalCost);
+                    const pricePerLiter = liters > 0 ? cost / liters : 0;
+
+                    return (
+                      <div key={f.id} className="rounded-2xl border border-neutral-200 p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                          <div>
+                            <label className="text-xs text-neutral-600 font-medium">Date</label>
+                            <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-neutral-600 font-medium">Odometer</label>
+                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.odometer ?? ""} onChange={(e) => updateFuel(f.id, { odometer: e.target.value })} placeholder="km" />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-neutral-600 font-medium">Liters</label>
+                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.liters ?? 0} onChange={(e) => updateFuel(f.id, { liters: e.target.value })} placeholder="0.00" />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-neutral-600 font-medium">Total cost</label>
+                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.totalCost ?? 0} onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })} placeholder="0.00" />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-neutral-600 font-medium">Currency</label>
+                            <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
+                              <option value="EUR">EUR</option>
+                              <option value="USD">USD</option>
+                              <option value="GBP">GBP</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
+                            <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
+                              {pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-3">
+                            <label className="text-xs text-neutral-600 font-medium">Station</label>
+                            <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
+                          </div>
+
+                          <div className="md:col-span-3 flex items-end gap-3">
+                            <label className="inline-flex items-center gap-2 text-sm text-neutral-700 select-none">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={!!f.fullTank}
+                                onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })}
+                              />
+                              Full tank
+                            </label>
+                            <div className="text-sm text-neutral-600">
+                              Entry total: <span className="font-semibold text-neutral-900">{money(cost, f.currency || "EUR")}</span>
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-6">
+                            <label className="text-xs text-neutral-600 font-medium">Notes</label>
+                            <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-end">
+                          <button className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition" onClick={() => deleteFuel(f.id)}>
+                            Delete fuel
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+
+                {activeVehicle ? (
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-sm text-neutral-600">Month fuel totals</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Pill>{fuelTotals.count} fill(s)</Pill>
+                      <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
+                      <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
+                      <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
+                    </div>
+                    <div className="mt-2 text-xs text-neutral-500">
+                      Next upgrade (optional): calculate consumption (L/100km) using “Full tank” entries + odometer.
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -1138,19 +1212,19 @@ export default function App() {
               <div className={`${cardPad} grid grid-cols-1 md:grid-cols-4 gap-3`}>
                 <div className="rounded-2xl border border-neutral-200 p-4">
                   <div className="text-sm text-neutral-600">Trips</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.count}</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.count}</div>
                 </div>
                 <div className="rounded-2xl border border-neutral-200 p-4">
                   <div className="text-sm text-neutral-600">Distance</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.distance.toFixed(1)} km</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.distance.toFixed(1)} km</div>
                 </div>
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-600">Fuel</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.fuel, totals.currency)}</div>
+                  <div className="text-sm text-neutral-600">Fuel spend</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
                 </div>
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-600">Total costs</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.totalCost, totals.currency)}</div>
+                  <div className="text-sm text-neutral-600">Fuel liters</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
                 </div>
               </div>
             </div>
