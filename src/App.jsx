@@ -1,23 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * ToolStack — Trip-It (Duty Trip Log) — Ultimate v1 (Styled v1: neutral + lime accent)
+ * ToolStack — Trip-It (Duty Trip Log) — Styled v1
  *
- * Includes:
- * - Quick Add mode
- * - Templates / Presets + Template Manager (add/edit/delete)
- * - Period filters: Today / This Week / Month / Custom / All
- * - Vehicle + Category filters + global search
- * - Duration calc (start/end time)
- * - Insights (by vehicle/category)
- * - Email report (mailto text summary, no attachment)
- * - Weekly Backup (ENTIRE DATABASE) with ISO week filename
- * - Export/Import JSON (includes templates + ui prefs) + Export CSV
- * - Autosave to localStorage + safe migration
+ * Changes (per Retro request):
+ * 1) No default seeded data (new installs start empty)
+ * 2) Vehicle manager (add/edit/delete vehicles)
+ * 3) Trips are stored per-vehicle (select vehicle → log trips for that vehicle only)
+ * 4) Normalized top actions grid (mobile-aligned buttons)
+ * 5) Migration: if legacy data exists, migrate to one "Imported vehicle"
  */
 
-const LS_KEY = "toolstack_tripit_v1"; // keep to preserve existing saves
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const LS_KEY = "toolstack_tripit_v1";
+
+const uid = () => {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  } catch {
+    // ignore
+  }
+  return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+};
 
 const safeParse = (s, fallback) => {
   try {
@@ -28,121 +31,74 @@ const safeParse = (s, fallback) => {
   }
 };
 
-const isoToday = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
-function money(n) {
-  const x = Number(n);
-  return Number.isFinite(x) ? x : 0;
-}
-function km(n) {
-  const x = Number(n);
-  return Number.isFinite(x) ? x : 0;
-}
+const toNumber = (v) => {
+  const n = Number(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
 
-function fmtMoney(amount, currency) {
-  const n = money(amount);
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "EUR" }).format(n);
-  } catch {
-    return `${n.toFixed(2)} ${currency || "EUR"}`;
-  }
-}
+const money = (v, currency = "EUR") => {
+  const n = toNumber(v);
+  const sym = currency === "EUR" ? "€" : currency === "USD" ? "$" : `${currency} `;
+  return `${sym}${n.toFixed(2)}`;
+};
 
-function monthKeyFromDate(d) {
-  if (!d) return "";
-  return String(d).slice(0, 7); // YYYY-MM
-}
+const monthKey = (isoDate) => {
+  const d = isoDate ? new Date(isoDate) : new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`; // YYYY-MM
+};
 
-function downloadBlob(filename, text, mime = "text/plain") {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+const monthLabel = (ym) => {
+  const [y, m] = String(ym || "").split("-");
+  if (!y || !m) return String(ym || "");
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+};
 
-function pad2(n) {
-  return String(n).padStart(2, "0");
-}
+// ---------- Normalized top actions (mobile grid) ----------
+const ACTION_BASE =
+  "print:hidden h-10 w-full rounded-xl text-sm font-medium border transition shadow-sm active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center";
 
-function nowTimeHHMM() {
-  const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
+function ActionButton({ children, onClick, tone = "default", disabled, title }) {
+  const cls =
+    tone === "primary"
+      ? "bg-neutral-900 hover:bg-neutral-800 text-white border-neutral-900"
+      : tone === "danger"
+        ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+        : "bg-white hover:bg-neutral-50 text-neutral-900 border-neutral-200";
 
-function parseHHMM(v) {
-  if (!v || typeof v !== "string") return null;
-  const m = v.match(/^(\d{2}):(\d{2})$/);
-  if (!m) return null;
-  const hh = Number(m[1]);
-  const mm = Number(m[2]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
-  return hh * 60 + mm;
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${ACTION_BASE} ${cls}`}>
+      {children}
+    </button>
+  );
 }
 
-function durationMinutes(startHHMM, endHHMM) {
-  const s = parseHHMM(startHHMM);
-  const e = parseHHMM(endHHMM);
-  if (s == null || e == null) return 0;
-  const d = e - s;
-  return d > 0 ? d : 0;
+function ActionFileButton({ children, onFile, accept = "application/json", tone = "primary", title }) {
+  const cls =
+    tone === "primary"
+      ? "bg-neutral-900 hover:bg-neutral-800 text-white border-neutral-900"
+      : "bg-white hover:bg-neutral-50 text-neutral-900 border-neutral-200";
+
+  return (
+    <label title={title} className={`${ACTION_BASE} ${cls} cursor-pointer`}>
+      <span>{children}</span>
+      <input
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => onFile?.(e.target.files?.[0] || null)}
+      />
+    </label>
+  );
 }
 
-function fmtDuration(mins) {
-  const m = Number(mins) || 0;
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (!m) return "—";
-  return h ? `${h}h ${r}m` : `${r}m`;
-}
-
-// Monday-based week start (Germany-friendly)
-function startOfWeekISO(dateStr) {
-  const d = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
-  const day = d.getDay(); // 0=Sun..6=Sat
-  const diff = (day === 0 ? -6 : 1) - day; // shift to Monday
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
-function endOfWeekISO(dateStr) {
-  const s = startOfWeekISO(dateStr);
-  const d = new Date(s + "T00:00:00");
-  d.setDate(d.getDate() + 6);
-  return d.toISOString().slice(0, 10);
-}
-
-function clampDateRange(a, b) {
-  if (!a && !b) return { from: "", to: "" };
-  if (a && b && a > b) return { from: b, to: a };
-  return { from: a || "", to: b || "" };
-}
-
-// ISO week filename (YYYY-Www)
-function isoWeekKey(date = new Date()) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  // Thursday in current week decides the year
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
-
-const btnSecondary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
-const btnPrimary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-900 bg-neutral-900 text-white shadow-sm hover:bg-neutral-800 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
-const btnDanger =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
-const btnGhost =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-transparent bg-transparent hover:bg-neutral-100 text-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed";
+// ---------- UI helpers ----------
 const inputBase =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
-const inputMuted =
-  "w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm";
 const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm";
 const cardHead = "px-4 py-3 border-b border-neutral-100";
 const cardPad = "p-4";
@@ -152,39 +108,9 @@ function Pill({ children, tone = "default" }) {
     tone === "accent"
       ? "border-lime-200 bg-lime-50 text-neutral-800"
       : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-neutral-800"
-      : tone === "bad"
-      ? "border-red-200 bg-red-50 text-neutral-800"
-      : "border-neutral-200 bg-white text-neutral-700";
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>
-      {children}
-    </span>
-  );
-}
-
-function SmallButton({ children, onClick, tone = "default", disabled, title, className = "", type = "button" }) {
-  const cls =
-    tone === "primary" ? btnPrimary : tone === "danger" ? btnDanger : tone === "ghost" ? btnGhost : btnSecondary;
-
-  return (
-    <button type={type} onClick={onClick} disabled={disabled} title={title} className={`${cls} ${className}`}>
-      {children}
-    </button>
-  );
-}
-
-function Field({ label, hint, children }) {
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <label className="text-sm text-neutral-700 font-medium">{label}</label>
-        {hint ? <span className="text-xs text-neutral-500">{hint}</span> : null}
-      </div>
-      <div className="mt-2">{children}</div>
-    </div>
-  );
+        ? "border-amber-200 bg-amber-50 text-neutral-800"
+        : "border-neutral-200 bg-white text-neutral-700";
+  return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>{children}</span>;
 }
 
 function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm, onCancel }) {
@@ -219,1363 +145,1015 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
   );
 }
 
-function ModalShell({ open, title, subtitle, onClose, children, actions }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 print:hidden">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-3xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
-        <div className="p-4 border-b border-neutral-100">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-lg font-semibold text-neutral-900">{title}</div>
-              {subtitle ? <div className="text-sm text-neutral-600 mt-1">{subtitle}</div> : null}
-              <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
-            </div>
-            <button
-              type="button"
-              className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
-              onClick={onClose}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-        <div className="p-4">{children}</div>
-        {actions ? <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">{actions}</div> : null}
-      </div>
-    </div>
-  );
+// ---------- Data model ----------
+/**
+ * app = {
+ *   vehicles: [{ id, name, make, model, plate, vin, notes }],
+ *   activeVehicleId: string|null,
+ *   tripsByVehicle: { [vehicleId]: Trip[] },
+ *   ui: { month: "YYYY-MM" },
+ * }
+ *
+ * Trip = { id, date, from, to, purpose, driver, passengers, odoStart, odoEnd, distance, costs:{fuel,tolls,parking,other,currency}, notes }
+ */
+
+function emptyApp() {
+  return {
+    vehicles: [],
+    activeVehicleId: null,
+    tripsByVehicle: {},
+    ui: { month: monthKey(todayISO()) },
+  };
 }
 
-const DEFAULT_CATEGORIES = ["Official", "Errand", "Maintenance", "Training", "Private"];
+function normalizeApp(raw) {
+  const base = emptyApp();
+  const a = raw && typeof raw === "object" ? raw : base;
 
-const blankTrip = () => ({
-  id: uid(),
-  date: isoToday(),
-  startTime: "",
-  endTime: "",
-  from: "",
-  to: "",
-  purpose: "",
-  category: "Official",
-  vehicle: "BMW 530i",
-  driver: "",
-  passengers: "",
-  startKm: "",
-  endKm: "",
-  distanceKm: "",
-  fuelCost: "",
-  tollCost: "",
-  parkingCost: "",
-  otherCost: "",
-  currency: "EUR",
-  notes: "",
-  proof: "",
-  issueFlag: false,
-  issueNotes: "",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-});
+  const vehicles = Array.isArray(a.vehicles) ? a.vehicles.filter(Boolean) : [];
+  const tripsByVehicle = a.tripsByVehicle && typeof a.tripsByVehicle === "object" ? a.tripsByVehicle : {};
+  const ui = a.ui && typeof a.ui === "object" ? a.ui : base.ui;
 
-function normalizeTrip(t, profile) {
-  const base = { ...blankTrip(), ...t };
-  base.id = t?.id || uid();
-  base.date = t?.date || isoToday();
-  base.vehicle = base.vehicle || profile?.defaultVehicle || "Vehicle";
-  base.currency = base.currency || profile?.defaultCurrency || "EUR";
-  base.category = base.category || "Official";
-  base.issueFlag = !!base.issueFlag;
-  base.issueNotes = String(base.issueNotes || "");
-  base.updatedAt = new Date().toISOString();
-  return base;
-}
+  const normVehicles = vehicles.map((v) => ({
+    id: v.id || uid(),
+    name: String(v.name ?? "").trim(),
+    make: String(v.make ?? "").trim(),
+    model: String(v.model ?? "").trim(),
+    plate: String(v.plate ?? "").trim(),
+    vin: String(v.vin ?? "").trim(),
+    notes: String(v.notes ?? ""),
+  }));
 
-function buildEmailText({ profile, trips, totals, periodLabel, filtersLabel }) {
-  const lines = [];
-  const iso = isoToday();
-  lines.push(`ToolStack • Trip-It`);
-  lines.push(`Org: ${profile.orgName || "—"}`);
-  lines.push(`Date: ${iso}`);
-  lines.push(`Period: ${periodLabel}`);
-  if (filtersLabel) lines.push(`Filters: ${filtersLabel}`);
-  lines.push(``);
-  lines.push(`Summary:`);
-  lines.push(`- Trips: ${totals.count}`);
-  lines.push(`- Total km: ${totals.km.toFixed(0)}`);
-  lines.push(`- Costs: ${fmtMoney(totals.costs, totals.currency)}`);
-  if (totals.rate) lines.push(`- Mileage claim @ ${totals.rate}: ${fmtMoney(totals.mileageClaim, totals.currency)}`);
-  if (totals.durationMin) lines.push(`- Logged duration: ${fmtDuration(totals.durationMin)}`);
-  lines.push(``);
-  lines.push(`Trips:`);
-  for (const t of trips) {
-    const dist = km(t.distanceKm || (km(t.endKm) - km(t.startKm)));
-    const costs = money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
-    const dur = durationMinutes(t.startTime, t.endTime);
-    const time = t.startTime || t.endTime ? ` ${t.startTime || "—"}–${t.endTime || "—"}` : "";
-    const issue = t.issueFlag ? " ⚠️" : "";
-    lines.push(
-      `- ${t.date}${time}: ${t.from} → ${t.to} | ${t.purpose || "—"} | ${t.vehicle || "—"} | ${t.category || "—"} | ${dist ? `${dist.toFixed(0)}km` : "km—"} | ${costs ? fmtMoney(costs, t.currency || totals.currency) : "cost—"} | ${dur ? fmtDuration(dur) : "dur—"}${issue}`
-    );
+  const normTripsByVehicle = {};
+  for (const v of normVehicles) {
+    const list = Array.isArray(tripsByVehicle[v.id]) ? tripsByVehicle[v.id] : [];
+    normTripsByVehicle[v.id] = list
+      .filter(Boolean)
+      .map((t) => {
+        const odoStart = t.odoStart ?? "";
+        const odoEnd = t.odoEnd ?? "";
+        const dist =
+          t.distance != null && t.distance !== ""
+            ? toNumber(t.distance)
+            : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+
+        return {
+          id: t.id || uid(),
+          date: typeof t.date === "string" && t.date ? t.date : todayISO(),
+          from: String(t.from ?? ""),
+          to: String(t.to ?? ""),
+          purpose: String(t.purpose ?? ""),
+          driver: String(t.driver ?? ""),
+          passengers: String(t.passengers ?? ""),
+          odoStart,
+          odoEnd,
+          distance: dist,
+          costs: {
+            fuel: t.costs?.fuel ?? 0,
+            tolls: t.costs?.tolls ?? 0,
+            parking: t.costs?.parking ?? 0,
+            other: t.costs?.other ?? 0,
+            currency: String(t.costs?.currency ?? "EUR") || "EUR",
+          },
+          notes: String(t.notes ?? ""),
+        };
+      });
   }
-  lines.push(``);
-  lines.push(`Link: https://toolstack-trip-it.vercel.app`);
-  return lines.join("\n");
+
+  // Ensure activeVehicleId exists
+  let activeVehicleId = a.activeVehicleId || null;
+  if (activeVehicleId && !normVehicles.some((x) => x.id === activeVehicleId)) activeVehicleId = null;
+  if (!activeVehicleId && normVehicles.length) activeVehicleId = normVehicles[0].id;
+
+  const month = typeof ui.month === "string" && ui.month ? ui.month : base.ui.month;
+
+  return {
+    vehicles: normVehicles,
+    activeVehicleId,
+    tripsByVehicle: normTripsByVehicle,
+    ui: { month },
+  };
 }
 
-export default function TripItApp() {
-  const [profile, setProfile] = useState({
-    orgName: "South African Consulate, Munich",
-    defaultVehicle: "BMW 530i",
-    defaultCurrency: "EUR",
-    mileageRate: "",
-    vehicles: ["BMW 530i", "Mercedes Vito 119"],
-    categories: DEFAULT_CATEGORIES,
+// Legacy migration (best-effort):
+// If saved data has a `trips` array (old format), migrate into one Imported vehicle
+function migrateLegacyIfNeeded(saved) {
+  if (!saved || typeof saved !== "object") return null;
+
+  // Already new model?
+  if (Array.isArray(saved.vehicles) || saved.tripsByVehicle) return saved;
+
+  // Common legacy patterns: { trips: [...] } or { items: [...] } etc.
+  const legacyTrips = Array.isArray(saved.trips) ? saved.trips : null;
+  if (!legacyTrips) return saved;
+
+  const vid = uid();
+  const importedVehicle = {
+    id: vid,
+    name: "Imported vehicle",
+    make: "",
+    model: "",
+    plate: "",
+    vin: "",
+    notes: "Auto-created to preserve legacy Trip-It data.",
+  };
+
+  const normTrips = legacyTrips
+    .filter(Boolean)
+    .map((t) => {
+      const odoStart = t.odoStart ?? t.odometerStart ?? "";
+      const odoEnd = t.odoEnd ?? t.odometerEnd ?? "";
+      const dist =
+        t.distance != null && t.distance !== ""
+          ? toNumber(t.distance)
+          : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+
+      return {
+        id: t.id || uid(),
+        date: typeof t.date === "string" && t.date ? t.date : todayISO(),
+        from: String(t.from ?? t.start ?? ""),
+        to: String(t.to ?? t.end ?? ""),
+        purpose: String(t.purpose ?? ""),
+        driver: String(t.driver ?? ""),
+        passengers: String(t.passengers ?? ""),
+        odoStart,
+        odoEnd,
+        distance: dist,
+        costs: {
+          fuel: t.costs?.fuel ?? t.fuel ?? 0,
+          tolls: t.costs?.tolls ?? t.tolls ?? 0,
+          parking: t.costs?.parking ?? t.parking ?? 0,
+          other: t.costs?.other ?? t.other ?? 0,
+          currency: String(t.costs?.currency ?? "EUR") || "EUR",
+        },
+        notes: String(t.notes ?? ""),
+      };
+    });
+
+  return {
+    vehicles: [importedVehicle],
+    activeVehicleId: vid,
+    tripsByVehicle: { [vid]: normTrips },
+    ui: { month: monthKey(todayISO()) },
+  };
+}
+
+export default function App() {
+  const [app, setApp] = useState(() => {
+    const savedRaw = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+    const saved = savedRaw ? safeParse(savedRaw, null) : null;
+
+    const migrated = migrateLegacyIfNeeded(saved);
+    const normalized = normalizeApp(migrated ?? emptyApp());
+    return normalized;
   });
 
-  const [templates, setTemplates] = useState(() => [
-    { id: uid(), name: "Consulate Run", from: "Consulate", to: "", purpose: "Official run", category: "Official", vehicle: "BMW 530i" },
-    { id: uid(), name: "Airport", from: "Munich", to: "Airport", purpose: "Pickup/Drop-off", category: "Official", vehicle: "Mercedes Vito 119" },
-    { id: uid(), name: "Service", from: "", to: "", purpose: "Vehicle service/repair", category: "Maintenance", vehicle: "BMW 530i" },
-  ]);
-
-  const [trips, setTrips] = useState(() => {
-    const saved = localStorage.getItem(LS_KEY);
-    const data = saved ? safeParse(saved, null) : null;
-    if (Array.isArray(data?.trips)) return data.trips;
-    return [];
-  });
-
-  const [form, setForm] = useState(() => {
-    const t = blankTrip();
-    t.vehicle = "BMW 530i";
-    t.currency = "EUR";
-    t.category = "Official";
-    return t;
-  });
-
-  const [ui, setUi] = useState(() => {
-    const saved = localStorage.getItem(LS_KEY);
-    const data = saved ? safeParse(saved, null) : null;
-    const pref = data?.uiPrefs || {};
-    return {
-      previewOpen: false,
-      quickMode: pref.quickMode ?? true,
-
-      period: pref.period || "month",
-      month: pref.month || monthKeyFromDate(isoToday()),
-      customFrom: pref.customFrom || "",
-      customTo: pref.customTo || "",
-
-      search: "",
-      vehicleFilter: "all",
-      categoryFilter: "all",
-
-      showInsights: pref.showInsights ?? true,
-
-      templateManagerOpen: false,
-      templateDraft: null, // {id,name,from,to,purpose,category,vehicle}
-      templateDeleteConfirm: { open: false, id: null },
-      lastBackupAt: pref.lastBackupAt || "",
-    };
-  });
-
-  const [confirm, setConfirm] = useState({ open: false, tripId: null });
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const [vehicleModal, setVehicleModal] = useState({ open: false, mode: "new", vehicleId: null });
+  const [confirm, setConfirm] = useState({ open: false, kind: null, id: null });
 
   const notify = (msg) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    toastTimer.current = setTimeout(() => setToast(null), 2000);
   };
 
-  // Load saved + migrate safely
   useEffect(() => {
-    const saved = localStorage.getItem(LS_KEY);
-    const data = saved ? safeParse(saved, null) : null;
+    localStorage.setItem(LS_KEY, JSON.stringify(app));
+  }, [app]);
 
-    if (data?.profile) {
-      setProfile((p) => {
-        const merged = { ...p, ...data.profile };
-        merged.vehicles = Array.isArray(merged.vehicles) && merged.vehicles.length ? merged.vehicles : p.vehicles;
-        merged.categories = Array.isArray(merged.categories) && merged.categories.length ? merged.categories : p.categories;
-        return merged;
-      });
-    }
+  const activeVehicle = useMemo(
+    () => app.vehicles.find((v) => v.id === app.activeVehicleId) || null,
+    [app.vehicles, app.activeVehicleId]
+  );
 
-    if (Array.isArray(data?.templates) && data.templates.length) {
-      setTemplates(
-        data.templates.map((t) => ({
-          id: t.id || uid(),
-          name: String(t.name || "Template"),
-          from: String(t.from || ""),
-          to: String(t.to || ""),
-          purpose: String(t.purpose || ""),
-          category: String(t.category || "Official"),
-          vehicle: String(t.vehicle || ""),
-        }))
-      );
-    }
+  const trips = useMemo(() => {
+    if (!activeVehicle) return [];
+    return Array.isArray(app.tripsByVehicle[activeVehicle.id]) ? app.tripsByVehicle[activeVehicle.id] : [];
+  }, [app.tripsByVehicle, activeVehicle]);
 
-    if (Array.isArray(data?.trips)) {
-      setTrips(data.trips);
-    }
-
-    setForm((f) => ({
-      ...f,
-      vehicle: (data?.profile?.defaultVehicle || f.vehicle) || "Vehicle",
-      currency: (data?.profile?.defaultCurrency || f.currency) || "EUR",
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Autosave (includes templates + ui prefs)
-  useEffect(() => {
-    const uiPrefs = {
-      quickMode: ui.quickMode,
-      period: ui.period,
-      month: ui.month,
-      customFrom: ui.customFrom,
-      customTo: ui.customTo,
-      showInsights: ui.showInsights,
-      lastBackupAt: ui.lastBackupAt,
-    };
-    localStorage.setItem(LS_KEY, JSON.stringify({ profile, templates, trips, uiPrefs }));
-  }, [
-    profile,
-    templates,
-    trips,
-    ui.quickMode,
-    ui.period,
-    ui.month,
-    ui.customFrom,
-    ui.customTo,
-    ui.showInsights,
-    ui.lastBackupAt,
-  ]);
-
-  // Keep form distance updated
-  useEffect(() => {
-    const d = km(form.endKm) - km(form.startKm);
-    if (form.startKm !== "" && form.endKm !== "" && Number.isFinite(d)) {
-      setForm((p) => ({ ...p, distanceKm: d >= 0 ? String(d) : p.distanceKm }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.startKm, form.endKm]);
-
-  const vehicles = useMemo(() => {
-    const fromProfile = Array.isArray(profile.vehicles) ? profile.vehicles.filter(Boolean) : [];
-    const fromTrips = Array.from(new Set(trips.map((t) => (t.vehicle || "").trim()).filter(Boolean)));
-    const fromTemplates = Array.from(new Set(templates.map((t) => (t.vehicle || "").trim()).filter(Boolean)));
-    const all = Array.from(new Set([...fromProfile, ...fromTrips, ...fromTemplates]));
-    return all.length ? all : ["Vehicle"];
-  }, [profile.vehicles, trips, templates]);
-
-  const categories = useMemo(() => {
-    const fromProfile = Array.isArray(profile.categories) ? profile.categories.filter(Boolean) : [];
-    const fromTrips = Array.from(new Set(trips.map((t) => (t.category || "").trim()).filter(Boolean)));
-    const fromTemplates = Array.from(new Set(templates.map((t) => (t.category || "").trim()).filter(Boolean)));
-    const all = Array.from(new Set([...fromProfile, ...fromTrips, ...fromTemplates]));
-    return all.length ? all : DEFAULT_CATEGORIES;
-  }, [profile.categories, trips, templates]);
-
-  // Period boundaries
-  const periodRange = useMemo(() => {
-    const today = isoToday();
-
-    if (ui.period === "today") return { from: today, to: today };
-    if (ui.period === "week") return { from: startOfWeekISO(today), to: endOfWeekISO(today) };
-    if (ui.period === "month") {
-      const m = ui.month || monthKeyFromDate(today);
-      const from = `${m}-01`;
-      const d = new Date(from + "T00:00:00");
-      d.setMonth(d.getMonth() + 1);
-      d.setDate(0);
-      const to = d.toISOString().slice(0, 10);
-      return { from, to };
-    }
-    if (ui.period === "custom") {
-      const r = clampDateRange(ui.customFrom, ui.customTo);
-      return { from: r.from, to: r.to };
-    }
-    return { from: "", to: "" }; // all
-  }, [ui.period, ui.month, ui.customFrom, ui.customTo]);
-
-  const periodLabel = useMemo(() => {
-    if (ui.period === "today") return "Today";
-    if (ui.period === "week") return `This week (${periodRange.from} → ${periodRange.to})`;
-    if (ui.period === "month") return `Month (${ui.month || monthKeyFromDate(isoToday())})`;
-    if (ui.period === "custom") return periodRange.from || periodRange.to ? `Custom (${periodRange.from || "?"} → ${periodRange.to || "?"})` : "Custom";
-    return "All";
-  }, [ui.period, ui.month, periodRange.from, periodRange.to]);
-
-  const filteredTrips = useMemo(() => {
-    const q = (ui.search || "").trim().toLowerCase();
-    const vf = ui.vehicleFilter;
-    const cf = ui.categoryFilter;
-    const { from, to } = periodRange;
-
-    return trips
-      .map((t) => normalizeTrip(t, profile))
-      .filter((t) => {
-        if (!from && !to) return true;
-        if (!t.date) return false;
-        if (from && t.date < from) return false;
-        if (to && t.date > to) return false;
-        return true;
-      })
-      .filter((t) => (vf === "all" ? true : (t.vehicle || "") === vf))
-      .filter((t) => (cf === "all" ? true : (t.category || "") === cf))
-      .filter((t) => {
-        if (!q) return true;
-        const hay = [t.date, t.from, t.to, t.purpose, t.vehicle, t.driver, t.passengers, t.category, t.notes, t.proof].join(" ").toLowerCase();
-        return hay.includes(q);
-      })
-      .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.updatedAt || "").localeCompare(a.updatedAt || ""));
-  }, [trips, ui.search, ui.vehicleFilter, ui.categoryFilter, periodRange, profile]);
+  const tripsForMonth = useMemo(() => {
+    const m = app.ui.month;
+    return trips.filter((t) => monthKey(t.date) === m).sort((a, b) => (a.date < b.date ? 1 : -1));
+  }, [trips, app.ui.month]);
 
   const totals = useMemo(() => {
-    const list = filteredTrips;
-    const sumKm = list.reduce((acc, t) => acc + km(t.distanceKm || (km(t.endKm) - km(t.startKm))), 0);
-    const sumFuel = list.reduce((acc, t) => acc + money(t.fuelCost), 0);
-    const sumToll = list.reduce((acc, t) => acc + money(t.tollCost), 0);
-    const sumPark = list.reduce((acc, t) => acc + money(t.parkingCost), 0);
-    const sumOther = list.reduce((acc, t) => acc + money(t.otherCost), 0);
-    const sumCosts = sumFuel + sumToll + sumPark + sumOther;
+    const distance = tripsForMonth.reduce((s, t) => s + toNumber(t.distance), 0);
+    const fuel = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.fuel), 0);
+    const tolls = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.tolls), 0);
+    const parking = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.parking), 0);
+    const other = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.other), 0);
+    const currency = tripsForMonth.find((t) => t.costs?.currency)?.costs?.currency || "EUR";
+    const totalCost = fuel + tolls + parking + other;
+    return { distance, fuel, tolls, parking, other, totalCost, currency, count: tripsForMonth.length };
+  }, [tripsForMonth]);
 
-    const sumDur = list.reduce((acc, t) => acc + durationMinutes(t.startTime, t.endTime), 0);
+  const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
-    const rate = money(profile.mileageRate);
-    const mileageClaim = rate ? sumKm * rate : 0;
+  // ---------- Vehicle CRUD ----------
+  const openNewVehicle = () => setVehicleModal({ open: true, mode: "new", vehicleId: null });
+  const openEditVehicle = (id) => setVehicleModal({ open: true, mode: "edit", vehicleId: id });
 
-    const currency = profile.defaultCurrency || "EUR";
-
-    return {
-      count: list.length,
-      km: sumKm,
-      costs: sumCosts,
-      durationMin: sumDur,
-      mileageClaim,
-      currency,
-      rate,
-    };
-  }, [filteredTrips, profile.mileageRate, profile.defaultCurrency]);
-
-  const insights = useMemo(() => {
-    const byVehicle = {};
-    const byCategory = {};
-    for (const t of filteredTrips) {
-      const v = t.vehicle || "—";
-      const c = t.category || "—";
-      const dist = km(t.distanceKm || (km(t.endKm) - km(t.startKm)));
-      const costs = money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
-      byVehicle[v] = byVehicle[v] || { trips: 0, km: 0, costs: 0 };
-      byCategory[c] = byCategory[c] || { trips: 0, km: 0, costs: 0 };
-      byVehicle[v].trips += 1;
-      byVehicle[v].km += dist;
-      byVehicle[v].costs += costs;
-      byCategory[c].trips += 1;
-      byCategory[c].km += dist;
-      byCategory[c].costs += costs;
-    }
-    const sortRows = (o) =>
-      Object.entries(o)
-        .map(([k, v]) => ({ key: k, ...v }))
-        .sort((a, b) => b.km - a.km || b.trips - a.trips);
-
-    return { byVehicle: sortRows(byVehicle), byCategory: sortRows(byCategory) };
-  }, [filteredTrips]);
-
-  const resetForm = () => {
-    const t = blankTrip();
-    t.vehicle = profile.defaultVehicle || t.vehicle;
-    t.currency = profile.defaultCurrency || t.currency;
-    t.category = (profile.categories?.[0] || "Official") ?? "Official";
-    setForm(t);
+  const saveVehicle = (vehicle) => {
+    setApp((a) => {
+      const exists = a.vehicles.some((v) => v.id === vehicle.id);
+      const vehicles = exists ? a.vehicles.map((v) => (v.id === vehicle.id ? vehicle : v)) : [vehicle, ...a.vehicles];
+      const tripsByVehicle = { ...a.tripsByVehicle };
+      if (!tripsByVehicle[vehicle.id]) tripsByVehicle[vehicle.id] = [];
+      const activeVehicleId = a.activeVehicleId || vehicle.id;
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeVehicleId });
+    });
+    setVehicleModal({ open: false, mode: "new", vehicleId: null });
+    notify("Vehicle saved");
   };
 
-  const applyTemplate = (tpl) => {
-    setForm((p) => ({
-      ...p,
-      from: tpl.from ?? p.from,
-      to: tpl.to ?? p.to,
-      purpose: tpl.purpose ?? p.purpose,
-      category: tpl.category ?? p.category,
-      vehicle: tpl.vehicle || p.vehicle,
-    }));
-    notify(`Template: ${tpl.name}`);
+  const requestDeleteVehicle = (id) => setConfirm({ open: true, kind: "vehicle", id });
+  const deleteVehicleNow = () => {
+    const id = confirm.id;
+    setApp((a) => {
+      const vehicles = a.vehicles.filter((v) => v.id !== id);
+      const tripsByVehicle = { ...a.tripsByVehicle };
+      delete tripsByVehicle[id];
+
+      let activeVehicleId = a.activeVehicleId;
+      if (activeVehicleId === id) activeVehicleId = vehicles.length ? vehicles[0].id : null;
+
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeVehicleId });
+    });
+    setConfirm({ open: false, kind: null, id: null });
+    notify("Vehicle deleted");
   };
 
-  const validate = () => {
-    if (!form.date) return "Date is required";
-    if (!String(form.from || "").trim()) return "From is required";
-    if (!String(form.to || "").trim()) return "To is required";
-    if (!String(form.purpose || "").trim()) return "Purpose is required";
-    const s = form.startKm === "" ? null : km(form.startKm);
-    const e = form.endKm === "" ? null : km(form.endKm);
-    if (s != null && e != null && e < s) return "End km must be >= start km";
-    return null;
-  };
+  const selectVehicle = (id) => setApp((a) => ({ ...a, activeVehicleId: id }));
 
-  const upsertTrip = () => {
-    const err = validate();
-    if (err) {
-      notify(err);
+  // ---------- Trip CRUD ----------
+  const addTrip = () => {
+    if (!activeVehicle) {
+      notify("Add a vehicle first");
       return;
     }
-
-    setTrips((prev) => {
-      const exists = prev.some((t) => t.id === form.id);
-      const normalized = normalizeTrip(
-        {
-          ...form,
-          vehicle: form.vehicle || profile.defaultVehicle || "",
-          currency: form.currency || profile.defaultCurrency || "EUR",
-          category: form.category || "Official",
-          updatedAt: new Date().toISOString(),
-        },
-        profile
-      );
-      if (exists) return prev.map((t) => (t.id === form.id ? normalized : t));
-      return [normalized, ...prev];
-    });
-
-    notify("Saved");
-    resetForm();
-  };
-
-  const editTrip = (t) => {
-    setForm(normalizeTrip(t, profile));
-    notify("Loaded into form");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const duplicateTrip = (t) => {
-    const copy = normalizeTrip({ ...t, id: uid(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, profile);
-    copy.date = isoToday();
-    setForm(copy);
-    notify("Duplicated into form");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const requestDelete = (id) => setConfirm({ open: true, tripId: id });
-
-  const deleteNow = () => {
-    const id = confirm.tripId;
-    setTrips((prev) => prev.filter((t) => t.id !== id));
-    setConfirm({ open: false, tripId: null });
-    notify("Deleted");
-  };
-
-  const getDBPackage = () => {
-    const uiPrefs = {
-      quickMode: ui.quickMode,
-      period: ui.period,
-      month: ui.month,
-      customFrom: ui.customFrom,
-      customTo: ui.customTo,
-      showInsights: ui.showInsights,
-      lastBackupAt: ui.lastBackupAt,
+    const t = {
+      id: uid(),
+      date: todayISO(),
+      from: "",
+      to: "",
+      purpose: "",
+      driver: "",
+      passengers: "",
+      odoStart: "",
+      odoEnd: "",
+      distance: 0,
+      costs: { fuel: 0, tolls: 0, parking: 0, other: 0, currency: "EUR" },
+      notes: "",
     };
-    return { profile, templates, trips, uiPrefs };
+    setApp((a) => {
+      const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
+      const tripsByVehicle = { ...a.tripsByVehicle, [activeVehicle.id]: [t, ...list] };
+      return { ...a, tripsByVehicle };
+    });
+    notify("Trip added");
   };
 
-  const weeklyBackup = () => {
-    const key = isoWeekKey(new Date());
-    const filename = `toolstack-trip-it-backup-${key}.json`;
-    downloadBlob(filename, JSON.stringify(getDBPackage(), null, 2), "application/json");
-    const stamp = new Date().toISOString();
-    setUi((p) => ({ ...p, lastBackupAt: stamp }));
-    notify(`Backup saved: ${key}`);
+  const updateTrip = (tripId, patch) => {
+    if (!activeVehicle) return;
+    setApp((a) => {
+      const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
+      const next = list.map((t) => {
+        if (t.id !== tripId) return t;
+        const merged = { ...t, ...patch };
+
+        // auto distance when odo fields change (unless distance explicitly set)
+        const odoStart = merged.odoStart;
+        const odoEnd = merged.odoEnd;
+        const dist = Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+        merged.distance = dist;
+
+        // ensure nested costs
+        merged.costs = { ...t.costs, ...patch.costs };
+        return merged;
+      });
+      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: next } };
+    });
   };
 
+  const deleteTrip = (tripId) => {
+    if (!activeVehicle) return;
+    setApp((a) => {
+      const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
+      const next = list.filter((t) => t.id !== tripId);
+      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: next } };
+    });
+    notify("Trip deleted");
+  };
+
+  // ---------- Export / Import ----------
   const exportJSON = () => {
-    downloadBlob("toolstack-trip-it.json", JSON.stringify(getDBPackage(), null, 2), "application/json");
+    const blob = new Blob([JSON.stringify(app, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `toolstack-trip-it.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const importJSON = async (file) => {
     if (!file) return;
     const text = await file.text();
     const parsed = safeParse(text, null);
-    if (!parsed || !Array.isArray(parsed.trips)) {
+    if (!parsed) {
       notify("Invalid JSON");
       return;
     }
-    if (parsed.profile) setProfile((p) => ({ ...p, ...parsed.profile }));
-    if (Array.isArray(parsed.templates)) setTemplates(parsed.templates);
-    setTrips(parsed.trips);
+    const migrated = migrateLegacyIfNeeded(parsed);
+    const normalized = normalizeApp(migrated ?? emptyApp());
+    setApp(normalized);
     notify("Imported");
   };
 
-  const exportCSV = () => {
-    const rows = [
-      [
-        "date",
-        "startTime",
-        "endTime",
-        "durationMin",
-        "from",
-        "to",
-        "purpose",
-        "category",
-        "vehicle",
-        "driver",
-        "passengers",
-        "startKm",
-        "endKm",
-        "distanceKm",
-        "fuelCost",
-        "tollCost",
-        "parkingCost",
-        "otherCost",
-        "currency",
-        "notes",
-        "proof",
-      ],
-      ...filteredTrips.map((t) => [
-        t.date,
-        t.startTime,
-        t.endTime,
-        String(durationMinutes(t.startTime, t.endTime)),
-        t.from,
-        t.to,
-        (t.purpose || "").replaceAll("\n", " "),
-        t.category,
-        t.vehicle,
-        t.driver,
-        t.passengers,
-        t.startKm,
-        t.endKm,
-        t.distanceKm,
-        t.fuelCost,
-        t.tollCost,
-        t.parkingCost,
-        t.otherCost,
-        t.currency,
-        (t.notes || "").replaceAll("\n", " "),
-        (t.proof || "").replaceAll("\n", " "),
-      ]),
-    ];
-
-    const esc = (v) => {
-      const s = String(v ?? "");
-      const needs = /[",\n]/.test(s);
-      const out = s.replaceAll('"', '""');
-      return needs ? `"${out}"` : out;
-    };
-
-    const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
-    const name = `toolstack-trip-it-${ui.period}-${periodRange.from || "all"}-${periodRange.to || "all"}.csv`;
-    downloadBlob(name, csv, "text/csv");
-  };
-
-  const emailReport = () => {
-    const filters = [];
-    if (ui.vehicleFilter !== "all") filters.push(`Vehicle=${ui.vehicleFilter}`);
-    if (ui.categoryFilter !== "all") filters.push(`Category=${ui.categoryFilter}`);
-    if (ui.search.trim()) filters.push(`Search="${ui.search.trim()}"`);
-    const filtersLabel = filters.join(", ");
-
-    const subject = `ToolStack Trip-It Report (${periodLabel})`;
-    const body = buildEmailText({
-      profile,
-      trips: filteredTrips,
-      totals,
-      periodLabel,
-      filtersLabel,
-    });
-
-    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
-  };
-
-  // Template Manager
-  const openTemplateManager = () => setUi((p) => ({ ...p, templateManagerOpen: true, templateDraft: null }));
-
-  const startNewTemplateFromForm = () => {
-    setUi((p) => ({
-      ...p,
-      templateManagerOpen: true,
-      templateDraft: {
-        id: uid(),
-        name: "New template",
-        from: form.from || "",
-        to: form.to || "",
-        purpose: form.purpose || "",
-        category: form.category || "Official",
-        vehicle: form.vehicle || profile.defaultVehicle || "",
-      },
-    }));
-  };
-
-  const editTemplate = (tpl) => {
-    setUi((p) => ({
-      ...p,
-      templateManagerOpen: true,
-      templateDraft: {
-        id: tpl.id,
-        name: tpl.name || "Template",
-        from: tpl.from || "",
-        to: tpl.to || "",
-        purpose: tpl.purpose || "",
-        category: tpl.category || "Official",
-        vehicle: tpl.vehicle || "",
-      },
-    }));
-  };
-
-  const saveTemplateDraft = () => {
-    const d = ui.templateDraft;
-    if (!d) return;
-    const name = String(d.name || "").trim();
-    if (!name) {
-      notify("Template name required");
+  const exportCSVView = () => {
+    if (!activeVehicle) {
+      notify("Select a vehicle first");
       return;
     }
-    const next = {
-      id: d.id || uid(),
-      name,
-      from: String(d.from || ""),
-      to: String(d.to || ""),
-      purpose: String(d.purpose || ""),
-      category: String(d.category || "Official"),
-      vehicle: String(d.vehicle || profile.defaultVehicle || ""),
-    };
-    setTemplates((prev) => {
-      const exists = prev.some((t) => t.id === next.id);
-      if (exists) return prev.map((t) => (t.id === next.id ? next : t));
-      return [next, ...prev];
-    });
-    setUi((p) => ({ ...p, templateDraft: null }));
-    notify("Template saved");
+    const rows = [];
+    rows.push([
+      "vehicle_name",
+      "vehicle_make",
+      "vehicle_model",
+      "vehicle_plate",
+      "month",
+      "date",
+      "from",
+      "to",
+      "purpose",
+      "driver",
+      "passengers",
+      "odo_start",
+      "odo_end",
+      "distance",
+      "fuel",
+      "tolls",
+      "parking",
+      "other",
+      "currency",
+      "notes",
+    ]);
+
+    const v = activeVehicle;
+    const m = app.ui.month;
+
+    for (const t of tripsForMonth) {
+      rows.push([
+        v.name,
+        v.make,
+        v.model,
+        v.plate,
+        m,
+        t.date,
+        t.from,
+        t.to,
+        t.purpose,
+        t.driver,
+        t.passengers,
+        t.odoStart,
+        t.odoEnd,
+        String(toNumber(t.distance).toFixed(1)),
+        String(toNumber(t.costs?.fuel).toFixed(2)),
+        String(toNumber(t.costs?.tolls).toFixed(2)),
+        String(toNumber(t.costs?.parking).toFixed(2)),
+        String(toNumber(t.costs?.other).toFixed(2)),
+        t.costs?.currency || "EUR",
+        (t.notes || "").replace(/\r?\n/g, " ").trim(),
+      ]);
+    }
+
+    const csv = rows
+      .map((r) =>
+        r
+          .map((cell) => {
+            const s = String(cell ?? "");
+            const escaped = s.replace(/"/g, '""');
+            return `"${escaped}"`;
+          })
+          .join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+
+    const safeName = (v.name || "vehicle").replace(/[^\w\-]+/g, "_").slice(0, 32);
+    a.download = `trip-it_${safeName}_${m}.csv`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
-  const requestDeleteTemplate = (id) => setUi((p) => ({ ...p, templateDeleteConfirm: { open: true, id } }));
-
-  const deleteTemplateNow = () => {
-    const id = ui.templateDeleteConfirm.id;
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
-    setUi((p) => ({ ...p, templateDeleteConfirm: { open: false, id: null }, templateDraft: null }));
-    notify("Template deleted");
+  // ---------- Print preview ----------
+  const openPreview = () => {
+    if (!activeVehicle) {
+      notify("Select a vehicle first");
+      return;
+    }
+    setPreviewOpen(true);
   };
 
-  const distOf = (t) => km(t.distanceKm || (km(t.endKm) - km(t.startKm)));
-  const costsOf = (t) => money(t.fuelCost) + money(t.tollCost) + money(t.parkingCost) + money(t.otherCost);
+  // ---------- Modals ----------
+  const vehicleFormVehicle = useMemo(() => {
+    if (!vehicleModal.open) return null;
+    if (vehicleModal.mode === "new") {
+      return { id: uid(), name: "", make: "", model: "", plate: "", vin: "", notes: "" };
+    }
+    const v = app.vehicles.find((x) => x.id === vehicleModal.vehicleId);
+    return v ? { ...v } : { id: uid(), name: "", make: "", model: "", plate: "", vin: "", notes: "" };
+  }, [vehicleModal, app.vehicles]);
+
+  const [vehicleDraft, setVehicleDraft] = useState(null);
+  useEffect(() => {
+    if (vehicleFormVehicle) setVehicleDraft(vehicleFormVehicle);
+  }, [vehicleFormVehicle]);
+
+  const vehicleSaveDisabled = useMemo(() => {
+    const n = String(vehicleDraft?.name || "").trim();
+    return !n;
+  }, [vehicleDraft]);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
       {/* Print rules */}
       <style>{`
-        @media print { .print\\:hidden { display: none !important; } }
+        @media print {
+          body { background: white !important; }
+          .print\\:hidden { display: none !important; }
+          .print\\:shadow-none { box-shadow: none !important; }
+          .print\\:border-none { border: none !important; }
+          .print\\:p-0 { padding: 0 !important; }
+        }
       `}</style>
 
-      <ConfirmModal
-        open={confirm.open}
-        title="Delete trip?"
-        message="This will permanently delete this trip log entry."
-        onCancel={() => setConfirm({ open: false, tripId: null })}
-        onConfirm={deleteNow}
-      />
+      {/* When preview is open, print only preview sheet */}
+      {previewOpen ? (
+        <style>{`
+          @media print {
+            body * { visibility: hidden !important; }
+            #tripit-print, #tripit-print * { visibility: visible !important; }
+            #tripit-print { position: absolute !important; left: 0; top: 0; width: 100%; }
+          }
+        `}</style>
+      ) : null}
 
       <ConfirmModal
-        open={ui.templateDeleteConfirm.open}
-        title="Delete template?"
-        message="This will remove the template permanently."
-        onCancel={() => setUi((p) => ({ ...p, templateDeleteConfirm: { open: false, id: null } }))}
-        onConfirm={deleteTemplateNow}
+        open={confirm.open && confirm.kind === "vehicle"}
+        title="Delete vehicle?"
+        message="This will delete the vehicle and all trips saved under it."
+        onCancel={() => setConfirm({ open: false, kind: null, id: null })}
+        onConfirm={deleteVehicleNow}
       />
 
-      <ModalShell
-        open={ui.templateManagerOpen}
-        title="Template Manager"
-        subtitle="Add, edit, delete templates. Use templates to log trips in seconds."
-        onClose={() => setUi((p) => ({ ...p, templateManagerOpen: false, templateDraft: null }))}
-        actions={
-          ui.templateDraft ? (
-            <>
-              <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, templateDraft: null }))}>
-                Cancel edit
-              </SmallButton>
-              <SmallButton tone="primary" onClick={saveTemplateDraft}>
-                Save template
-              </SmallButton>
-            </>
-          ) : (
-            <>
-              <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, templateManagerOpen: false }))}>
-                Done
-              </SmallButton>
-            </>
-          )
-        }
-      >
-        {ui.templateDraft ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Template name" hint="Required">
-              <input
-                className={inputBase}
-                value={ui.templateDraft.name}
-                onChange={(e) =>
-                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, name: e.target.value } }))
-                }
-              />
-            </Field>
-
-            <Field label="Vehicle">
-              <select
-                className={inputBase}
-                value={ui.templateDraft.vehicle}
-                onChange={(e) =>
-                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, vehicle: e.target.value } }))
-                }
-              >
-                {vehicles.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Category">
-              <select
-                className={inputBase}
-                value={ui.templateDraft.category}
-                onChange={(e) =>
-                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, category: e.target.value } }))
-                }
-              >
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <div />
-
-            <Field label="From">
-              <input
-                className={inputBase}
-                value={ui.templateDraft.from}
-                onChange={(e) =>
-                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, from: e.target.value } }))
-                }
-              />
-            </Field>
-
-            <Field label="To">
-              <input
-                className={inputBase}
-                value={ui.templateDraft.to}
-                onChange={(e) =>
-                  setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, to: e.target.value } }))
-                }
-              />
-            </Field>
-
-            <div className="md:col-span-2">
-              <Field label="Purpose">
-                <input
-                  className={inputBase}
-                  value={ui.templateDraft.purpose}
-                  onChange={(e) =>
-                    setUi((p) => ({ ...p, templateDraft: { ...p.templateDraft, purpose: e.target.value } }))
-                  }
-                />
-              </Field>
-            </div>
-
-            <div className="md:col-span-2 flex justify-end">
-              <SmallButton tone="danger" onClick={() => requestDeleteTemplate(ui.templateDraft.id)}>
-                Delete template
-              </SmallButton>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <div className="text-sm text-neutral-600">
-                You have <span className="font-semibold text-neutral-900">{templates.length}</span> templates.
+      {/* Vehicle modal */}
+      {vehicleModal.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })} />
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
+            <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold text-neutral-900">
+                  {vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}
+                </div>
+                <div className="text-sm text-neutral-600 mt-1">Create and manage vehicles so trips are logged per vehicle.</div>
+                <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
               </div>
-              <SmallButton tone="primary" onClick={startNewTemplateFromForm} title="Create a template from current form fields">
-                Save current form as template
-              </SmallButton>
+              <button
+                className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+                onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
+              >
+                Close
+              </button>
             </div>
 
-            <div className="rounded-2xl border border-neutral-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-neutral-700">
-                  <tr>
-                    <th className="text-left p-3">Name</th>
-                    <th className="text-left p-3">Route</th>
-                    <th className="text-left p-3">Vehicle</th>
-                    <th className="text-left p-3">Category</th>
-                    <th className="text-right p-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {templates.map((t) => (
-                    <tr key={t.id} className="border-t border-neutral-100">
-                      <td className="p-3 font-medium text-neutral-900">{t.name}</td>
-                      <td className="p-3 text-neutral-700">
-                        {(t.from || "—")} → {(t.to || "—")}
-                      </td>
-                      <td className="p-3 text-neutral-700">{t.vehicle || "—"}</td>
-                      <td className="p-3 text-neutral-700">{t.category || "—"}</td>
-                      <td className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <SmallButton onClick={() => applyTemplate(t)}>Apply</SmallButton>
-                          <SmallButton onClick={() => editTemplate(t)}>Edit</SmallButton>
-                          <SmallButton tone="danger" onClick={() => requestDeleteTemplate(t.id)}>Delete</SmallButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!templates.length ? (
-                    <tr>
-                      <td className="p-3 text-neutral-500" colSpan={5}>
-                        (no templates)
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-neutral-700">Vehicle name *</label>
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.name ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, name: e.target.value }))}
+                  placeholder="e.g., BMW 530i (Consulate)"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Make</label>
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.make ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, make: e.target.value }))}
+                  placeholder="e.g., BMW"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Model</label>
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.model ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, model: e.target.value }))}
+                  placeholder="e.g., 530i"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Plate</label>
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.plate ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, plate: e.target.value }))}
+                  placeholder="e.g., M-AB 1234"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-neutral-700">VIN</label>
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.vin ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))}
+                  placeholder="optional"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-neutral-700">Notes</label>
+                <textarea
+                  className={`${inputBase} mt-2 min-h-[90px]`}
+                  value={vehicleDraft?.notes ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, notes: e.target.value }))}
+                  placeholder="optional"
+                />
+              </div>
             </div>
 
-            <div className="text-xs text-neutral-500 mt-3">
-              Tip: Build templates for your repeat work. Then keep Trip-It in Quick Add mode most days.
+            <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
+              <button
+                className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+                onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
+              >
+                Cancel
+              </button>
+              <button
+                className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
+                  vehicleSaveDisabled
+                    ? "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                    : "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                }`}
+                disabled={vehicleSaveDisabled}
+                onClick={() => saveVehicle({ ...vehicleDraft, name: String(vehicleDraft?.name || "").trim() })}
+              >
+                Save vehicle
+              </button>
             </div>
           </div>
-        )}
-      </ModalShell>
+        </div>
+      ) : null}
 
-      {/* Main */}
+      {/* Print Preview Modal */}
+      {previewOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewOpen(false)} />
+          <div className="relative w-full max-w-5xl">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="text-lg font-semibold text-white">Print preview</div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-2 rounded-xl text-sm font-medium border border-white/40 bg-white/10 hover:bg-white/15 text-white transition"
+                  onClick={() => window.print()}
+                >
+                  Print / Save PDF
+                </button>
+                <button
+                  className="px-3 py-2 rounded-xl text-sm font-medium border border-white/40 bg-white/10 hover:bg-white/15 text-white transition"
+                  onClick={() => setPreviewOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-auto max-h-[80vh]">
+              <div id="tripit-print" className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-2xl font-semibold text-neutral-900">Trip-It</div>
+                    <div className="text-sm text-neutral-600">
+                      {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
+                    </div>
+                    <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+                    <div className="mt-3 text-sm text-neutral-700">
+                      <div className="font-medium text-neutral-900">Vehicle info</div>
+                      <div className="text-neutral-600">
+                        {activeVehicle?.make || "-"} {activeVehicle?.model || ""} • Plate: {activeVehicle?.plate || "-"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-neutral-600">Generated: {new Date().toLocaleString()}</div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-sm text-neutral-600">Trips</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.count}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-sm text-neutral-600">Distance</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.distance.toFixed(1)} km</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-sm text-neutral-600">Costs</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.totalCost, totals.currency)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-sm text-neutral-600">Fuel</div>
+                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.fuel, totals.currency)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-neutral-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-neutral-100 font-semibold text-neutral-900">
+                    Trips ({monthLabel(app.ui.month)})
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {tripsForMonth.length === 0 ? (
+                      <div className="text-sm text-neutral-600">No trips logged for this month.</div>
+                    ) : (
+                      tripsForMonth.map((t) => (
+                        <div key={t.id} className="rounded-2xl border border-neutral-200 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-neutral-900">
+                                {t.date} • {t.from || "-"} → {t.to || "-"}
+                              </div>
+                              <div className="text-sm text-neutral-600 mt-1">
+                                Purpose: {t.purpose || "-"} • Driver: {t.driver || "-"}
+                              </div>
+                              {t.notes ? <div className="text-sm text-neutral-700 mt-2 whitespace-pre-wrap">{t.notes}</div> : null}
+                            </div>
+                            <div className="text-sm text-neutral-600 text-right">
+                              <div className="font-semibold text-neutral-900">{toNumber(t.distance).toFixed(1)} km</div>
+                              <div className="mt-1">{money(toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other), t.costs?.currency || "EUR")}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-5 text-xs text-neutral-500">ToolStack • Trip-It</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-2xl font-bold tracking-tight text-neutral-900">Trip-It</div>
-            <div className="text-sm text-neutral-600">Daily duty trips, mileage, and reliable backups.</div>
+            <div className="text-2xl font-semibold text-neutral-900">Trip-It</div>
+            <div className="text-sm text-neutral-600">Log duty trips per vehicle. Export, print, and keep a clean record.</div>
             <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             <div className="mt-3 flex flex-wrap gap-2">
-              <Pill tone="accent">{filteredTrips.length} trips</Pill>
-              <Pill>{totals.km.toFixed(0)} km</Pill>
-              <Pill>{fmtMoney(totals.costs, totals.currency)} costs</Pill>
-              <Pill>{fmtDuration(totals.durationMin)} duration</Pill>
-              {totals.rate ? <Pill tone="warn">{fmtMoney(totals.mileageClaim, totals.currency)} mileage</Pill> : null}
-              <Pill>{periodLabel}</Pill>
+              <Pill tone="accent">{activeVehicle ? activeVehicle.name : "No vehicle selected"}</Pill>
+              <Pill>{monthLabel(app.ui.month)}</Pill>
+              <Pill>{totals.count} trips</Pill>
+              <Pill>{totals.distance.toFixed(1)} km</Pill>
+              <Pill>{money(totals.totalCost, totals.currency)}</Pill>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <SmallButton onClick={openTemplateManager}>Templates</SmallButton>
-            <SmallButton onClick={weeklyBackup} title="Exports entire database (profile + templates + trips + prefs)">
-              Weekly Backup
-            </SmallButton>
-            <SmallButton onClick={emailReport} disabled={!filteredTrips.length} title="Open email with report summary (no attachment)">
-              Email
-            </SmallButton>
-            <SmallButton onClick={exportCSV} disabled={!filteredTrips.length}>
-              Export CSV
-            </SmallButton>
-            <SmallButton onClick={exportJSON}>Export</SmallButton>
-            <label className={`${btnPrimary} cursor-pointer`}>
-              Import
-              <input type="file" className="hidden" accept="application/json" onChange={(e) => importJSON(e.target.files?.[0] || null)} />
-            </label>
+          {/* Top actions (normalized grid) */}
+          <div className="w-full sm:w-[720px]">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <ActionButton onClick={openPreview} disabled={!activeVehicle}>
+                Preview
+              </ActionButton>
+              <ActionButton onClick={() => window.print()} disabled={!activeVehicle}>
+                Print / Save PDF
+              </ActionButton>
+              <ActionButton onClick={exportJSON}>Export</ActionButton>
+              <ActionFileButton onFile={(f) => importJSON(f)} tone="primary">
+                Import
+              </ActionFileButton>
+              <ActionButton onClick={exportCSVView} disabled={!activeVehicle}>
+                Export CSV
+              </ActionButton>
+            </div>
           </div>
         </div>
 
-        {ui.lastBackupAt ? (
-          <div className="mt-3 text-xs text-neutral-500">
-            Last backup: {new Date(ui.lastBackupAt).toLocaleString()}
-          </div>
-        ) : null}
-
-        {/* Filters */}
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {/* Left: Vehicle + Month */}
           <div className={card}>
-            <div className={cardHead}>
-              <div className="font-semibold text-neutral-900">Filters</div>
+            <div className={`${cardHead} flex items-center justify-between`}>
+              <div className="font-semibold text-neutral-900">Vehicle & Month</div>
+              <button
+                className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
+                onClick={openNewVehicle}
+              >
+                + Add vehicle
+              </button>
             </div>
+
             <div className={`${cardPad} space-y-3`}>
-              <Field label="Period">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className={`${btnSecondary} ${ui.period === "today" ? "border-neutral-900 bg-neutral-900 text-white" : ""}`}
-                    onClick={() => setUi((p) => ({ ...p, period: "today" }))}
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
+                {app.vehicles.length ? (
+                  <select
+                    className={`${inputBase} mt-2`}
+                    value={app.activeVehicleId || ""}
+                    onChange={(e) => selectVehicle(e.target.value)}
                   >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    className={`${btnSecondary} ${ui.period === "week" ? "border-neutral-900 bg-neutral-900 text-white" : ""}`}
-                    onClick={() => setUi((p) => ({ ...p, period: "week" }))}
-                  >
-                    This week
-                  </button>
-                  <button
-                    type="button"
-                    className={`${btnSecondary} ${ui.period === "month" ? "border-neutral-900 bg-neutral-900 text-white" : ""}`}
-                    onClick={() => setUi((p) => ({ ...p, period: "month" }))}
-                  >
-                    Month
-                  </button>
-                  <button
-                    type="button"
-                    className={`${btnSecondary} ${ui.period === "all" ? "border-neutral-900 bg-neutral-900 text-white" : ""}`}
-                    onClick={() => setUi((p) => ({ ...p, period: "all" }))}
-                  >
-                    All
-                  </button>
-                </div>
-
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    className={`${btnSecondary} ${ui.period === "custom" ? "border-neutral-900 bg-neutral-900 text-white" : ""}`}
-                    onClick={() =>
-                      setUi((p) => ({
-                        ...p,
-                        period: "custom",
-                        customFrom: p.customFrom || startOfWeekISO(isoToday()),
-                        customTo: p.customTo || isoToday(),
-                      }))
-                    }
-                  >
-                    Custom range
-                  </button>
-                </div>
-
-                {ui.period === "month" ? (
-                  <div className="mt-2">
-                    <select className={inputBase} value={ui.month} onChange={(e) => setUi((p) => ({ ...p, month: e.target.value }))}>
-                      {Array.from(
-                        new Set([monthKeyFromDate(isoToday()), ...trips.map((t) => monthKeyFromDate(t.date)).filter(Boolean)])
-                      )
-                        .sort()
-                        .reverse()
-                        .map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                ) : null}
-
-                {ui.period === "custom" ? (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      className={inputBase}
-                      value={ui.customFrom}
-                      onChange={(e) => setUi((p) => ({ ...p, customFrom: e.target.value }))}
-                    />
-                    <input
-                      type="date"
-                      className={inputBase}
-                      value={ui.customTo}
-                      onChange={(e) => setUi((p) => ({ ...p, customTo: e.target.value }))}
-                    />
-                  </div>
-                ) : null}
-              </Field>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Vehicle">
-                  <select className={inputBase} value={ui.vehicleFilter} onChange={(e) => setUi((p) => ({ ...p, vehicleFilter: e.target.value }))}>
-                    <option value="all">All</option>
-                    {vehicles.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
+                    {app.vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
                       </option>
                     ))}
                   </select>
-                </Field>
-
-                <Field label="Category">
-                  <select className={inputBase} value={ui.categoryFilter} onChange={(e) => setUi((p) => ({ ...p, categoryFilter: e.target.value }))}>
-                    <option value="all">All</option>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                ) : (
+                  <div className="mt-2 text-sm text-neutral-600">
+                    No vehicles yet. Click <span className="font-medium">Add vehicle</span> to start.
+                  </div>
+                )}
               </div>
 
-              <Field label="Search">
-                <input className={inputBase} value={ui.search} onChange={(e) => setUi((p) => ({ ...p, search: e.target.value }))} placeholder="Route, purpose, notes…" />
-              </Field>
+              {activeVehicle ? (
+                <div className="rounded-2xl border border-neutral-200 p-4">
+                  <div className="font-semibold text-neutral-900">{activeVehicle.name}</div>
+                  <div className="text-sm text-neutral-600 mt-1">
+                    {(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}
+                  </div>
+                  <div className="text-sm text-neutral-600">Plate: {activeVehicle.plate || "-"}</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
+                      onClick={() => openEditVehicle(activeVehicle.id)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
+                      onClick={() => requestDeleteVehicle(activeVehicle.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
-              <div className="flex flex-wrap gap-2">
-                <SmallButton
-                  tone="ghost"
-                  onClick={() =>
-                    setUi((p) => ({
-                      ...p,
-                      search: "",
-                      vehicleFilter: "all",
-                      categoryFilter: "all",
-                      period: "month",
-                      month: monthKeyFromDate(isoToday()),
-                      customFrom: "",
-                      customTo: "",
-                    }))
-                  }
-                >
-                  Reset
-                </SmallButton>
-
-                <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, showInsights: !p.showInsights }))}>
-                  {ui.showInsights ? "Hide" : "Show"} insights
-                </SmallButton>
-
-                <SmallButton tone="ghost" onClick={() => setUi((p) => ({ ...p, quickMode: !p.quickMode }))}>
-                  {ui.quickMode ? "Full form" : "Quick add"}
-                </SmallButton>
-              </div>
-            </div>
-          </div>
-
-          {/* Defaults */}
-          <div className={card}>
-            <div className={cardHead}>
-              <div className="font-semibold text-neutral-900">Defaults</div>
-            </div>
-            <div className={`${cardPad} space-y-3`}>
-              <Field label="Organization">
-                <input className={inputBase} value={profile.orgName} onChange={(e) => setProfile((p) => ({ ...p, orgName: e.target.value }))} />
-              </Field>
-
-              <Field label="Default vehicle">
-                <select className={inputBase} value={profile.defaultVehicle} onChange={(e) => setProfile((p) => ({ ...p, defaultVehicle: e.target.value }))}>
-                  {vehicles.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Default currency">
-                  <select className={inputBase} value={profile.defaultCurrency} onChange={(e) => setProfile((p) => ({ ...p, defaultCurrency: e.target.value }))}>
-                    <option value="EUR">EUR</option>
-                    <option value="USD">USD</option>
-                    <option value="ZAR">ZAR</option>
-                    <option value="GBP">GBP</option>
-                  </select>
-                </Field>
-                <Field label="Mileage rate (opt.)" hint="per km">
-                  <input className={inputBase} value={profile.mileageRate} onChange={(e) => setProfile((p) => ({ ...p, mileageRate: e.target.value }))} placeholder="e.g., 0.30" />
-                </Field>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Month</label>
+                <input
+                  type="month"
+                  className={`${inputBase} mt-2`}
+                  value={app.ui.month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  disabled={!activeVehicle}
+                />
               </div>
 
               <div className="text-xs text-neutral-500">
-                Work routine: “This week” filter → Email/CSV if needed → Friday Weekly Backup.
+                Trips are stored per-vehicle. Select a vehicle to log and view its trips.
               </div>
             </div>
           </div>
 
-          {/* Insights */}
-          <div className={`${card} ${ui.showInsights ? "" : "hidden lg:block lg:opacity-50"}`}>
-            <div className={cardHead}>
-              <div className="font-semibold text-neutral-900">Insights</div>
-            </div>
-            <div className={`${cardPad} space-y-3`}>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-xs text-neutral-500">Trips</div>
-                  <div className="text-lg font-semibold text-neutral-900 mt-1">{totals.count}</div>
-                </div>
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-xs text-neutral-500">Km</div>
-                  <div className="text-lg font-semibold text-neutral-900 mt-1">{totals.km.toFixed(0)}</div>
-                </div>
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-xs text-neutral-500">Costs</div>
-                  <div className="text-lg font-semibold text-neutral-900 mt-1">{fmtMoney(totals.costs, totals.currency)}</div>
-                </div>
+          {/* Middle/Right: Trips */}
+          <div className="lg:col-span-2 space-y-3">
+            <div className={card}>
+              <div className={`${cardHead} flex items-center justify-between gap-3`}>
+                <div className="font-semibold text-neutral-900">Trips</div>
+                <button
+                  className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
+                    activeVehicle
+                      ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                  }`}
+                  onClick={addTrip}
+                  disabled={!activeVehicle}
+                >
+                  + Add trip
+                </button>
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 p-3">
-                <div className="text-xs text-neutral-500">Duration</div>
-                <div className="text-lg font-semibold text-neutral-900 mt-1">{fmtDuration(totals.durationMin)}</div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3">
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-sm font-medium text-neutral-900">By vehicle</div>
-                  <div className="mt-2 space-y-2">
-                    {insights.byVehicle.length ? (
-                      insights.byVehicle.slice(0, 5).map((r) => (
-                        <div key={r.key} className="flex items-center justify-between gap-3 text-sm">
-                          <div className="min-w-0 truncate">{r.key}</div>
-                          <div className="text-neutral-600 whitespace-nowrap">
-                            {r.trips} • {r.km.toFixed(0)} km • {fmtMoney(r.costs, totals.currency)}
-                          </div>
+              <div className={`${cardPad} space-y-3`}>
+                {!activeVehicle ? (
+                  <div className="text-sm text-neutral-600">Add a vehicle to start logging trips.</div>
+                ) : tripsForMonth.length === 0 ? (
+                  <div className="text-sm text-neutral-600">No trips for this month yet. Click “Add trip”.</div>
+                ) : (
+                  tripsForMonth.map((t) => (
+                    <div key={t.id} className="rounded-2xl border border-neutral-200 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Date</label>
+                          <input
+                            type="date"
+                            className={`${inputBase} mt-2`}
+                            value={t.date}
+                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
+                          />
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-neutral-500">No data for this filter.</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-sm font-medium text-neutral-900">By category</div>
-                  <div className="mt-2 space-y-2">
-                    {insights.byCategory.length ? (
-                      insights.byCategory.slice(0, 6).map((r) => (
-                        <div key={r.key} className="flex items-center justify-between gap-3 text-sm">
-                          <div className="min-w-0 truncate">{r.key}</div>
-                          <div className="text-neutral-600 whitespace-nowrap">
-                            {r.trips} • {r.km.toFixed(0)} km • {fmtMoney(r.costs, totals.currency)}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-neutral-500">No data for this filter.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-xs text-neutral-500">Tip: “This week” + “Vehicle” = clean weekly report.</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Form */}
-        <div className={`mt-3 ${card}`}>
-          <div className={`${cardHead} flex flex-wrap items-center justify-between gap-3`}>
-            <div>
-              <div className="font-semibold text-neutral-900">{ui.quickMode ? "Quick Add" : "Add / Edit trip"}</div>
-              <div className="text-xs text-neutral-500">Required: date, from, to, purpose</div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SmallButton onClick={resetForm}>New</SmallButton>
-              <SmallButton tone="ghost" onClick={() => setForm((p) => ({ ...p, startTime: nowTimeHHMM() }))} title="Set start time to now">
-                Start now
-              </SmallButton>
-              <SmallButton tone="ghost" onClick={() => setForm((p) => ({ ...p, endTime: nowTimeHHMM() }))} title="Set end time to now">
-                End now
-              </SmallButton>
-              <SmallButton tone="ghost" onClick={() => applyTemplate(templates[0] || {})} disabled={!templates.length} title="Apply first template (fast)">
-                Quick template
-              </SmallButton>
-              <SmallButton tone="primary" onClick={upsertTrip}>
-                Save
-              </SmallButton>
-            </div>
-          </div>
-
-          <div className={`${cardPad} grid grid-cols-1 md:grid-cols-3 gap-3`}>
-            <Field label="Date" hint="Required">
-              <input type="date" className={inputBase} value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
-            </Field>
-
-            <Field label="Start time">
-              <input type="time" className={inputBase} value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} />
-            </Field>
-
-            <Field label="End time" hint={`Duration: ${fmtDuration(durationMinutes(form.startTime, form.endTime))}`}>
-              <input type="time" className={inputBase} value={form.endTime} onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))} />
-            </Field>
-
-            <Field label="From" hint="Required">
-              <input className={inputBase} value={form.from} onChange={(e) => setForm((p) => ({ ...p, from: e.target.value }))} placeholder="e.g., Consulate" />
-            </Field>
-
-            <Field label="To" hint="Required">
-              <input className={inputBase} value={form.to} onChange={(e) => setForm((p) => ({ ...p, to: e.target.value }))} placeholder="e.g., Landshut" />
-            </Field>
-
-            <Field label="Purpose" hint="Required">
-              <input className={inputBase} value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} placeholder="e.g., Official pickup" />
-            </Field>
-
-            <Field label="Category">
-              <select className={inputBase} value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Vehicle">
-              <select className={inputBase} value={form.vehicle} onChange={(e) => setForm((p) => ({ ...p, vehicle: e.target.value }))}>
-                {vehicles.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Passengers">
-              <input className={inputBase} value={form.passengers} onChange={(e) => setForm((p) => ({ ...p, passengers: e.target.value }))} placeholder="Names or count" />
-            </Field>
-
-            <Field label="Start km">
-              <input className={inputBase} value={form.startKm} onChange={(e) => setForm((p) => ({ ...p, startKm: e.target.value }))} />
-            </Field>
-
-            <Field label="End km">
-              <input className={inputBase} value={form.endKm} onChange={(e) => setForm((p) => ({ ...p, endKm: e.target.value }))} />
-            </Field>
-
-            <Field label="Distance (km)" hint="auto">
-              <input className={inputMuted} value={form.distanceKm} readOnly />
-            </Field>
-
-            {!ui.quickMode ? (
-              <>
-                <Field label="Driver">
-                  <input className={inputBase} value={form.driver} onChange={(e) => setForm((p) => ({ ...p, driver: e.target.value }))} />
-                </Field>
-
-                <Field label="Fuel">
-                  <input className={inputBase} value={form.fuelCost} onChange={(e) => setForm((p) => ({ ...p, fuelCost: e.target.value }))} />
-                </Field>
-
-                <Field label="Tolls">
-                  <input className={inputBase} value={form.tollCost} onChange={(e) => setForm((p) => ({ ...p, tollCost: e.target.value }))} />
-                </Field>
-
-                <Field label="Parking">
-                  <input className={inputBase} value={form.parkingCost} onChange={(e) => setForm((p) => ({ ...p, parkingCost: e.target.value }))} />
-                </Field>
-
-                <Field label="Other costs">
-                  <input className={inputBase} value={form.otherCost} onChange={(e) => setForm((p) => ({ ...p, otherCost: e.target.value }))} />
-                </Field>
-
-                <Field label="Currency">
-                  <select className={inputBase} value={form.currency} onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}>
-                    <option value="EUR">EUR</option>
-                    <option value="USD">USD</option>
-                    <option value="ZAR">ZAR</option>
-                    <option value="GBP">GBP</option>
-                  </select>
-                </Field>
-
-                <Field label="Proof reference" hint="receipt/email/pdf link">
-                  <input className={inputBase} value={form.proof} onChange={(e) => setForm((p) => ({ ...p, proof: e.target.value }))} />
-                </Field>
-
-                <div className="md:col-span-3">
-                  <Field label="Notes">
-                    <textarea className={`${inputBase} min-h-[100px]`} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
-                  </Field>
-                </div>
-
-                <div className="md:col-span-3">
-                  <SmallButton tone="primary" onClick={startNewTemplateFromForm}>
-                    Save current form as template
-                  </SmallButton>
-                </div>
-              </>
-            ) : (
-              <div className="md:col-span-3">
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-medium text-neutral-900">Quick Add tips</div>
-                    <div className="text-xs text-neutral-500">Switch to “Full form” for costs, proofs, notes.</div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Pill>Templates button (top)</Pill>
-                    <Pill>Friday: Weekly Backup</Pill>
-                    <Pill>“This week” = clean report</Pill>
-                    <Pill tone="accent">Fast & safe</Pill>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Trips list */}
-        <div className={`mt-5 ${card}`}>
-          <div className={`${cardHead} flex flex-wrap items-center justify-between gap-3`}>
-            <div>
-              <div className="font-semibold text-neutral-900">Trips</div>
-              <div className="text-xs text-neutral-500">Your filtered working set for reporting.</div>
-            </div>
-            <div className="text-xs text-neutral-500">{filteredTrips.length} entries</div>
-          </div>
-
-          <div className={cardPad}>
-            {filteredTrips.length ? (
-              <div className="space-y-3">
-                {filteredTrips.map((t) => {
-                  const dist = distOf(t);
-                  const costs = costsOf(t);
-                  const dur = durationMinutes(t.startTime, t.endTime);
-                  return (
-                    <div key={t.id} className="rounded-2xl border border-neutral-200 p-4 bg-white">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm text-neutral-500">
-                            {t.date}
-                            {t.startTime ? ` • ${t.startTime}` : ""}
-                            {t.endTime ? `–${t.endTime}` : ""}
-                          </div>
-                          <div className="text-lg font-semibold text-neutral-900 truncate">
-                            {t.from} → {t.to}
-                          </div>
-                          <div className="text-sm text-neutral-700 mt-1">{t.purpose || "—"}</div>
-
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Pill>{t.vehicle || "vehicle"}</Pill>
-                            <Pill>{t.category || "category"}</Pill>
-                            {dist ? <Pill>{dist.toFixed(0)} km</Pill> : <Pill>km —</Pill>}
-                            {dur ? <Pill>{fmtDuration(dur)}</Pill> : <Pill>dur —</Pill>}
-                            {costs ? <Pill>{fmtMoney(costs, t.currency || totals.currency)}</Pill> : <Pill>costs —</Pill>}
-                            {t.proof ? <Pill tone="accent">proof ✓</Pill> : <Pill>proof —</Pill>}
+                        <div className="md:col-span-3">
+                          <label className="text-xs text-neutral-600 font-medium">Route</label>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input
+                              className={inputBase}
+                              value={t.from}
+                              onChange={(e) => updateTrip(t.id, { from: e.target.value })}
+                              placeholder="From"
+                            />
+                            <input
+                              className={inputBase}
+                              value={t.to}
+                              onChange={(e) => updateTrip(t.id, { to: e.target.value })}
+                              placeholder="To"
+                            />
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                          <SmallButton onClick={() => editTrip(t)}>Edit</SmallButton>
-                          <SmallButton onClick={() => duplicateTrip(t)}>Duplicate</SmallButton>
-                          <SmallButton tone="danger" onClick={() => requestDelete(t.id)}>
-                            Delete
-                          </SmallButton>
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-neutral-600 font-medium">Purpose</label>
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.purpose}
+                            onChange={(e) => updateTrip(t.id, { purpose: e.target.value })}
+                            placeholder="e.g., Consulate duty trip"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Driver</label>
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.driver}
+                            onChange={(e) => updateTrip(t.id, { driver: e.target.value })}
+                            placeholder="Driver"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Passengers</label>
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.passengers}
+                            onChange={(e) => updateTrip(t.id, { passengers: e.target.value })}
+                            placeholder="Optional"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Odo start</label>
+                          <input
+                            className={`${inputBase} mt-2 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={t.odoStart ?? ""}
+                            onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })}
+                            placeholder="0"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Odo end</label>
+                          <input
+                            className={`${inputBase} mt-2 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={t.odoEnd ?? ""}
+                            onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })}
+                            placeholder="0"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
+                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
+                            {toNumber(t.distance).toFixed(1)} km
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-4">
+                          <label className="text-xs text-neutral-600 font-medium">Costs</label>
+                          <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.fuel ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })}
+                              placeholder="Fuel"
+                              title="Fuel"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.tolls ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })}
+                              placeholder="Tolls"
+                              title="Tolls"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.parking ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })}
+                              placeholder="Parking"
+                              title="Parking"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.other ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })}
+                              placeholder="Other"
+                              title="Other"
+                            />
+                            <select
+                              className={inputBase}
+                              value={t.costs?.currency || "EUR"}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}
+                              title="Currency"
+                            >
+                              <option value="EUR">EUR</option>
+                              <option value="USD">USD</option>
+                              <option value="GBP">GBP</option>
+                            </select>
+                            <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-right tabular-nums">
+                              {money(
+                                toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other),
+                                t.costs?.currency || "EUR"
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-4">
+                          <label className="text-xs text-neutral-600 font-medium">Notes</label>
+                          <textarea
+                            className={`${inputBase} mt-2 min-h-[70px]`}
+                            value={t.notes}
+                            onChange={(e) => updateTrip(t.id, { notes: e.target.value })}
+                            placeholder="Optional notes..."
+                          />
                         </div>
                       </div>
 
-                      {(t.passengers || t.driver || t.notes) && !ui.quickMode ? (
-                        <div className="mt-3 text-sm text-neutral-600">
-                          {t.driver ? (
-                            <div>
-                              <span className="text-neutral-500">Driver:</span> {t.driver}
-                            </div>
-                          ) : null}
-                          {t.passengers ? (
-                            <div>
-                              <span className="text-neutral-500">Passengers:</span> {t.passengers}
-                            </div>
-                          ) : null}
-                          {t.notes ? <div className="mt-2 whitespace-pre-wrap">{t.notes}</div> : null}
-                        </div>
-                      ) : null}
+                      <div className="mt-3 flex items-center justify-end">
+                        <button
+                          className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
+                          onClick={() => deleteTrip(t.id)}
+                        >
+                          Delete trip
+                        </button>
+                      </div>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
-            ) : (
-              <div className="text-sm text-neutral-500">No trips for this filter yet.</div>
-            )}
+            </div>
+
+            {/* Summary card */}
+            <div className={card}>
+              <div className={cardHead}>
+                <div className="font-semibold text-neutral-900">Month summary</div>
+              </div>
+              <div className={`${cardPad} grid grid-cols-1 md:grid-cols-4 gap-3`}>
+                <div className="rounded-2xl border border-neutral-200 p-4">
+                  <div className="text-sm text-neutral-600">Trips</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.count}</div>
+                </div>
+                <div className="rounded-2xl border border-neutral-200 p-4">
+                  <div className="text-sm text-neutral-600">Distance</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{totals.distance.toFixed(1)} km</div>
+                </div>
+                <div className="rounded-2xl border border-neutral-200 p-4">
+                  <div className="text-sm text-neutral-600">Fuel</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.fuel, totals.currency)}</div>
+                </div>
+                <div className="rounded-2xl border border-neutral-200 p-4">
+                  <div className="text-sm text-neutral-600">Total costs</div>
+                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(totals.totalCost, totals.currency)}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
