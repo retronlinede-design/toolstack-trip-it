@@ -147,8 +147,8 @@ function HelpIconButton({ onClick, title = "Help", className = "" }) {
   );
 }
 
-// ---------- Help Pack v1 ----------
-function HelpModal({ open, onClose, appName = "ToolStack App" }) {
+// ---------- Help Pack v1 (Canonical: matches RentIt layout + content rules) ----------
+function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(unknown)", actions = [] }) {
   if (!open) return null;
 
   const Section = ({ title, children }) => (
@@ -160,6 +160,27 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
 
   const Bullet = ({ children }) => <li className="ml-4 list-disc">{children}</li>;
 
+  const ActionRow = ({ name, desc }) => (
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-neutral-100 last:border-b-0">
+      <div className="text-sm font-medium text-neutral-900">{name}</div>
+      <div className="text-sm text-neutral-600 text-right">{desc}</div>
+    </div>
+  );
+
+  const baseActions = [
+    { name: "Preview", desc: "Shows a clean report sheet inside the app (print-safe)." },
+    { name: "Print / Save PDF", desc: "Uses your browser print dialog to print or save a PDF." },
+    { name: "Export", desc: "Downloads a JSON backup file of your saved data." },
+    { name: "Import", desc: "Loads a JSON backup file and replaces the current saved data." },
+  ];
+
+  const extra = (actions || []).map((a) => ({
+    name: a,
+    desc: String(a).toLowerCase().includes("csv")
+      ? "Downloads a CSV export for spreadsheets (Excel/Sheets)."
+      : "Extra tool for this app.",
+  }));
+
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
@@ -167,9 +188,9 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
         <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
           <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
             <div>
-              <div className="text-sm text-neutral-500">ToolStack • Help</div>
-              <h2 className="text-lg font-semibold text-neutral-900">How {appName} saves your data</h2>
-              <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+              <div className="text-sm text-neutral-500">ToolStack • Help Pack v1</div>
+              <h2 className="text-lg font-semibold text-neutral-900">{appName} — how your data works</h2>
+              <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             </div>
 
             <button
@@ -186,66 +207,65 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
               <ul className="space-y-1">
                 <Bullet>Use the app normally — it autosaves as you type.</Bullet>
                 <Bullet>
-                  Use <b>Preview</b> to see a clean report sheet, then <b>Print / Save PDF</b>.
+                  Use <b>Preview</b> → then <b>Print / Save PDF</b> for a clean report.
                 </Bullet>
                 <Bullet>
-                  Use <b>Export</b> once in a while to create a backup file.
+                  Use <b>Export</b> regularly to create backups.
                 </Bullet>
               </ul>
             </Section>
 
             <Section title="Where your data lives (important)">
               <p>
-                Your data is saved automatically in your browser on <b>this device</b> using local storage (localStorage). That means:
+                Your data is saved automatically in your browser on <b>this device</b> using local storage (localStorage).
               </p>
               <ul className="space-y-1">
                 <Bullet>No login is required (for now).</Bullet>
-                <Bullet>If you switch device, browser, or browser profile, your data will not appear automatically.</Bullet>
+                <Bullet>If you switch device/browser/profile, your data will not follow automatically.</Bullet>
               </ul>
             </Section>
 
-            <Section title="Backup your data (Export)">
-              <p>
-                <b>Export</b> downloads a JSON backup file. Save it somewhere safe (Google Drive / OneDrive / Dropbox), or email it to yourself.
-              </p>
+            <Section title="Backup routine (recommended)">
               <ul className="space-y-1">
-                <Bullet>Recommended: export after major updates or at least weekly.</Bullet>
-                <Bullet>Keep a couple of older backups as a fallback.</Bullet>
+                <Bullet>
+                  Export after major changes, or at least <b>weekly</b>.
+                </Bullet>
+                <Bullet>Keep 2–3 older exports as a fallback.</Bullet>
+                <Bullet>Save exports somewhere safe (Drive/Dropbox/OneDrive) or email them to yourself.</Bullet>
               </ul>
             </Section>
 
-            <Section title="Restore or move to a new device (Import)">
+            <Section title="Restore / move to a new device (Import)">
               <p>
-                On a new device/browser (or if something was cleared), use <b>Import</b> and select your latest exported JSON file.
+                On a new device/browser (or after clearing site data), use <b>Import</b> and select your latest exported JSON.
               </p>
               <ul className="space-y-1">
                 <Bullet>Import replaces the current saved data with the file’s contents.</Bullet>
-                <Bullet>If an import fails, try an older export — versions can differ.</Bullet>
+                <Bullet>If an import fails, try an older export (versions can differ).</Bullet>
               </ul>
+            </Section>
+
+            <Section title="Buttons glossary (same meaning across ToolStack)">
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3">
+                {[...baseActions, ...extra].map((a) => (
+                  <ActionRow key={a.name} name={a.name} desc={a.desc} />
+                ))}
+              </div>
             </Section>
 
             <Section title="What can erase local data">
               <ul className="space-y-1">
                 <Bullet>Clearing browser history / site data.</Bullet>
-                <Bullet>Using private/incognito mode.</Bullet>
+                <Bullet>Private/incognito mode.</Bullet>
                 <Bullet>Some “cleanup/optimizer” tools.</Bullet>
                 <Bullet>Reinstalling the browser or using a different browser profile.</Bullet>
               </ul>
             </Section>
 
-            <Section title="Troubleshooting">
-              <ul className="space-y-2">
-                <Bullet>
-                  <b>“My data disappeared.”</b> Make sure you’re on the same device + same browser + same profile. Then try{" "}
-                  <b>Import</b> using your latest backup.
-                </Bullet>
-                <Bullet>
-                  <b>“I can’t find my export.”</b> Check your Downloads folder and search for “toolstack” or “trip-it”.
-                </Bullet>
-                <Bullet>
-                  <b>“Import says invalid.”</b> The file may be wrong or corrupted — try a different export.
-                </Bullet>
-              </ul>
+            <Section title="Storage key (for troubleshooting)">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                <span className="font-medium">localStorage key:</span> <span className="font-mono">{storageKey}</span>
+              </div>
             </Section>
 
             <Section title="Privacy">
@@ -871,7 +891,13 @@ export default function App() {
         onConfirm={deleteVehicleNow}
       />
 
-      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} appName="Trip-It" />
+      <HelpModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        appName="Trip-It"
+        storageKey={LS_KEY}
+        actions={["Trips CSV", "Fuel CSV"]}
+      />
 
       {/* Vehicle modal */}
       {vehicleModal.open ? (
