@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  *
  * Added (Help Pack v1):
  * - Help modal explaining autosave/local storage + Export/Import continuity
+ * - Help icon (?) pinned far-right of the top menu (consistent across apps)
  */
 
 const LS_KEY = "toolstack_tripit_v1";
@@ -96,6 +97,30 @@ function ActionFileButton({ children, onFile, accept = "application/json", tone 
         onChange={(e) => onFile?.(e.target.files?.[0] || null)}
       />
     </label>
+  );
+}
+
+// ---------- Help icon pinned far-right ----------
+function HelpIconButton({ onClick, title = "Help", className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={
+        "print:hidden h-10 w-10 shrink-0 rounded-xl border border-neutral-200 bg-white shadow-sm " +
+        "hover:bg-neutral-50 active:translate-y-[1px] transition flex items-center justify-center " +
+        "focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 " +
+        className
+      }
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4" />
+        <path d="M12 17h.01" />
+        <path d="M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z" />
+      </svg>
+    </button>
   );
 }
 
@@ -536,7 +561,6 @@ export default function App() {
     notify("Vehicle saved");
   };
 
-  const requestDeleteVehicle = (id) => setConfirm({ open: true, kind: "vehicle", id });
   const deleteVehicleNow = () => {
     const id = confirm.id;
     setApp((a) => {
@@ -1021,21 +1045,20 @@ export default function App() {
               <Pill>{monthLabel(app.ui.month)}</Pill>
               <Pill>{tripTotals.count} trips</Pill>
               <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
-              <Pill>Fuel: {money(fuelTotals.spend, fuelTotals.currency)} • {fuelTotals.liters.toFixed(2)}L</Pill>
+              <Pill>
+                Fuel: {money(fuelTotals.spend, fuelTotals.currency)} • {fuelTotals.liters.toFixed(2)}L
+              </Pill>
             </div>
           </div>
 
-          {/* Top actions (normalized grid) */}
-          <div className="w-full sm:w-[860px]">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+          {/* Top actions + pinned help icon */}
+          <div className="w-full sm:w-[860px] relative">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 pr-12">
               <ActionButton onClick={openPreview} disabled={!activeVehicle}>
                 Preview
               </ActionButton>
               <ActionButton onClick={() => window.print()} disabled={!activeVehicle}>
                 Print / Save PDF
-              </ActionButton>
-              <ActionButton onClick={() => setHelpOpen(true)} title="Help / how saving works">
-                Help
               </ActionButton>
               <ActionButton onClick={exportJSON}>Export</ActionButton>
               <ActionFileButton onFile={(f) => importJSON(f)} tone="primary">
@@ -1048,6 +1071,10 @@ export default function App() {
                 Fuel CSV
               </ActionButton>
             </div>
+
+            <div className="absolute right-0 top-0">
+              <HelpIconButton onClick={() => setHelpOpen(true)} />
+            </div>
           </div>
         </div>
 
@@ -1058,7 +1085,7 @@ export default function App() {
               <div className="font-semibold text-neutral-900">Vehicle & Month</div>
               <button
                 className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
-                onClick={openNewVehicle}
+                onClick={() => setVehicleModal({ open: true, mode: "new", vehicleId: null })}
               >
                 + Add vehicle
               </button>
@@ -1068,7 +1095,11 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
                 {app.vehicles.length ? (
-                  <select className={`${inputBase} mt-2`} value={app.activeVehicleId || ""} onChange={(e) => selectVehicle(e.target.value)}>
+                  <select
+                    className={`${inputBase} mt-2`}
+                    value={app.activeVehicleId || ""}
+                    onChange={(e) => selectVehicle(e.target.value)}
+                  >
                     {app.vehicles.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}
@@ -1076,7 +1107,9 @@ export default function App() {
                     ))}
                   </select>
                 ) : (
-                  <div className="mt-2 text-sm text-neutral-600">No vehicles yet. Click <span className="font-medium">Add vehicle</span>.</div>
+                  <div className="mt-2 text-sm text-neutral-600">
+                    No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
+                  </div>
                 )}
               </div>
 
@@ -1090,7 +1123,7 @@ export default function App() {
                   <div className="mt-3 flex items-center gap-2">
                     <button
                       className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
-                      onClick={() => openEditVehicle(activeVehicle.id)}
+                      onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}
                     >
                       Edit
                     </button>
@@ -1106,10 +1139,18 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Month</label>
-                <input type="month" className={`${inputBase} mt-2`} value={app.ui.month} onChange={(e) => setMonth(e.target.value)} disabled={!activeVehicle} />
+                <input
+                  type="month"
+                  className={`${inputBase} mt-2`}
+                  value={app.ui.month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  disabled={!activeVehicle}
+                />
               </div>
 
-              <div className="text-xs text-neutral-500">Fuel is logged separately so you can track spend per vehicle per month.</div>
+              <div className="text-xs text-neutral-500">
+                Fuel is logged separately so you can track spend per vehicle per month.
+              </div>
             </div>
           </div>
 
@@ -1121,7 +1162,9 @@ export default function App() {
                 <div className="font-semibold text-neutral-900">Trips</div>
                 <button
                   className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
-                    activeVehicle ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800" : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                    activeVehicle
+                      ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
                   }`}
                   onClick={addTrip}
                   disabled={!activeVehicle}
@@ -1141,72 +1184,158 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input type="date" className={`${inputBase} mt-2`} value={t.date} onChange={(e) => updateTrip(t.id, { date: e.target.value })} />
+                          <input
+                            type="date"
+                            className={`${inputBase} mt-2`}
+                            value={t.date}
+                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
+                          />
                         </div>
                         <div className="md:col-span-3">
                           <label className="text-xs text-neutral-600 font-medium">Route</label>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
-                            <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
+                            <input
+                              className={inputBase}
+                              value={t.from}
+                              onChange={(e) => updateTrip(t.id, { from: e.target.value })}
+                              placeholder="From"
+                            />
+                            <input
+                              className={inputBase}
+                              value={t.to}
+                              onChange={(e) => updateTrip(t.id, { to: e.target.value })}
+                              placeholder="To"
+                            />
                           </div>
                         </div>
 
                         <div className="md:col-span-2">
                           <label className="text-xs text-neutral-600 font-medium">Purpose</label>
-                          <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.purpose}
+                            onChange={(e) => updateTrip(t.id, { purpose: e.target.value })}
+                            placeholder="Purpose"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Driver</label>
-                          <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.driver}
+                            onChange={(e) => updateTrip(t.id, { driver: e.target.value })}
+                            placeholder="Driver"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Passengers</label>
-                          <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.passengers}
+                            onChange={(e) => updateTrip(t.id, { passengers: e.target.value })}
+                            placeholder="Optional"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Odo start</label>
-                          <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoStart ?? ""} onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })} placeholder="0" />
+                          <input
+                            className={`${inputBase} mt-2 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={t.odoStart ?? ""}
+                            onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })}
+                            placeholder="0"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Odo end</label>
-                          <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoEnd ?? ""} onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })} placeholder="0" />
+                          <input
+                            className={`${inputBase} mt-2 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={t.odoEnd ?? ""}
+                            onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })}
+                            placeholder="0"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
-                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
+                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
+                            {toNumber(t.distance).toFixed(1)} km
+                          </div>
                         </div>
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Costs</label>
                           <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.fuel ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })} placeholder="Fuel" />
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.tolls ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })} placeholder="Tolls" />
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.parking ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })} placeholder="Parking" />
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.other ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })} placeholder="Other" />
-                            <select className={inputBase} value={t.costs?.currency || "EUR"} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}>
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.fuel ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })}
+                              placeholder="Fuel"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.tolls ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })}
+                              placeholder="Tolls"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.parking ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })}
+                              placeholder="Parking"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.other ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })}
+                              placeholder="Other"
+                            />
+                            <select
+                              className={inputBase}
+                              value={t.costs?.currency || "EUR"}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}
+                            >
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
                             </select>
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-right tabular-nums">
-                              {money(toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other), t.costs?.currency || "EUR")}
+                              {money(
+                                toNumber(t.costs?.fuel) +
+                                  toNumber(t.costs?.tolls) +
+                                  toNumber(t.costs?.parking) +
+                                  toNumber(t.costs?.other),
+                                t.costs?.currency || "EUR"
+                              )}
                             </div>
                           </div>
                         </div>
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                          <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                          <textarea
+                            className={`${inputBase} mt-2 min-h-[70px]`}
+                            value={t.notes}
+                            onChange={(e) => updateTrip(t.id, { notes: e.target.value })}
+                            placeholder="Optional notes..."
+                          />
                         </div>
                       </div>
 
                       <div className="mt-3 flex items-center justify-end">
-                        <button className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition" onClick={() => deleteTrip(t.id)}>
+                        <button
+                          className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
+                          onClick={() => deleteTrip(t.id)}
+                        >
                           Delete trip
                         </button>
                       </div>
@@ -1222,7 +1351,9 @@ export default function App() {
                 <div className="font-semibold text-neutral-900">Fuel</div>
                 <button
                   className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
-                    activeVehicle ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800" : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                    activeVehicle
+                      ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
                   }`}
                   onClick={addFuel}
                   disabled={!activeVehicle}
@@ -1247,27 +1378,54 @@ export default function App() {
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Date</label>
-                            <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
+                            <input
+                              type="date"
+                              className={`${inputBase} mt-2`}
+                              value={f.date}
+                              onChange={(e) => updateFuel(f.id, { date: e.target.value })}
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Odometer</label>
-                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.odometer ?? ""} onChange={(e) => updateFuel(f.id, { odometer: e.target.value })} placeholder="km" />
+                            <input
+                              className={`${inputBase} mt-2 text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={f.odometer ?? ""}
+                              onChange={(e) => updateFuel(f.id, { odometer: e.target.value })}
+                              placeholder="km"
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Liters</label>
-                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.liters ?? 0} onChange={(e) => updateFuel(f.id, { liters: e.target.value })} placeholder="0.00" />
+                            <input
+                              className={`${inputBase} mt-2 text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={f.liters ?? 0}
+                              onChange={(e) => updateFuel(f.id, { liters: e.target.value })}
+                              placeholder="0.00"
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Total cost</label>
-                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.totalCost ?? 0} onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })} placeholder="0.00" />
+                            <input
+                              className={`${inputBase} mt-2 text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={f.totalCost ?? 0}
+                              onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })}
+                              placeholder="0.00"
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Currency</label>
-                            <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
+                            <select
+                              className={`${inputBase} mt-2`}
+                              value={f.currency || "EUR"}
+                              onChange={(e) => updateFuel(f.id, { currency: e.target.value })}
+                            >
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
@@ -1283,7 +1441,12 @@ export default function App() {
 
                           <div className="md:col-span-3">
                             <label className="text-xs text-neutral-600 font-medium">Station</label>
-                            <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
+                            <input
+                              className={`${inputBase} mt-2`}
+                              value={f.station || ""}
+                              onChange={(e) => updateFuel(f.id, { station: e.target.value })}
+                              placeholder="Optional (e.g., Aral, Shell)"
+                            />
                           </div>
 
                           <div className="md:col-span-3 flex items-end gap-3">
@@ -1303,12 +1466,20 @@ export default function App() {
 
                           <div className="md:col-span-6">
                             <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                            <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                            <textarea
+                              className={`${inputBase} mt-2 min-h-[60px]`}
+                              value={f.notes || ""}
+                              onChange={(e) => updateFuel(f.id, { notes: e.target.value })}
+                              placeholder="Optional notes..."
+                            />
                           </div>
                         </div>
 
                         <div className="mt-3 flex items-center justify-end">
-                          <button className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition" onClick={() => deleteFuel(f.id)}>
+                          <button
+                            className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
+                            onClick={() => deleteFuel(f.id)}
+                          >
                             Delete fuel
                           </button>
                         </div>
