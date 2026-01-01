@@ -11,6 +11,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  * - Export/Import JSON (includes fuel logs)
  * - Export CSV for trips + fuel
  * - Print Preview (prints only preview sheet)
+ *
+ * Added (Help Pack v1):
+ * - Help modal explaining autosave/local storage + Export/Import continuity
  */
 
 const LS_KEY = "toolstack_tripit_v1";
@@ -93,6 +96,127 @@ function ActionFileButton({ children, onFile, accept = "application/json", tone 
         onChange={(e) => onFile?.(e.target.files?.[0] || null)}
       />
     </label>
+  );
+}
+
+// ---------- Help Pack v1 ----------
+function HelpModal({ open, onClose, appName = "ToolStack App" }) {
+  if (!open) return null;
+
+  const Section = ({ title, children }) => (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
+      <div className="text-sm text-neutral-700 leading-relaxed space-y-2">{children}</div>
+    </section>
+  );
+
+  const Bullet = ({ children }) => <li className="ml-4 list-disc">{children}</li>;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+          <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm text-neutral-500">ToolStack • Help</div>
+              <h2 className="text-lg font-semibold text-neutral-900">How {appName} saves your data</h2>
+              <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+            </div>
+
+            <button
+              type="button"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="p-4 space-y-5 max-h-[70vh] overflow-auto">
+            <Section title="Quick start (daily use)">
+              <ul className="space-y-1">
+                <Bullet>Use the app normally — it autosaves as you type.</Bullet>
+                <Bullet>
+                  Use <b>Preview</b> to see a clean report sheet, then <b>Print / Save PDF</b>.
+                </Bullet>
+                <Bullet>
+                  Use <b>Export</b> once in a while to create a backup file.
+                </Bullet>
+              </ul>
+            </Section>
+
+            <Section title="Where your data lives (important)">
+              <p>
+                Your data is saved automatically in your browser on <b>this device</b> using local storage (localStorage). That means:
+              </p>
+              <ul className="space-y-1">
+                <Bullet>No login is required (for now).</Bullet>
+                <Bullet>If you switch device, browser, or browser profile, your data will not appear automatically.</Bullet>
+              </ul>
+            </Section>
+
+            <Section title="Backup your data (Export)">
+              <p>
+                <b>Export</b> downloads a JSON backup file. Save it somewhere safe (Google Drive / OneDrive / Dropbox), or email it to yourself.
+              </p>
+              <ul className="space-y-1">
+                <Bullet>Recommended: export after major updates or at least weekly.</Bullet>
+                <Bullet>Keep a couple of older backups as a fallback.</Bullet>
+              </ul>
+            </Section>
+
+            <Section title="Restore or move to a new device (Import)">
+              <p>
+                On a new device/browser (or if something was cleared), use <b>Import</b> and select your latest exported JSON file.
+              </p>
+              <ul className="space-y-1">
+                <Bullet>Import replaces the current saved data with the file’s contents.</Bullet>
+                <Bullet>If an import fails, try an older export — versions can differ.</Bullet>
+              </ul>
+            </Section>
+
+            <Section title="What can erase local data">
+              <ul className="space-y-1">
+                <Bullet>Clearing browser history / site data.</Bullet>
+                <Bullet>Using private/incognito mode.</Bullet>
+                <Bullet>Some “cleanup/optimizer” tools.</Bullet>
+                <Bullet>Reinstalling the browser or using a different browser profile.</Bullet>
+              </ul>
+            </Section>
+
+            <Section title="Troubleshooting">
+              <ul className="space-y-2">
+                <Bullet>
+                  <b>“My data disappeared.”</b> Make sure you’re on the same device + same browser + same profile.
+                  Then try <b>Import</b> using your latest backup.
+                </Bullet>
+                <Bullet>
+                  <b>“I can’t find my export.”</b> Check your Downloads folder and search for “toolstack” or “trip-it”.
+                </Bullet>
+                <Bullet>
+                  <b>“Import says invalid.”</b> The file may be wrong or corrupted — try a different export.
+                </Bullet>
+              </ul>
+            </Section>
+
+            <Section title="Privacy">
+              <p>By default, your data stays on your device. It only leaves your device if you export it or share it yourself.</p>
+            </Section>
+          </div>
+
+          <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -332,6 +456,7 @@ export default function App() {
   const toastTimer = useRef(null);
 
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const [vehicleModal, setVehicleModal] = useState({ open: false, mode: "new", vehicleId: null });
   const [confirm, setConfirm] = useState({ open: false, kind: null, id: null });
@@ -714,6 +839,8 @@ export default function App() {
         onConfirm={deleteVehicleNow}
       />
 
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} appName="Trip-It" />
+
       {/* Vehicle modal */}
       {vehicleModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
@@ -906,6 +1033,9 @@ export default function App() {
               </ActionButton>
               <ActionButton onClick={() => window.print()} disabled={!activeVehicle}>
                 Print / Save PDF
+              </ActionButton>
+              <ActionButton onClick={() => setHelpOpen(true)} title="Help / how saving works">
+                Help
               </ActionButton>
               <ActionButton onClick={exportJSON}>Export</ActionButton>
               <ActionFileButton onFile={(f) => importJSON(f)} tone="primary">
