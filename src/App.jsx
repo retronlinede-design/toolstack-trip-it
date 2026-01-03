@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * ToolStack — Trip-It (Duty Trip Log) — Styled v1 (Fixed)
+ * ToolStack — Trip-It (Duty Trip Log) — Styled v1 (Module-ready retrofit)
  *
  * Included:
  * - Vehicles (add/edit/delete), select active vehicle
@@ -12,12 +12,25 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  * - Export CSV for trips + fuel
  * - Print Preview (prints only preview sheet)
  *
- * Added (Help Pack v1):
- * - Help modal explaining autosave/local storage + Export/Import continuity
- * - Help icon (?) pinned far-right of the top menu (consistent across apps)
+ * Added/kept:
+ * - Help Pack v1 modal (canonical)
+ * - Help icon (?) pinned far-right of the top menu
+ * - Module-ready storage namespace + legacy migration from old key
+ * - Shared profile key (toolstack.profile.v1) used in print header (no extra UI)
+ * - Footer “Return to ToolStack hub” link
  */
 
-const LS_KEY = "toolstack_tripit_v1";
+// ----- Module-ready keys -----
+const APP_ID = "tripit";
+const APP_VERSION = "v1";
+const KEY = `toolstack.${APP_ID}.${APP_VERSION}`;
+const PROFILE_KEY = "toolstack.profile.v1";
+
+// Legacy key (older Trip-It)
+const LEGACY_LS_KEY = "toolstack_tripit_v1";
+
+// Optional: set later
+const HUB_URL = "https://YOUR-WIX-HUB-URL-HERE";
 
 const uid = () => {
   try {
@@ -53,6 +66,15 @@ const safeStorageSet = (key, value) => {
   }
 };
 
+const safeStorageRemove = (key) => {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+};
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const toNumber = (v) => {
@@ -79,6 +101,19 @@ const monthLabel = (ym) => {
   const d = new Date(Number(y), Number(m) - 1, 1);
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long" });
 };
+
+// ---------- Shared profile ----------
+function loadProfile() {
+  const p = safeParse(safeStorageGet(PROFILE_KEY), null);
+  return (
+    p || {
+      org: "ToolStack",
+      user: "",
+      language: "EN",
+      logo: "",
+    }
+  );
+}
 
 // ---------- Normalized top actions (mobile grid) ----------
 const ACTION_BASE =
@@ -115,7 +150,6 @@ function ActionFileButton({ children, onFile, accept = "application/json", tone 
         onChange={(e) => {
           const file = e.target.files?.[0] || null;
           onFile?.(file);
-          // Allow importing the same file again
           e.target.value = "";
         }}
       />
@@ -147,7 +181,7 @@ function HelpIconButton({ onClick, title = "Help", className = "" }) {
   );
 }
 
-// ---------- Help Pack v1 (Canonical: matches RentIt layout + content rules) ----------
+// ---------- Help Pack v1 (Canonical) ----------
 function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(unknown)", actions = [] }) {
   if (!open) return null;
 
@@ -495,12 +529,34 @@ function migrateLegacyIfNeeded(saved) {
   };
 }
 
+function isoToday() {
+  return todayISO();
+}
+
 export default function App() {
+  const [profile, setProfile] = useState(loadProfile());
+
   const [app, setApp] = useState(() => {
-    const savedRaw = safeStorageGet(LS_KEY);
-    const saved = savedRaw ? safeParse(savedRaw, null) : null;
+    // Prefer module-ready key; fallback to legacy key; then empty.
+    const raw =
+      safeStorageGet(KEY) ??
+      safeStorageGet(LEGACY_LS_KEY) ??
+      null;
+
+    const saved = raw ? safeParse(raw, null) : null;
     const migrated = migrateLegacyIfNeeded(saved);
-    return normalizeApp(migrated ?? emptyApp());
+    const norm = normalizeApp(migrated ?? emptyApp());
+
+    // If we loaded legacy key, immediately migrate to KEY (and optionally remove legacy).
+    try {
+      const fromLegacy = !safeStorageGet(KEY) && !!safeStorageGet(LEGACY_LS_KEY);
+      if (fromLegacy) {
+        safeStorageSet(KEY, JSON.stringify(norm));
+        // Keep legacy around if you want; but we remove to prevent drift.
+        safeStorageRemove(LEGACY_LS_KEY);
+      }
+    } catch {}
+    return norm;
   });
 
   const [toast, setToast] = useState(null);
@@ -519,8 +575,23 @@ export default function App() {
   };
 
   useEffect(() => {
-    safeStorageSet(LS_KEY, JSON.stringify(app));
+    safeStorageSet(KEY, JSON.stringify(app));
   }, [app]);
+
+  useEffect(() => {
+    safeStorageSet(PROFILE_KEY, JSON.stringify(profile));
+  }, [profile]);
+
+  const moduleManifest = useMemo(
+    () => ({
+      id: APP_ID,
+      name: "Trip-It",
+      version: APP_VERSION,
+      storageKeys: [KEY, PROFILE_KEY],
+      exports: ["print", "json", "csv"],
+    }),
+    []
+  );
 
   const activeVehicle = useMemo(
     () => app.vehicles.find((v) => v.id === app.activeVehicleId) || null,
@@ -611,7 +682,7 @@ export default function App() {
     if (!activeVehicle) return notify("Add a vehicle first");
     const t = {
       id: uid(),
-      date: todayISO(),
+      date: isoToday(),
       from: "",
       to: "",
       purpose: "",
@@ -662,7 +733,7 @@ export default function App() {
     if (!activeVehicle) return notify("Add a vehicle first");
     const f = {
       id: uid(),
-      date: todayISO(),
+      date: isoToday(),
       odometer: "",
       liters: 0,
       totalCost: 0,
@@ -698,11 +769,17 @@ export default function App() {
 
   // ---------- Export / Import ----------
   const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(app, null, 2)], { type: "application/json" });
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      profile,
+      data: app,
+      meta: { appId: APP_ID, version: APP_VERSION, storageKey: KEY },
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `toolstack-trip-it.json`;
+    a.download = `toolstack-trip-it-${APP_VERSION}-${isoToday()}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -714,7 +791,13 @@ export default function App() {
     const text = await file.text();
     const parsed = safeParse(text, null);
     if (!parsed) return notify("Invalid JSON");
-    const migrated = migrateLegacyIfNeeded(parsed);
+
+    // Accept either {profile,data} export OR raw app object
+    const incomingProfile = parsed?.profile || profile;
+    const incomingData = parsed?.data || parsed;
+
+    const migrated = migrateLegacyIfNeeded(incomingData);
+    setProfile(incomingProfile);
     setApp(normalizeApp(migrated ?? emptyApp()));
     notify("Imported");
   };
@@ -839,11 +922,10 @@ export default function App() {
     setPreviewOpen(true);
   };
 
-  // IMPORTANT FIX: top bar "Print / Save PDF" prints ONLY the preview sheet
+  // IMPORTANT: top bar "Print / Save PDF" prints ONLY the preview sheet
   const printFromTop = () => {
     if (!activeVehicle) return notify("Select a vehicle first");
     setPreviewOpen(true);
-    // Let React render the preview + print CSS first, then print
     setTimeout(() => window.print(), 60);
   };
 
@@ -895,7 +977,7 @@ export default function App() {
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
         appName="Trip-It"
-        storageKey={LS_KEY}
+        storageKey={KEY}
         actions={["Trips CSV", "Fuel CSV"]}
       />
 
@@ -1033,10 +1115,13 @@ export default function App() {
               <div id="tripit-print" className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-2xl font-semibold text-neutral-900">Trip-It</div>
+                    <div className="text-2xl font-semibold text-neutral-900">{profile.org || "ToolStack"}</div>
                     <div className="text-sm text-neutral-600">
-                      {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
+                      Trip-It • {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
                     </div>
+                    {profile.user ? (
+                      <div className="text-sm text-neutral-600">Prepared by: {profile.user}</div>
+                    ) : null}
                     <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
                   </div>
                   <div className="text-sm text-neutral-600">Generated: {new Date().toLocaleString()}</div>
@@ -1061,7 +1146,9 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="mt-5 text-xs text-neutral-500">ToolStack • Trip-It</div>
+                <div className="mt-5 text-xs text-neutral-500">
+                  Module: {moduleManifest.id}.{moduleManifest.version} • Storage key: <span className="font-mono">{KEY}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1073,7 +1160,9 @@ export default function App() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-2xl font-semibold text-neutral-900">Trip-It</div>
-            <div className="text-sm text-neutral-600">Log duty trips + fuel per vehicle.</div>
+            <div className="text-sm text-neutral-600">
+              Module-ready ({moduleManifest.id}.{moduleManifest.version}) • Log duty trips + fuel per vehicle.
+            </div>
             <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             <div className="mt-3 flex flex-wrap gap-2">
               <Pill tone="accent">{activeVehicle ? activeVehicle.name : "No vehicle selected"}</Pill>
@@ -1181,7 +1270,9 @@ export default function App() {
                 />
               </div>
 
-              <div className="text-xs text-neutral-500">Fuel is logged separately so you can track spend per vehicle per month.</div>
+              <div className="text-xs text-neutral-500">
+                Stored at <span className="font-mono">{KEY}</span> • Profile at <span className="font-mono">{PROFILE_KEY}</span>
+              </div>
             </div>
           </div>
 
@@ -1215,7 +1306,12 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input type="date" className={`${inputBase} mt-2`} value={t.date} onChange={(e) => updateTrip(t.id, { date: e.target.value })} />
+                          <input
+                            type="date"
+                            className={`${inputBase} mt-2`}
+                            value={t.date}
+                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
+                          />
                         </div>
 
                         <div className="md:col-span-3">
@@ -1434,6 +1530,13 @@ export default function App() {
             <div className="text-sm">{toast}</div>
           </div>
         ) : null}
+
+        {/* Footer link */}
+        <div className="mt-6 text-sm text-neutral-600">
+          <a className="underline hover:text-neutral-900" href={HUB_URL} target="_blank" rel="noreferrer">
+            Return to ToolStack hub
+          </a>
+        </div>
       </div>
     </div>
   );
