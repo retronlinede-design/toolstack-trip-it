@@ -12,6 +12,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  * - Export CSV for trips + fuel
  * - Print Preview (prints only preview sheet)
  *
+ * ToolStack UI master applied (matches Check-It):
+ * - Main heading style: Trip + lime It
+ * - Primary buttons: neutral-700
+ * - Text: neutral-800/700
+ * - Preview modal header bar style aligned
+ *
  * Added/kept:
  * - Help Pack v1 modal (canonical)
  * - Help icon (?) pinned far-right of the top menu
@@ -168,7 +174,7 @@ function HelpIconButton({ onClick, title = "Help", className = "" }) {
       className={
         "print:hidden h-10 w-10 shrink-0 rounded-xl border border-neutral-200 bg-white shadow-sm " +
         "hover:bg-neutral-50 active:translate-y-[1px] transition flex items-center justify-center " +
-        "text-neutral-800 focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 " +
+        "focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 " +
         className
       }
     >
@@ -323,18 +329,16 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 }
 
 // ---------- UI helpers ----------
+const btnSecondary =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+const btnPrimary =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white shadow-sm hover:bg-neutral-600 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+
 const inputBase =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
 const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm";
 const cardHead = "px-4 py-3 border-b border-neutral-100";
 const cardPad = "p-4";
-
-const btnSecondary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
-const btnPrimary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white shadow-sm hover:bg-neutral-600 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
-const btnDanger =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
 
 function Pill({ children, tone = "default" }) {
   const cls =
@@ -358,10 +362,18 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
           <div className="mt-3 h-[2px] w-40 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
         </div>
         <div className="p-4 flex items-center justify-end gap-2">
-          <button type="button" className={btnSecondary} onClick={onCancel}>
+          <button
+            type="button"
+            className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+            onClick={onCancel}
+          >
             Cancel
           </button>
-          <button type="button" className={btnDanger} onClick={onConfirm}>
+          <button
+            type="button"
+            className="px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition"
+            onClick={onConfirm}
+          >
             {confirmText}
           </button>
         </div>
@@ -874,7 +886,21 @@ export default function App() {
     const m = app.ui.month;
 
     const rows = [
-      ["vehicle_name", "make", "model", "plate", "month", "date", "odometer", "liters", "total_cost", "currency", "full_tank", "station", "notes"],
+      [
+        "vehicle_name",
+        "make",
+        "model",
+        "plate",
+        "month",
+        "date",
+        "odometer",
+        "liters",
+        "total_cost",
+        "currency",
+        "full_tank",
+        "station",
+        "notes",
+      ],
     ];
 
     for (const f of fuelForMonth) {
@@ -1034,11 +1060,7 @@ export default function App() {
                 Cancel
               </button>
               <button
-                className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
-                  vehicleSaveDisabled
-                    ? "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                    : "border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
-                }`}
+                className={`${btnPrimary} ${vehicleSaveDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 disabled={vehicleSaveDisabled}
                 onClick={() => saveVehicle({ ...vehicleDraft, name: String(vehicleDraft?.name || "").trim() })}
               >
@@ -1049,7 +1071,7 @@ export default function App() {
         </div>
       ) : null}
 
-      {/* Print Preview Modal (aligned to master) */}
+      {/* Print Preview Modal */}
       {previewOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
           <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewOpen(false)} />
@@ -1112,11 +1134,12 @@ export default function App() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
+            {/* MAIN HEADING — matches Check-It */}
             <div className="text-4xl sm:text-5xl font-black tracking-tight text-neutral-700">
               <span>Trip</span>
               <span className="text-lime-500">It</span>
             </div>
-            <div className="text-sm text-neutral-700">Log duty trips + fuel per vehicle (module-ready).</div>
+            <div className="text-sm text-neutral-700">Duty trips + fuel logs per vehicle (module-ready).</div>
             <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             <div className="mt-3 flex flex-wrap gap-2">
               <Pill tone="accent">{activeVehicle ? activeVehicle.name : "No vehicle selected"}</Pill>
@@ -1178,9 +1201,7 @@ export default function App() {
                     ))}
                   </select>
                 ) : (
-                  <div className="mt-2 text-sm text-neutral-700">
-                    No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
-                  </div>
+                  <div className="mt-2 text-sm text-neutral-700">No vehicles yet. Click <span className="font-medium">Add vehicle</span>.</div>
                 )}
               </div>
 
@@ -1193,7 +1214,10 @@ export default function App() {
                     <button className={btnSecondary} onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}>
                       Edit
                     </button>
-                    <button className={btnDanger} onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}>
+                    <button
+                      className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
+                      onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
+                    >
                       Delete
                     </button>
                   </div>
@@ -1240,12 +1264,12 @@ export default function App() {
                     <div key={t.id} className="rounded-2xl border border-neutral-200 p-4">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div>
-                          <label className="text-xs text-neutral-700 font-medium">Date</label>
+                          <label className="text-xs text-neutral-600 font-medium">Date</label>
                           <input type="date" className={`${inputBase} mt-2`} value={t.date} onChange={(e) => updateTrip(t.id, { date: e.target.value })} />
                         </div>
 
                         <div className="md:col-span-3">
-                          <label className="text-xs text-neutral-700 font-medium">Route</label>
+                          <label className="text-xs text-neutral-600 font-medium">Route</label>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                             <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
                             <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
@@ -1253,37 +1277,37 @@ export default function App() {
                         </div>
 
                         <div className="md:col-span-2">
-                          <label className="text-xs text-neutral-700 font-medium">Purpose</label>
+                          <label className="text-xs text-neutral-600 font-medium">Purpose</label>
                           <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-700 font-medium">Driver</label>
+                          <label className="text-xs text-neutral-600 font-medium">Driver</label>
                           <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-700 font-medium">Passengers</label>
+                          <label className="text-xs text-neutral-600 font-medium">Passengers</label>
                           <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-700 font-medium">Odo start</label>
+                          <label className="text-xs text-neutral-600 font-medium">Odo start</label>
                           <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoStart ?? ""} onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })} placeholder="0" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-700 font-medium">Odo end</label>
+                          <label className="text-xs text-neutral-600 font-medium">Odo end</label>
                           <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoEnd ?? ""} onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })} placeholder="0" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-700 font-medium">Distance (auto)</label>
+                          <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
                           <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
                         </div>
 
                         <div className="md:col-span-4">
-                          <label className="text-xs text-neutral-700 font-medium">Costs</label>
+                          <label className="text-xs text-neutral-600 font-medium">Costs</label>
                           <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
                             <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.fuel ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })} placeholder="Fuel" />
                             <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.tolls ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })} placeholder="Tolls" />
@@ -1301,7 +1325,7 @@ export default function App() {
                         </div>
 
                         <div className="md:col-span-4">
-                          <label className="text-xs text-neutral-700 font-medium">Notes</label>
+                          <label className="text-xs text-neutral-600 font-medium">Notes</label>
                           <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
                         </div>
                       </div>
@@ -1349,27 +1373,27 @@ export default function App() {
                       <div key={f.id} className="rounded-2xl border border-neutral-200 p-4">
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                           <div>
-                            <label className="text-xs text-neutral-700 font-medium">Date</label>
+                            <label className="text-xs text-neutral-600 font-medium">Date</label>
                             <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-700 font-medium">Odometer</label>
+                            <label className="text-xs text-neutral-600 font-medium">Odometer</label>
                             <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.odometer ?? ""} onChange={(e) => updateFuel(f.id, { odometer: e.target.value })} placeholder="km" />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-700 font-medium">Liters</label>
+                            <label className="text-xs text-neutral-600 font-medium">Liters</label>
                             <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.liters ?? 0} onChange={(e) => updateFuel(f.id, { liters: e.target.value })} placeholder="0.00" />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-700 font-medium">Total cost</label>
+                            <label className="text-xs text-neutral-600 font-medium">Total cost</label>
                             <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.totalCost ?? 0} onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })} placeholder="0.00" />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-700 font-medium">Currency</label>
+                            <label className="text-xs text-neutral-600 font-medium">Currency</label>
                             <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
@@ -1378,12 +1402,12 @@ export default function App() {
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-700 font-medium">€/L (auto)</label>
+                            <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
                             <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}</div>
                           </div>
 
                           <div className="md:col-span-3">
-                            <label className="text-xs text-neutral-700 font-medium">Station</label>
+                            <label className="text-xs text-neutral-600 font-medium">Station</label>
                             <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
                           </div>
 
@@ -1398,7 +1422,7 @@ export default function App() {
                           </div>
 
                           <div className="md:col-span-6">
-                            <label className="text-xs text-neutral-700 font-medium">Notes</label>
+                            <label className="text-xs text-neutral-600 font-medium">Notes</label>
                             <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
                           </div>
                         </div>
