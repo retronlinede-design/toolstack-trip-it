@@ -122,10 +122,10 @@ const ACTION_BASE =
 function ActionButton({ children, onClick, tone = "default", disabled, title }) {
   const cls =
     tone === "primary"
-      ? "bg-neutral-900 hover:bg-neutral-800 text-white border-neutral-900"
+      ? "bg-neutral-700 hover:bg-neutral-600 text-white border-neutral-700"
       : tone === "danger"
       ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-      : "bg-white hover:bg-neutral-50 text-neutral-900 border-neutral-200";
+      : "bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200";
 
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${ACTION_BASE} ${cls}`}>
@@ -137,8 +137,8 @@ function ActionButton({ children, onClick, tone = "default", disabled, title }) 
 function ActionFileButton({ children, onFile, accept = "application/json", tone = "primary", title }) {
   const cls =
     tone === "primary"
-      ? "bg-neutral-900 hover:bg-neutral-800 text-white border-neutral-900"
-      : "bg-white hover:bg-neutral-50 text-neutral-900 border-neutral-200";
+      ? "bg-neutral-700 hover:bg-neutral-600 text-white border-neutral-700"
+      : "bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200";
 
   return (
     <label title={title} className={`${ACTION_BASE} ${cls} cursor-pointer`}>
@@ -168,7 +168,7 @@ function HelpIconButton({ onClick, title = "Help", className = "" }) {
       className={
         "print:hidden h-10 w-10 shrink-0 rounded-xl border border-neutral-200 bg-white shadow-sm " +
         "hover:bg-neutral-50 active:translate-y-[1px] transition flex items-center justify-center " +
-        "focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 " +
+        "text-neutral-800 focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 " +
         className
       }
     >
@@ -187,7 +187,7 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
   const Section = ({ title, children }) => (
     <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
+      <h3 className="text-sm font-semibold text-neutral-800">{title}</h3>
       <div className="text-sm text-neutral-700 leading-relaxed space-y-2">{children}</div>
     </section>
   );
@@ -196,7 +196,7 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
   const ActionRow = ({ name, desc }) => (
     <div className="flex items-start justify-between gap-4 py-2 border-b border-neutral-100 last:border-b-0">
-      <div className="text-sm font-medium text-neutral-900">{name}</div>
+      <div className="text-sm font-medium text-neutral-800">{name}</div>
       <div className="text-sm text-neutral-600 text-right">{desc}</div>
     </div>
   );
@@ -223,13 +223,13 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
           <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
             <div>
               <div className="text-sm text-neutral-500">ToolStack • Help Pack v1</div>
-              <h2 className="text-lg font-semibold text-neutral-900">{appName} — how your data works</h2>
+              <h2 className="text-lg font-semibold text-neutral-800">{appName} — how your data works</h2>
               <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             </div>
 
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
               onClick={onClose}
             >
               Close
@@ -310,7 +310,7 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
           <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
               onClick={onClose}
             >
               Close
@@ -329,13 +329,20 @@ const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm";
 const cardHead = "px-4 py-3 border-b border-neutral-100";
 const cardPad = "p-4";
 
+const btnSecondary =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+const btnPrimary =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white shadow-sm hover:bg-neutral-600 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+const btnDanger =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+
 function Pill({ children, tone = "default" }) {
   const cls =
     tone === "accent"
       ? "border-lime-200 bg-lime-50 text-neutral-800"
       : tone === "warn"
       ? "border-amber-200 bg-amber-50 text-neutral-800"
-      : "border-neutral-200 bg-white text-neutral-700";
+      : "border-neutral-200 bg-white text-neutral-800";
   return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>{children}</span>;
 }
 
@@ -346,23 +353,15 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
       <div className="relative w-full max-w-md rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
         <div className="p-4 border-b border-neutral-100">
-          <div className="text-lg font-semibold text-neutral-900">{title}</div>
-          <div className="text-sm text-neutral-600 mt-1">{message}</div>
+          <div className="text-lg font-semibold text-neutral-800">{title}</div>
+          <div className="text-sm text-neutral-700 mt-1">{message}</div>
           <div className="mt-3 h-[2px] w-40 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
         </div>
         <div className="p-4 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
-            onClick={onCancel}
-          >
+          <button type="button" className={btnSecondary} onClick={onCancel}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition"
-            onClick={onConfirm}
-          >
+          <button type="button" className={btnDanger} onClick={onConfirm}>
             {confirmText}
           </button>
         </div>
@@ -538,10 +537,7 @@ export default function App() {
 
   const [app, setApp] = useState(() => {
     // Prefer module-ready key; fallback to legacy key; then empty.
-    const raw =
-      safeStorageGet(KEY) ??
-      safeStorageGet(LEGACY_LS_KEY) ??
-      null;
+    const raw = safeStorageGet(KEY) ?? safeStorageGet(LEGACY_LS_KEY) ?? null;
 
     const saved = raw ? safeParse(raw, null) : null;
     const migrated = migrateLegacyIfNeeded(saved);
@@ -552,7 +548,6 @@ export default function App() {
       const fromLegacy = !safeStorageGet(KEY) && !!safeStorageGet(LEGACY_LS_KEY);
       if (fromLegacy) {
         safeStorageSet(KEY, JSON.stringify(norm));
-        // Keep legacy around if you want; but we remove to prevent drift.
         safeStorageRemove(LEGACY_LS_KEY);
       }
     } catch {}
@@ -945,7 +940,7 @@ export default function App() {
   const vehicleSaveDisabled = useMemo(() => !String(vehicleDraft?.name || "").trim(), [vehicleDraft]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
+    <div className="min-h-screen bg-neutral-50 text-neutral-800">
       {/* Print rules */}
       <style>{`
         @media print {
@@ -984,21 +979,15 @@ export default function App() {
       {/* Vehicle modal */}
       {vehicleModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })} />
           <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
             <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-neutral-900">{vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}</div>
-                <div className="text-sm text-neutral-600 mt-1">Trips + fuel logs are stored per vehicle.</div>
+                <div className="text-lg font-semibold text-neutral-800">{vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}</div>
+                <div className="text-sm text-neutral-700 mt-1">Trips + fuel logs are stored per vehicle.</div>
                 <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
               </div>
-              <button
-                className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
-                onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
-              >
+              <button className={btnSecondary} onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}>
                 Close
               </button>
             </div>
@@ -1016,67 +1005,39 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Make</label>
-                <input
-                  className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.make ?? ""}
-                  onChange={(e) => setVehicleDraft((d) => ({ ...d, make: e.target.value }))}
-                  placeholder="e.g., BMW"
-                />
+                <input className={`${inputBase} mt-2`} value={vehicleDraft?.make ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, make: e.target.value }))} placeholder="e.g., BMW" />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Model</label>
-                <input
-                  className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.model ?? ""}
-                  onChange={(e) => setVehicleDraft((d) => ({ ...d, model: e.target.value }))}
-                  placeholder="e.g., 530i"
-                />
+                <input className={`${inputBase} mt-2`} value={vehicleDraft?.model ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, model: e.target.value }))} placeholder="e.g., 530i" />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Plate</label>
-                <input
-                  className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.plate ?? ""}
-                  onChange={(e) => setVehicleDraft((d) => ({ ...d, plate: e.target.value }))}
-                  placeholder="e.g., M-AB 1234"
-                />
+                <input className={`${inputBase} mt-2`} value={vehicleDraft?.plate ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, plate: e.target.value }))} placeholder="e.g., M-AB 1234" />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">VIN</label>
-                <input
-                  className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.vin ?? ""}
-                  onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))}
-                  placeholder="optional"
-                />
+                <input className={`${inputBase} mt-2`} value={vehicleDraft?.vin ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))} placeholder="optional" />
               </div>
 
               <div className="sm:col-span-2">
                 <label className="text-sm font-medium text-neutral-700">Notes</label>
-                <textarea
-                  className={`${inputBase} mt-2 min-h-[90px]`}
-                  value={vehicleDraft?.notes ?? ""}
-                  onChange={(e) => setVehicleDraft((d) => ({ ...d, notes: e.target.value }))}
-                  placeholder="optional"
-                />
+                <textarea className={`${inputBase} mt-2 min-h-[90px]`} value={vehicleDraft?.notes ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, notes: e.target.value }))} placeholder="optional" />
               </div>
             </div>
 
             <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
-              <button
-                className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 transition"
-                onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
-              >
+              <button className={btnSecondary} onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}>
                 Cancel
               </button>
               <button
                 className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
                   vehicleSaveDisabled
                     ? "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                    : "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                    : "border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
                 }`}
                 disabled={vehicleSaveDisabled}
                 onClick={() => saveVehicle({ ...vehicleDraft, name: String(vehicleDraft?.name || "").trim() })}
@@ -1088,24 +1049,18 @@ export default function App() {
         </div>
       ) : null}
 
-      {/* Print Preview Modal */}
+      {/* Print Preview Modal (aligned to master) */}
       {previewOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
           <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewOpen(false)} />
           <div className="relative w-full max-w-5xl">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="text-lg font-semibold text-white">Print preview</div>
+            <div className="mb-3 rounded-2xl bg-white border border-neutral-200 shadow-sm p-3 flex items-center justify-between gap-3">
+              <div className="text-lg font-semibold text-neutral-800">Print preview</div>
               <div className="flex items-center gap-2">
-                <button
-                  className="px-3 py-2 rounded-xl text-sm font-medium border border-white/40 bg-white/10 hover:bg-white/20 text-white transition"
-                  onClick={() => window.print()}
-                >
+                <button className={btnSecondary} onClick={() => window.print()}>
                   Print / Save PDF
                 </button>
-                <button
-                  className="px-3 py-2 rounded-xl text-sm font-medium border border-white/40 bg-white/10 hover:bg-white/20 text-white transition"
-                  onClick={() => setPreviewOpen(false)}
-                >
+                <button className={btnPrimary} onClick={() => setPreviewOpen(false)}>
                   Close
                 </button>
               </div>
@@ -1115,38 +1070,36 @@ export default function App() {
               <div id="tripit-print" className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-2xl font-semibold text-neutral-900">{profile.org || "ToolStack"}</div>
-                    <div className="text-sm text-neutral-600">
+                    <div className="text-2xl font-bold tracking-tight text-neutral-800">{profile.org || "ToolStack"}</div>
+                    <div className="text-sm text-neutral-700">
                       Trip-It • {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
                     </div>
-                    {profile.user ? (
-                      <div className="text-sm text-neutral-600">Prepared by: {profile.user}</div>
-                    ) : null}
+                    {profile.user ? <div className="text-sm text-neutral-700">Prepared by: {profile.user}</div> : null}
                     <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
                   </div>
-                  <div className="text-sm text-neutral-600">Generated: {new Date().toLocaleString()}</div>
+                  <div className="text-sm text-neutral-700">Generated: {new Date().toLocaleString()}</div>
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Trips</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.count}</div>
+                    <div className="text-sm text-neutral-700">Trips</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.count}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Distance</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.distance.toFixed(1)} km</div>
+                    <div className="text-sm text-neutral-700">Distance</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.distance.toFixed(1)} km</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Fuel spend</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
+                    <div className="text-sm text-neutral-700">Fuel spend</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Fuel liters</div>
-                    <div className="text-2xl font-semibold text-neutral-900 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
+                    <div className="text-sm text-neutral-700">Fuel liters</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
                   </div>
                 </div>
 
-                <div className="mt-5 text-xs text-neutral-500">
+                <div className="mt-5 text-xs text-neutral-600">
                   Module: {moduleManifest.id}.{moduleManifest.version} • Storage key: <span className="font-mono">{KEY}</span>
                 </div>
               </div>
@@ -1159,10 +1112,11 @@ export default function App() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-2xl font-semibold text-neutral-900">Trip-It</div>
-            <div className="text-sm text-neutral-600">
-              Module-ready ({moduleManifest.id}.{moduleManifest.version}) • Log duty trips + fuel per vehicle.
+            <div className="text-4xl sm:text-5xl font-black tracking-tight text-neutral-700">
+              <span>Trip</span>
+              <span className="text-lime-500">It</span>
             </div>
+            <div className="text-sm text-neutral-700">Log duty trips + fuel per vehicle (module-ready).</div>
             <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
             <div className="mt-3 flex flex-wrap gap-2">
               <Pill tone="accent">{activeVehicle ? activeVehicle.name : "No vehicle selected"}</Pill>
@@ -1206,11 +1160,8 @@ export default function App() {
           {/* Left: Vehicle + Month */}
           <div className={card}>
             <div className={`${cardHead} flex items-center justify-between`}>
-              <div className="font-semibold text-neutral-900">Vehicle & Month</div>
-              <button
-                className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
-                onClick={openNewVehicle}
-              >
+              <div className="font-semibold text-neutral-800">Vehicle & Month</div>
+              <button className={btnSecondary} onClick={openNewVehicle}>
                 + Add vehicle
               </button>
             </div>
@@ -1219,11 +1170,7 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
                 {app.vehicles.length ? (
-                  <select
-                    className={`${inputBase} mt-2`}
-                    value={app.activeVehicleId || ""}
-                    onChange={(e) => selectVehicle(e.target.value)}
-                  >
+                  <select className={`${inputBase} mt-2`} value={app.activeVehicleId || ""} onChange={(e) => selectVehicle(e.target.value)}>
                     {app.vehicles.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}
@@ -1231,7 +1178,7 @@ export default function App() {
                     ))}
                   </select>
                 ) : (
-                  <div className="mt-2 text-sm text-neutral-600">
+                  <div className="mt-2 text-sm text-neutral-700">
                     No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
                   </div>
                 )}
@@ -1239,20 +1186,14 @@ export default function App() {
 
               {activeVehicle ? (
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="font-semibold text-neutral-900">{activeVehicle.name}</div>
-                  <div className="text-sm text-neutral-600 mt-1">{(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}</div>
-                  <div className="text-sm text-neutral-600">Plate: {activeVehicle.plate || "-"}</div>
+                  <div className="font-semibold text-neutral-800">{activeVehicle.name}</div>
+                  <div className="text-sm text-neutral-700 mt-1">{(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}</div>
+                  <div className="text-sm text-neutral-700">Plate: {activeVehicle.plate || "-"}</div>
                   <div className="mt-3 flex items-center gap-2">
-                    <button
-                      className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition"
-                      onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}
-                    >
+                    <button className={btnSecondary} onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}>
                       Edit
                     </button>
-                    <button
-                      className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
-                      onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
-                    >
+                    <button className={btnDanger} onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}>
                       Delete
                     </button>
                   </div>
@@ -1261,16 +1202,10 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Month</label>
-                <input
-                  type="month"
-                  className={`${inputBase} mt-2`}
-                  value={app.ui.month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  disabled={!activeVehicle}
-                />
+                <input type="month" className={`${inputBase} mt-2`} value={app.ui.month} onChange={(e) => setMonth(e.target.value)} disabled={!activeVehicle} />
               </div>
 
-              <div className="text-xs text-neutral-500">
+              <div className="text-xs text-neutral-600">
                 Stored at <span className="font-mono">{KEY}</span> • Profile at <span className="font-mono">{PROFILE_KEY}</span>
               </div>
             </div>
@@ -1281,11 +1216,11 @@ export default function App() {
             {/* Trips */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
-                <div className="font-semibold text-neutral-900">Trips</div>
+                <div className="font-semibold text-neutral-800">Trips</div>
                 <button
                   className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
                     activeVehicle
-                      ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                      ? "border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
                       : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
                   }`}
                   onClick={addTrip}
@@ -1297,25 +1232,20 @@ export default function App() {
 
               <div className={`${cardPad} space-y-3`}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-600">Add a vehicle to start logging trips.</div>
+                  <div className="text-sm text-neutral-700">Add a vehicle to start logging trips.</div>
                 ) : tripsForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-600">No trips for this month yet.</div>
+                  <div className="text-sm text-neutral-700">No trips for this month yet.</div>
                 ) : (
                   tripsForMonth.map((t) => (
                     <div key={t.id} className="rounded-2xl border border-neutral-200 p-4">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input
-                            type="date"
-                            className={`${inputBase} mt-2`}
-                            value={t.date}
-                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
-                          />
+                          <label className="text-xs text-neutral-700 font-medium">Date</label>
+                          <input type="date" className={`${inputBase} mt-2`} value={t.date} onChange={(e) => updateTrip(t.id, { date: e.target.value })} />
                         </div>
 
                         <div className="md:col-span-3">
-                          <label className="text-xs text-neutral-600 font-medium">Route</label>
+                          <label className="text-xs text-neutral-700 font-medium">Route</label>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                             <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
                             <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
@@ -1323,37 +1253,37 @@ export default function App() {
                         </div>
 
                         <div className="md:col-span-2">
-                          <label className="text-xs text-neutral-600 font-medium">Purpose</label>
+                          <label className="text-xs text-neutral-700 font-medium">Purpose</label>
                           <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Driver</label>
+                          <label className="text-xs text-neutral-700 font-medium">Driver</label>
                           <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Passengers</label>
+                          <label className="text-xs text-neutral-700 font-medium">Passengers</label>
                           <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odo start</label>
+                          <label className="text-xs text-neutral-700 font-medium">Odo start</label>
                           <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoStart ?? ""} onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })} placeholder="0" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odo end</label>
+                          <label className="text-xs text-neutral-700 font-medium">Odo end</label>
                           <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoEnd ?? ""} onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })} placeholder="0" />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
+                          <label className="text-xs text-neutral-700 font-medium">Distance (auto)</label>
                           <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
                         </div>
 
                         <div className="md:col-span-4">
-                          <label className="text-xs text-neutral-600 font-medium">Costs</label>
+                          <label className="text-xs text-neutral-700 font-medium">Costs</label>
                           <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
                             <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.fuel ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })} placeholder="Fuel" />
                             <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.tolls ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })} placeholder="Tolls" />
@@ -1371,13 +1301,13 @@ export default function App() {
                         </div>
 
                         <div className="md:col-span-4">
-                          <label className="text-xs text-neutral-600 font-medium">Notes</label>
+                          <label className="text-xs text-neutral-700 font-medium">Notes</label>
                           <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
                         </div>
                       </div>
 
                       <div className="mt-3 flex items-center justify-end">
-                        <button className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition" onClick={() => deleteTrip(t.id)}>
+                        <button className={btnSecondary} onClick={() => deleteTrip(t.id)}>
                           Delete trip
                         </button>
                       </div>
@@ -1390,11 +1320,11 @@ export default function App() {
             {/* Fuel */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
-                <div className="font-semibold text-neutral-900">Fuel</div>
+                <div className="font-semibold text-neutral-800">Fuel</div>
                 <button
                   className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
                     activeVehicle
-                      ? "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800"
+                      ? "border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
                       : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
                   }`}
                   onClick={addFuel}
@@ -1406,9 +1336,9 @@ export default function App() {
 
               <div className={`${cardPad} space-y-3`}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-600">Select a vehicle to log fuel.</div>
+                  <div className="text-sm text-neutral-700">Select a vehicle to log fuel.</div>
                 ) : fuelForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-600">No fuel entries for this month yet.</div>
+                  <div className="text-sm text-neutral-700">No fuel entries for this month yet.</div>
                 ) : (
                   fuelForMonth.map((f) => {
                     const liters = toNumber(f.liters);
@@ -1419,27 +1349,27 @@ export default function App() {
                       <div key={f.id} className="rounded-2xl border border-neutral-200 p-4">
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                           <div>
-                            <label className="text-xs text-neutral-600 font-medium">Date</label>
+                            <label className="text-xs text-neutral-700 font-medium">Date</label>
                             <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-600 font-medium">Odometer</label>
+                            <label className="text-xs text-neutral-700 font-medium">Odometer</label>
                             <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.odometer ?? ""} onChange={(e) => updateFuel(f.id, { odometer: e.target.value })} placeholder="km" />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-600 font-medium">Liters</label>
+                            <label className="text-xs text-neutral-700 font-medium">Liters</label>
                             <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.liters ?? 0} onChange={(e) => updateFuel(f.id, { liters: e.target.value })} placeholder="0.00" />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-600 font-medium">Total cost</label>
+                            <label className="text-xs text-neutral-700 font-medium">Total cost</label>
                             <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.totalCost ?? 0} onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })} placeholder="0.00" />
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-600 font-medium">Currency</label>
+                            <label className="text-xs text-neutral-700 font-medium">Currency</label>
                             <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
@@ -1448,12 +1378,12 @@ export default function App() {
                           </div>
 
                           <div>
-                            <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
+                            <label className="text-xs text-neutral-700 font-medium">€/L (auto)</label>
                             <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}</div>
                           </div>
 
                           <div className="md:col-span-3">
-                            <label className="text-xs text-neutral-600 font-medium">Station</label>
+                            <label className="text-xs text-neutral-700 font-medium">Station</label>
                             <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
                           </div>
 
@@ -1462,19 +1392,19 @@ export default function App() {
                               <input type="checkbox" className="h-4 w-4" checked={!!f.fullTank} onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })} />
                               Full tank
                             </label>
-                            <div className="text-sm text-neutral-600">
-                              Entry total: <span className="font-semibold text-neutral-900">{money(cost, f.currency || "EUR")}</span>
+                            <div className="text-sm text-neutral-700">
+                              Entry total: <span className="font-semibold text-neutral-800">{money(cost, f.currency || "EUR")}</span>
                             </div>
                           </div>
 
                           <div className="md:col-span-6">
-                            <label className="text-xs text-neutral-600 font-medium">Notes</label>
+                            <label className="text-xs text-neutral-700 font-medium">Notes</label>
                             <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
                           </div>
                         </div>
 
                         <div className="mt-3 flex items-center justify-end">
-                          <button className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition" onClick={() => deleteFuel(f.id)}>
+                          <button className={btnSecondary} onClick={() => deleteFuel(f.id)}>
                             Delete fuel
                           </button>
                         </div>
@@ -1485,14 +1415,14 @@ export default function App() {
 
                 {activeVehicle ? (
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-600">Month fuel totals</div>
+                    <div className="text-sm text-neutral-700">Month fuel totals</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Pill>{fuelTotals.count} fill(s)</Pill>
                       <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
                       <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
                       <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-500">Next upgrade (optional): calculate consumption (L/100km) using “Full tank” entries + odometer.</div>
+                    <div className="mt-2 text-xs text-neutral-600">Next upgrade (optional): calculate consumption (L/100km) using “Full tank” entries + odometer.</div>
                   </div>
                 ) : null}
               </div>
@@ -1501,24 +1431,24 @@ export default function App() {
             {/* Summary card */}
             <div className={card}>
               <div className={cardHead}>
-                <div className="font-semibold text-neutral-900">Month summary</div>
+                <div className="font-semibold text-neutral-800">Month summary</div>
               </div>
               <div className={`${cardPad} grid grid-cols-1 md:grid-cols-4 gap-3`}>
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-600">Trips</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.count}</div>
+                  <div className="text-sm text-neutral-700">Trips</div>
+                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.count}</div>
                 </div>
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-600">Distance</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{tripTotals.distance.toFixed(1)} km</div>
+                  <div className="text-sm text-neutral-700">Distance</div>
+                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.distance.toFixed(1)} km</div>
                 </div>
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-600">Fuel spend</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
+                  <div className="text-sm text-neutral-700">Fuel spend</div>
+                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
                 </div>
                 <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-600">Fuel liters</div>
-                  <div className="text-2xl font-semibold text-neutral-900 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
+                  <div className="text-sm text-neutral-700">Fuel liters</div>
+                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
                 </div>
               </div>
             </div>
@@ -1526,14 +1456,14 @@ export default function App() {
         </div>
 
         {toast ? (
-          <div className="fixed bottom-6 right-6 rounded-2xl bg-neutral-900 text-white px-4 py-3 shadow-xl print:hidden">
+          <div className="fixed bottom-6 right-6 rounded-2xl bg-neutral-800 text-white px-4 py-3 shadow-xl print:hidden">
             <div className="text-sm">{toast}</div>
           </div>
         ) : null}
 
         {/* Footer link */}
-        <div className="mt-6 text-sm text-neutral-600">
-          <a className="underline hover:text-neutral-900" href={HUB_URL} target="_blank" rel="noreferrer">
+        <div className="mt-6 text-sm text-neutral-700">
+          <a className="underline hover:text-neutral-800" href={HUB_URL} target="_blank" rel="noreferrer">
             Return to ToolStack hub
           </a>
         </div>
