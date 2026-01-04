@@ -123,7 +123,7 @@ function loadProfile() {
 
 // ---------- Normalized top actions (mobile grid) ----------
 const ACTION_BASE =
-  "print:hidden h-10 w-full rounded-xl text-sm font-medium border transition shadow-sm active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center";
+  "print:hidden h-10 w-full min-w-0 px-3 rounded-xl text-sm font-medium leading-none whitespace-nowrap overflow-hidden text-ellipsis border transition shadow-sm active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center";
 
 function ActionButton({ children, onClick, tone = "default", disabled, title }) {
   const cls =
@@ -134,22 +134,25 @@ function ActionButton({ children, onClick, tone = "default", disabled, title }) 
       : "bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200";
 
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${ACTION_BASE} ${cls}`}>
-      {children}
+    <button type="button" onClick={onClick} title={title} disabled={disabled} className={`${ACTION_BASE} ${cls}`}>
+      <span className="truncate">{children}</span>
     </button>
   );
 }
 
 function ActionFileButton({ children, onFile, accept = "application/json", tone = "primary", title }) {
+  const inputIdRef = useRef(uid());
+
   const cls =
     tone === "primary"
       ? "bg-neutral-700 hover:bg-neutral-600 text-white border-neutral-700"
       : "bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200";
 
   return (
-    <label title={title} className={`${ACTION_BASE} ${cls} cursor-pointer`}>
-      <span>{children}</span>
+    <label title={title} className={`${ACTION_BASE} ${cls} cursor-pointer`} htmlFor={inputIdRef.current}>
+      <span className="truncate">{children}</span>
       <input
+        id={inputIdRef.current}
         type="file"
         accept={accept}
         className="hidden"
@@ -178,11 +181,7 @@ function HelpIconButton({ onClick, title = "Help", className = "" }) {
         className
       }
     >
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4" />
-        <path d="M12 17h.01" />
-        <path d="M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z" />
-      </svg>
+      <span className="text-base font-black text-neutral-700 leading-none">?</span>
     </button>
   );
 }
@@ -191,41 +190,40 @@ function HelpIconButton({ onClick, title = "Help", className = "" }) {
 function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(unknown)", actions = [] }) {
   if (!open) return null;
 
-  const Section = ({ title, children }) => (
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-neutral-800">{title}</h3>
+  const Card = ({ title, children }) => (
+    <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-2">
+      <div className="text-sm font-semibold text-neutral-800">{title}</div>
       <div className="text-sm text-neutral-700 leading-relaxed space-y-2">{children}</div>
-    </section>
+    </div>
   );
 
   const Bullet = ({ children }) => <li className="ml-4 list-disc">{children}</li>;
 
-  const ActionRow = ({ name, desc }) => (
-    <div className="flex items-start justify-between gap-4 py-2 border-b border-neutral-100 last:border-b-0">
-      <div className="text-sm font-medium text-neutral-800">{name}</div>
-      <div className="text-sm text-neutral-600 text-right">{desc}</div>
-    </div>
-  );
-
   const baseActions = [
-    { name: "Preview", desc: "Shows a clean report sheet inside the app (print-safe)." },
-    { name: "Print / Save PDF", desc: "Uses your browser print dialog to print or save a PDF." },
-    { name: "Export", desc: "Downloads a JSON backup file of your saved data." },
-    { name: "Import", desc: "Loads a JSON backup file and replaces the current saved data." },
+    { name: "Preview", desc: "Open a clean report sheet inside the app (print-safe)." },
+    { name: "Print", desc: "Use your browser print dialog to print or save a PDF." },
+    { name: "Export", desc: "Download a JSON backup of your saved data." },
+    { name: "Import", desc: "Load a JSON backup (replaces current saved data)." },
   ];
 
-  const extra = (actions || []).map((a) => ({
-    name: a,
-    desc: String(a).toLowerCase().includes("csv")
-      ? "Downloads a CSV export for spreadsheets (Excel/Sheets)."
-      : "Extra tool for this app.",
-  }));
+  const extra = (actions || []).map((a) => {
+    const low = String(a).toLowerCase();
+    return {
+      name: a,
+      desc: low.includes("csv")
+        ? "Download a CSV file for Excel / Google Sheets."
+        : low.includes("email")
+        ? "Open your email app with a pre-filled report."
+        : "Extra tool for this app.",
+    };
+  });
 
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+          {/* Header (matches master modal header style) */}
           <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
             <div>
               <div className="text-sm text-neutral-500">ToolStack • Help Pack v1</div>
@@ -242,77 +240,93 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
             </button>
           </div>
 
-          <div className="p-4 space-y-5 max-h-[70vh] overflow-auto">
-            <Section title="Quick start (daily use)">
+          {/* Body */}
+          <div className="p-4 space-y-3 max-h-[70vh] overflow-auto">
+            <Card title="Quick start">
               <ul className="space-y-1">
                 <Bullet>Use the app normally — it autosaves as you type.</Bullet>
                 <Bullet>
-                  Use <b>Preview</b> → then <b>Print / Save PDF</b> for a clean report.
+                  Use <b>Preview</b> → then <b>Print</b> for a clean report.
                 </Bullet>
                 <Bullet>
                   Use <b>Export</b> regularly to create backups.
                 </Bullet>
               </ul>
-            </Section>
+            </Card>
 
-            <Section title="Where your data lives (important)">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Card title="Where your data lives">
+                <p>
+                  Your data is stored in your browser on <b>this device</b> (localStorage). No login required.
+                </p>
+                <ul className="space-y-1">
+                  <Bullet>Switching device/browser will not carry your data over automatically.</Bullet>
+                  <Bullet>Incognito/private mode may not persist data.</Bullet>
+                </ul>
+              </Card>
+
+              <Card title="Backup routine">
+                <ul className="space-y-1">
+                  <Bullet>
+                    Export after big changes, or at least <b>weekly</b>.
+                  </Bullet>
+                  <Bullet>Keep 2–3 older exports as fallback.</Bullet>
+                  <Bullet>Save exports to Drive/Dropbox/OneDrive (or email to yourself).</Bullet>
+                </ul>
+              </Card>
+            </div>
+
+            <Card title="Restore / move to a new device (Import)">
               <p>
-                Your data is saved automatically in your browser on <b>this device</b> using local storage (localStorage).
+                On a new device/browser (or after clearing site data), click <b>Import</b> and choose your latest exported JSON.
               </p>
               <ul className="space-y-1">
-                <Bullet>No login is required (for now).</Bullet>
-                <Bullet>If you switch device/browser/profile, your data will not follow automatically.</Bullet>
-              </ul>
-            </Section>
-
-            <Section title="Backup routine (recommended)">
-              <ul className="space-y-1">
-                <Bullet>
-                  Export after major changes, or at least <b>weekly</b>.
-                </Bullet>
-                <Bullet>Keep 2–3 older exports as a fallback.</Bullet>
-                <Bullet>Save exports somewhere safe (Drive/Dropbox/OneDrive) or email them to yourself.</Bullet>
-              </ul>
-            </Section>
-
-            <Section title="Restore / move to a new device (Import)">
-              <p>
-                On a new device/browser (or after clearing site data), use <b>Import</b> and select your latest exported JSON.
-              </p>
-              <ul className="space-y-1">
-                <Bullet>Import replaces the current saved data with the file’s contents.</Bullet>
+                <Bullet>Import replaces the current saved data with the file contents.</Bullet>
                 <Bullet>If an import fails, try an older export (versions can differ).</Bullet>
               </ul>
-            </Section>
+            </Card>
 
-            <Section title="Buttons glossary (same meaning across ToolStack)">
+            <Card title="Buttons glossary (same meaning across ToolStack)">
               <div className="rounded-2xl border border-neutral-200 bg-white px-3">
                 {[...baseActions, ...extra].map((a) => (
-                  <ActionRow key={a.name} name={a.name} desc={a.desc} />
+                  <div
+                    key={a.name}
+                    className="flex items-start justify-between gap-4 py-2 border-b border-neutral-100 last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-neutral-800">{a.name}</div>
+                    <div className="text-sm text-neutral-600 text-right">{a.desc}</div>
+                  </div>
                 ))}
               </div>
-            </Section>
+            </Card>
 
-            <Section title="What can erase local data">
-              <ul className="space-y-1">
-                <Bullet>Clearing browser history / site data.</Bullet>
-                <Bullet>Private/incognito mode.</Bullet>
-                <Bullet>Some “cleanup/optimizer” tools.</Bullet>
-                <Bullet>Reinstalling the browser or using a different browser profile.</Bullet>
-              </ul>
-            </Section>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Card title="What can erase local data">
+                <ul className="space-y-1">
+                  <Bullet>Clearing browser history / site data.</Bullet>
+                  <Bullet>“Cleaner/optimizer” tools.</Bullet>
+                  <Bullet>Different browser profile or reinstall.</Bullet>
+                </ul>
+              </Card>
 
-            <Section title="Storage key (for troubleshooting)">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
-                <span className="font-medium">localStorage key:</span> <span className="font-mono">{storageKey}</span>
-              </div>
-            </Section>
+              <Card title="Storage key (for troubleshooting)">
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                  <span className="font-medium">localStorage key:</span> <span className="font-mono">{storageKey}</span>
+                </div>
+                <p className="text-xs text-neutral-600">
+                  Tip: If data looks “missing”, it’s usually a different device/browser/profile or cleared site data.
+                </p>
+              </Card>
+            </div>
 
-            <Section title="Privacy">
-              <p>By default, your data stays on your device. It only leaves your device if you export it or share it yourself.</p>
-            </Section>
+            <Card title="Privacy">
+              <p>
+                By default, your data stays on your device. It only leaves your device if you export it or share it yourself.
+              </p>
+            </Card>
           </div>
 
+          {/* Footer */}
           <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
             <button
               type="button"
@@ -379,6 +393,258 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
         </div>
       </div>
     </div>
+  );
+}
+
+function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody, onCopy, onOpenEmail }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+          <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm text-neutral-500">ToolStack • Email</div>
+              <h2 className="text-lg font-semibold text-neutral-800">Send report via email</h2>
+              <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+            </div>
+            <button
+              type="button"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="p-4 space-y-3 max-h-[70vh] overflow-auto">
+            <div>
+              <label className="text-sm font-medium text-neutral-700">To</label>
+              <input
+                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 mt-2"
+                value={to}
+                onChange={(e) => onChangeTo?.(e.target.value)}
+                placeholder="email@example.com (optional)"
+              />
+              <div className="text-xs text-neutral-600 mt-2">
+                Tip: This uses your device’s email app (mailto). Attachments aren’t added automatically — use Export/CSV if you
+                need files.
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-neutral-700">Subject</label>
+              <div className="mt-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800">
+                {subject}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-neutral-700">Message</label>
+              <textarea
+                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 mt-2 min-h-[220px]"
+                value={body}
+                onChange={(e) => onChangeBody?.(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-neutral-100 flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+              onClick={onCopy}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600 transition"
+              onClick={onOpenEmail}
+            >
+              Open email
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Month Picker (consistent UI; popup defaults to CURRENT year/month; year changeable) ----------
+function MonthPicker({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthNum = now.getMonth() + 1;
+
+  // IMPORTANT: popup defaults to current year/month (not the currently selected value)
+  const [year, setYear] = useState(currentYear);
+  useEffect(() => {
+    if (open) setYear(currentYear);
+  }, [open, currentYear]);
+
+  const years = useMemo(() => {
+    const start = currentYear - 5;
+    return Array.from({ length: 11 }, (_, i) => start + i);
+  }, [currentYear]);
+
+  const months = useMemo(
+    () => [
+      { n: 1, label: "Jan" },
+      { n: 2, label: "Feb" },
+      { n: 3, label: "Mar" },
+      { n: 4, label: "Apr" },
+      { n: 5, label: "May" },
+      { n: 6, label: "Jun" },
+      { n: 7, label: "Jul" },
+      { n: 8, label: "Aug" },
+      { n: 9, label: "Sep" },
+      { n: 10, label: "Oct" },
+      { n: 11, label: "Nov" },
+      { n: 12, label: "Dec" },
+    ],
+    []
+  );
+
+  const pick = (monthNum) => {
+    const mm = String(monthNum).padStart(2, "0");
+    onChange?.(`${year}-${mm}`);
+    setOpen(false);
+  };
+
+  const setThisMonth = () => {
+    const mm = String(currentMonthNum).padStart(2, "0");
+    onChange?.(`${currentYear}-${mm}`);
+    setOpen(false);
+  };
+
+  return (
+    <>
+      {/* Field */}
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          className={
+            "w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-700 shadow-sm " +
+            "hover:bg-neutral-50 transition flex items-center justify-between gap-3 " +
+            (disabled ? "opacity-50 cursor-not-allowed" : "")
+          }
+          title="Choose month"
+        >
+          <span className="truncate">{monthLabel(value)}</span>
+          <span
+            className={
+              "h-8 w-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center shrink-0 " +
+              "hover:bg-neutral-50"
+            }
+            aria-hidden="true"
+          >
+            {/* calendar icon */}
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4 text-neutral-700"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      {/* Popup */}
+      {open ? (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
+            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+              <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm text-neutral-500">ToolStack • Month picker</div>
+                  <div className="text-lg font-semibold text-neutral-800">Select month</div>
+                  <div className="mt-3 h-[2px] w-44 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+                </div>
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+                  onClick={() => setOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-neutral-700">Year</div>
+                  <select
+                    className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-700"
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                  >
+                    {years.map((yy) => (
+                      <option key={yy} value={yy}>
+                        {yy}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {months.map((m) => {
+                    const isCurrentDefault = year === currentYear && m.n === currentMonthNum;
+                    const active = isCurrentDefault;
+
+                    return (
+                      <button
+                        key={m.n}
+                        type="button"
+                        className={
+                          "h-10 rounded-xl border text-sm font-medium transition " +
+                          (active
+                            ? "border-neutral-700 bg-neutral-700 text-white"
+                            : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700")
+                        }
+                        onClick={() => pick(m.n)}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+                    onClick={setThisMonth}
+                  >
+                    This month
+                  </button>
+                  <div className="text-sm text-neutral-600">
+                    Selected: <span className="font-medium text-neutral-800">{monthLabel(value)}</span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-neutral-600">
+                  Default highlight is always the current month. Pick any month to change the selection.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -505,9 +771,7 @@ function migrateLegacyIfNeeded(saved) {
       const odoStart = t.odoStart ?? t.odometerStart ?? "";
       const odoEnd = t.odoEnd ?? t.odometerEnd ?? "";
       const dist =
-        t.distance != null && t.distance !== ""
-          ? toNumber(t.distance)
-          : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+        t.distance != null && t.distance !== "" ? toNumber(t.distance) : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
 
       return {
         id: t.id || uid(),
@@ -571,9 +835,11 @@ export default function App() {
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [emailModal, setEmailModal] = useState({ open: false, to: "", subject: "", body: "" });
 
   const [vehicleModal, setVehicleModal] = useState({ open: false, mode: "new", vehicleId: null });
   const [confirm, setConfirm] = useState({ open: false, kind: null, id: null });
+  const [importConfirm, setImportConfirm] = useState({ open: false, file: null });
 
   const notify = (msg) => {
     setToast(msg);
@@ -943,11 +1209,98 @@ export default function App() {
     setPreviewOpen(true);
   };
 
-  // IMPORTANT: top bar "Print / Save PDF" prints ONLY the preview sheet
-  const printFromTop = () => {
+  // ---------- Email ----------
+  const buildEmail = () => {
+    const vName = activeVehicle?.name || "(no vehicle)";
+    const mLabel = monthLabel(app.ui.month);
+    const subject = `Trip-It report — ${vName} — ${mLabel}`;
+
+    const lines = [];
+    lines.push(`${profile.org || "ToolStack"}`);
+    lines.push(`Trip-It report`);
+    lines.push(`Vehicle: ${vName}`);
+    lines.push(`Month: ${mLabel} (${app.ui.month})`);
+    if (profile.user) lines.push(`Prepared by: ${profile.user}`);
+    lines.push(`Generated: ${new Date().toLocaleString()}`);
+    lines.push("");
+    lines.push("Summary");
+    lines.push(`- Trips: ${tripTotals.count}`);
+    lines.push(`- Distance: ${tripTotals.distance.toFixed(1)} km`);
+    lines.push(`- Fuel spend: ${money(fuelTotals.spend, fuelTotals.currency)} (${fuelTotals.liters.toFixed(2)} L)`);
+    lines.push("");
+
+    const maxTrips = 20;
+    const maxFuel = 20;
+
+    if (tripsForMonth.length) {
+      lines.push(`Trips (showing up to ${maxTrips})`);
+      tripsForMonth.slice(0, maxTrips).forEach((t) => {
+        const cost =
+          toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other);
+        const cur = t.costs?.currency || "EUR";
+        const route = `${(t.from || "-").trim()} → ${(t.to || "-").trim()}`;
+        const purpose = (t.purpose || "").trim();
+        const who = (t.driver || "").trim();
+        lines.push(
+          `- ${t.date} | ${route} | ${purpose}${who ? ` | ${who}` : ""} | ${toNumber(t.distance).toFixed(1)} km | ${money(cost, cur)}`
+        );
+      });
+      if (tripsForMonth.length > maxTrips) lines.push(`…and ${tripsForMonth.length - maxTrips} more trip(s).`);
+      lines.push("");
+    }
+
+    if (fuelForMonth.length) {
+      lines.push(`Fuel (showing up to ${maxFuel})`);
+      fuelForMonth.slice(0, maxFuel).forEach((f) => {
+        const liters = toNumber(f.liters);
+        const cost = toNumber(f.totalCost);
+        const cur = f.currency || "EUR";
+        const ppl = liters > 0 ? (cost / liters).toFixed(3) : "0.000";
+        const station = (f.station || "").trim();
+        lines.push(
+          `- ${f.date} | ${liters.toFixed(2)} L | ${money(cost, cur)} | ${ppl} /L${station ? ` | ${station}` : ""}${f.fullTank ? " | full" : ""}`
+        );
+      });
+      if (fuelForMonth.length > maxFuel) lines.push(`…and ${fuelForMonth.length - maxFuel} more fuel entry(ies).`);
+      lines.push("");
+    }
+
+    lines.push("For full details, use Export (JSON) or Trips/Fuel CSV from Trip-It.");
+
+    return { subject, body: lines.join("\n") };
+  };
+
+  const openEmail = () => {
     if (!activeVehicle) return notify("Select a vehicle first");
-    setPreviewOpen(true);
-    setTimeout(() => window.print(), 60);
+    const built = buildEmail();
+    setEmailModal((m) => ({ ...m, open: true, subject: built.subject, body: built.body }));
+  };
+
+  const copyEmail = async () => {
+    try {
+      const text = `Subject: ${emailModal.subject}\n\n${emailModal.body}`;
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      notify("Copied");
+    } catch {
+      notify("Copy failed");
+    }
+  };
+
+  const openEmailClient = () => {
+    const to = (emailModal.to || "").trim();
+    const subject = encodeURIComponent(emailModal.subject || "");
+    const body = encodeURIComponent(emailModal.body || "");
+    const href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
+    window.location.href = href;
   };
 
   // ---------- Vehicle modal state ----------
@@ -994,22 +1347,52 @@ export default function App() {
         onConfirm={deleteVehicleNow}
       />
 
+      <ConfirmModal
+        open={importConfirm.open}
+        title="Import backup?"
+        message="Import replaces your current saved data with the file contents. Tip: Export first if you want a backup of what’s currently here."
+        confirmText="Import"
+        onCancel={() => setImportConfirm({ open: false, file: null })}
+        onConfirm={() => {
+          const f = importConfirm.file;
+          setImportConfirm({ open: false, file: null });
+          importJSON(f);
+        }}
+      />
+
+      <EmailModal
+        open={emailModal.open}
+        to={emailModal.to}
+        subject={emailModal.subject}
+        body={emailModal.body}
+        onClose={() => setEmailModal((m) => ({ ...m, open: false }))}
+        onChangeTo={(v) => setEmailModal((m) => ({ ...m, to: v }))}
+        onChangeBody={(v) => setEmailModal((m) => ({ ...m, body: v }))}
+        onCopy={copyEmail}
+        onOpenEmail={openEmailClient}
+      />
+
       <HelpModal
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
         appName="Trip-It"
         storageKey={KEY}
-        actions={["Trips CSV", "Fuel CSV"]}
+        actions={["Email", "Trips CSV", "Fuel CSV"]}
       />
 
       {/* Vehicle modal */}
       {vehicleModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })} />
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
+          />
           <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
             <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-neutral-800">{vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}</div>
+                <div className="text-lg font-semibold text-neutral-800">
+                  {vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}
+                </div>
                 <div className="text-sm text-neutral-700 mt-1">Trips + fuel logs are stored per vehicle.</div>
                 <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
               </div>
@@ -1031,27 +1414,52 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Make</label>
-                <input className={`${inputBase} mt-2`} value={vehicleDraft?.make ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, make: e.target.value }))} placeholder="e.g., BMW" />
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.make ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, make: e.target.value }))}
+                  placeholder="e.g., BMW"
+                />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Model</label>
-                <input className={`${inputBase} mt-2`} value={vehicleDraft?.model ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, model: e.target.value }))} placeholder="e.g., 530i" />
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.model ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, model: e.target.value }))}
+                  placeholder="e.g., 530i"
+                />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Plate</label>
-                <input className={`${inputBase} mt-2`} value={vehicleDraft?.plate ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, plate: e.target.value }))} placeholder="e.g., M-AB 1234" />
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.plate ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, plate: e.target.value }))}
+                  placeholder="e.g., M-AB 1234"
+                />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">VIN</label>
-                <input className={`${inputBase} mt-2`} value={vehicleDraft?.vin ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))} placeholder="optional" />
+                <input
+                  className={`${inputBase} mt-2`}
+                  value={vehicleDraft?.vin ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))}
+                  placeholder="optional"
+                />
               </div>
 
               <div className="sm:col-span-2">
                 <label className="text-sm font-medium text-neutral-700">Notes</label>
-                <textarea className={`${inputBase} mt-2 min-h-[90px]`} value={vehicleDraft?.notes ?? ""} onChange={(e) => setVehicleDraft((d) => ({ ...d, notes: e.target.value }))} placeholder="optional" />
+                <textarea
+                  className={`${inputBase} mt-2 min-h-[90px]`}
+                  value={vehicleDraft?.notes ?? ""}
+                  onChange={(e) => setVehicleDraft((d) => ({ ...d, notes: e.target.value }))}
+                  placeholder="optional"
+                />
               </div>
             </div>
 
@@ -1077,12 +1485,24 @@ export default function App() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewOpen(false)} />
           <div className="relative w-full max-w-5xl">
             <div className="mb-3 rounded-2xl bg-white border border-neutral-200 shadow-sm p-3 flex items-center justify-between gap-3">
-              <div className="text-lg font-semibold text-neutral-800">Print preview</div>
+              <div>
+                <div className="text-lg font-semibold text-neutral-800">Preview</div>
+                <div className="text-xs text-neutral-600">Use your browser print (Ctrl+P / ⌘P) to print or save a PDF.</div>
+              </div>
               <div className="flex items-center gap-2">
-                <button className={btnSecondary} onClick={() => window.print()}>
-                  Print / Save PDF
+                <button
+                  className={btnPrimary}
+                  onClick={() => {
+                    try {
+                      if (typeof window !== "undefined") window.print();
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  Print
                 </button>
-                <button className={btnPrimary} onClick={() => setPreviewOpen(false)}>
+                <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>
                   Close
                 </button>
               </div>
@@ -1113,7 +1533,9 @@ export default function App() {
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">Fuel spend</div>
-                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">
+                      {money(fuelTotals.spend, fuelTotals.currency)}
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">Fuel liters</div>
@@ -1152,17 +1574,25 @@ export default function App() {
             </div>
           </div>
 
-          {/* Top actions + pinned help icon */}
-          <div className="w-full sm:w-[860px] relative">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 pr-12">
+                    {/* Top actions + pinned help icon */}
+          <div className="w-full sm:w-auto relative">
+            {/* Master Top Actions grid (matches Check-It) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pr-12">
               <ActionButton onClick={openPreview} disabled={!activeVehicle}>
                 Preview
               </ActionButton>
-              <ActionButton onClick={printFromTop} disabled={!activeVehicle}>
-                Print / Save PDF
+              <ActionButton onClick={openEmail} disabled={!activeVehicle}>
+                Email
               </ActionButton>
               <ActionButton onClick={exportJSON}>Export</ActionButton>
-              <ActionFileButton onFile={(f) => importJSON(f)} tone="primary">
+              <ActionFileButton
+                onFile={(f) => {
+                  if (!f) return;
+                  setImportConfirm({ open: true, file: f });
+                }}
+                tone="primary"
+                title="Import JSON backup (replaces current data)"
+              >
                 Import
               </ActionFileButton>
               <ActionButton onClick={exportTripsCSV} disabled={!activeVehicle}>
@@ -1193,7 +1623,11 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
                 {app.vehicles.length ? (
-                  <select className={`${inputBase} mt-2`} value={app.activeVehicleId || ""} onChange={(e) => selectVehicle(e.target.value)}>
+                  <select
+                    className={`${inputBase} mt-2`}
+                    value={app.activeVehicleId || ""}
+                    onChange={(e) => selectVehicle(e.target.value)}
+                  >
                     {app.vehicles.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}
@@ -1201,17 +1635,24 @@ export default function App() {
                     ))}
                   </select>
                 ) : (
-                  <div className="mt-2 text-sm text-neutral-700">No vehicles yet. Click <span className="font-medium">Add vehicle</span>.</div>
+                  <div className="mt-2 text-sm text-neutral-700">
+                    No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
+                  </div>
                 )}
               </div>
 
               {activeVehicle ? (
                 <div className="rounded-2xl border border-neutral-200 p-4">
                   <div className="font-semibold text-neutral-800">{activeVehicle.name}</div>
-                  <div className="text-sm text-neutral-700 mt-1">{(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}</div>
+                  <div className="text-sm text-neutral-700 mt-1">
+                    {(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}
+                  </div>
                   <div className="text-sm text-neutral-700">Plate: {activeVehicle.plate || "-"}</div>
                   <div className="mt-3 flex items-center gap-2">
-                    <button className={btnSecondary} onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}>
+                    <button
+                      className={btnSecondary}
+                      onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}
+                    >
                       Edit
                     </button>
                     <button
@@ -1226,9 +1667,8 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium text-neutral-700">Month</label>
-                <input type="month" className={`${inputBase} mt-2`} value={app.ui.month} onChange={(e) => setMonth(e.target.value)} disabled={!activeVehicle} />
+                <MonthPicker value={app.ui.month} onChange={setMonth} disabled={!activeVehicle} />
               </div>
-
               <div className="text-xs text-neutral-600">
                 Stored at <span className="font-mono">{KEY}</span> • Profile at <span className="font-mono">{PROFILE_KEY}</span>
               </div>
@@ -1265,68 +1705,151 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input type="date" className={`${inputBase} mt-2`} value={t.date} onChange={(e) => updateTrip(t.id, { date: e.target.value })} />
+                          <input
+                            type="date"
+                            className={`${inputBase} mt-2`}
+                            value={t.date}
+                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
+                          />
                         </div>
 
                         <div className="md:col-span-3">
                           <label className="text-xs text-neutral-600 font-medium">Route</label>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
-                            <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
+                            <input
+                              className={inputBase}
+                              value={t.from}
+                              onChange={(e) => updateTrip(t.id, { from: e.target.value })}
+                              placeholder="From"
+                            />
+                            <input
+                              className={inputBase}
+                              value={t.to}
+                              onChange={(e) => updateTrip(t.id, { to: e.target.value })}
+                              placeholder="To"
+                            />
                           </div>
                         </div>
 
                         <div className="md:col-span-2">
                           <label className="text-xs text-neutral-600 font-medium">Purpose</label>
-                          <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.purpose}
+                            onChange={(e) => updateTrip(t.id, { purpose: e.target.value })}
+                            placeholder="Purpose"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Driver</label>
-                          <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.driver}
+                            onChange={(e) => updateTrip(t.id, { driver: e.target.value })}
+                            placeholder="Driver"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Passengers</label>
-                          <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
+                          <input
+                            className={`${inputBase} mt-2`}
+                            value={t.passengers}
+                            onChange={(e) => updateTrip(t.id, { passengers: e.target.value })}
+                            placeholder="Optional"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Odo start</label>
-                          <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoStart ?? ""} onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })} placeholder="0" />
+                          <input
+                            className={`${inputBase} mt-2 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={t.odoStart ?? ""}
+                            onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })}
+                            placeholder="0"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Odo end</label>
-                          <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={t.odoEnd ?? ""} onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })} placeholder="0" />
+                          <input
+                            className={`${inputBase} mt-2 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={t.odoEnd ?? ""}
+                            onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })}
+                            placeholder="0"
+                          />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
-                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
+                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
+                            {toNumber(t.distance).toFixed(1)} km
+                          </div>
                         </div>
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Costs</label>
                           <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.fuel ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })} placeholder="Fuel" />
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.tolls ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })} placeholder="Tolls" />
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.parking ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })} placeholder="Parking" />
-                            <input className={`${inputBase} text-right tabular-nums`} inputMode="decimal" value={t.costs?.other ?? 0} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })} placeholder="Other" />
-                            <select className={inputBase} value={t.costs?.currency || "EUR"} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}>
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.fuel ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })}
+                              placeholder="Fuel"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.tolls ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })}
+                              placeholder="Tolls"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.parking ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })}
+                              placeholder="Parking"
+                            />
+                            <input
+                              className={`${inputBase} text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={t.costs?.other ?? 0}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })}
+                              placeholder="Other"
+                            />
+                            <select
+                              className={inputBase}
+                              value={t.costs?.currency || "EUR"}
+                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}
+                            >
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
                             </select>
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-right tabular-nums">
-                              {money(toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other), t.costs?.currency || "EUR")}
+                              {money(
+                                toNumber(t.costs?.fuel) +
+                                  toNumber(t.costs?.tolls) +
+                                  toNumber(t.costs?.parking) +
+                                  toNumber(t.costs?.other),
+                                t.costs?.currency || "EUR"
+                              )}
                             </div>
                           </div>
                         </div>
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                          <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                          <textarea
+                            className={`${inputBase} mt-2 min-h-[70px]`}
+                            value={t.notes}
+                            onChange={(e) => updateTrip(t.id, { notes: e.target.value })}
+                            placeholder="Optional notes..."
+                          />
                         </div>
                       </div>
 
@@ -1374,27 +1897,54 @@ export default function App() {
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Date</label>
-                            <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
+                            <input
+                              type="date"
+                              className={`${inputBase} mt-2`}
+                              value={f.date}
+                              onChange={(e) => updateFuel(f.id, { date: e.target.value })}
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Odometer</label>
-                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.odometer ?? ""} onChange={(e) => updateFuel(f.id, { odometer: e.target.value })} placeholder="km" />
+                            <input
+                              className={`${inputBase} mt-2 text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={f.odometer ?? ""}
+                              onChange={(e) => updateFuel(f.id, { odometer: e.target.value })}
+                              placeholder="km"
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Liters</label>
-                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.liters ?? 0} onChange={(e) => updateFuel(f.id, { liters: e.target.value })} placeholder="0.00" />
+                            <input
+                              className={`${inputBase} mt-2 text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={f.liters ?? 0}
+                              onChange={(e) => updateFuel(f.id, { liters: e.target.value })}
+                              placeholder="0.00"
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Total cost</label>
-                            <input className={`${inputBase} mt-2 text-right tabular-nums`} inputMode="decimal" value={f.totalCost ?? 0} onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })} placeholder="0.00" />
+                            <input
+                              className={`${inputBase} mt-2 text-right tabular-nums`}
+                              inputMode="decimal"
+                              value={f.totalCost ?? 0}
+                              onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })}
+                              placeholder="0.00"
+                            />
                           </div>
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Currency</label>
-                            <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
+                            <select
+                              className={`${inputBase} mt-2`}
+                              value={f.currency || "EUR"}
+                              onChange={(e) => updateFuel(f.id, { currency: e.target.value })}
+                            >
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
@@ -1403,17 +1953,29 @@ export default function App() {
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
-                            <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}</div>
+                            <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
+                              {pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}
+                            </div>
                           </div>
 
                           <div className="md:col-span-3">
                             <label className="text-xs text-neutral-600 font-medium">Station</label>
-                            <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
+                            <input
+                              className={`${inputBase} mt-2`}
+                              value={f.station || ""}
+                              onChange={(e) => updateFuel(f.id, { station: e.target.value })}
+                              placeholder="Optional (e.g., Aral, Shell)"
+                            />
                           </div>
 
                           <div className="md:col-span-3 flex items-end gap-3">
                             <label className="inline-flex items-center gap-2 text-sm text-neutral-700 select-none">
-                              <input type="checkbox" className="h-4 w-4" checked={!!f.fullTank} onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })} />
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={!!f.fullTank}
+                                onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })}
+                              />
                               Full tank
                             </label>
                             <div className="text-sm text-neutral-700">
@@ -1423,7 +1985,12 @@ export default function App() {
 
                           <div className="md:col-span-6">
                             <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                            <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                            <textarea
+                              className={`${inputBase} mt-2 min-h-[60px]`}
+                              value={f.notes || ""}
+                              onChange={(e) => updateFuel(f.id, { notes: e.target.value })}
+                              placeholder="Optional notes..."
+                            />
                           </div>
                         </div>
 
@@ -1446,7 +2013,9 @@ export default function App() {
                       <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
                       <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-600">Next upgrade (optional): calculate consumption (L/100km) using “Full tank” entries + odometer.</div>
+                    <div className="mt-2 text-xs text-neutral-600">
+                      Next upgrade (optional): calculate consumption (L/100km) using “Full tank” entries + odometer.
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -1492,6 +2061,27 @@ export default function App() {
           </a>
         </div>
       </div>
+
+      {/* Dev-only sanity checks (won't run unless you set window.__TOOLSTACK_DEV_TESTS__ = true) */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            try {
+              if (typeof window !== 'undefined' && window.__TOOLSTACK_DEV_TESTS__) {
+                console.assert(String(${toNumber.toString()}('1,5')) === '1.5', 'toNumber should accept comma decimals');
+                console.assert(${monthKey.toString()}('2026-01-04') === '2026-01', 'monthKey should format YYYY-MM');
+                console.assert(${safeParse.toString()}('{"a":1}', null).a === 1, 'safeParse should parse JSON');
+                console.assert('a\\nb'.includes('\\n'), 'newline literal should be valid');
+                // Added test: uid should return a non-empty string
+                const u = (${uid.toString()})();
+                console.assert(typeof u === 'string' && u.length > 6, 'uid should be a string');
+              }
+            } catch (e) {
+              // ignore
+            }
+          `,
+        }}
+      />
     </div>
   );
 }
