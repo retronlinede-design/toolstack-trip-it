@@ -1574,7 +1574,7 @@ export default function App() {
             </div>
           </div>
 
-                    {/* Top actions + pinned help icon */}
+          {/* Top actions + pinned help icon */}
           <div className="w-full sm:w-auto relative">
             {/* Master Top Actions grid (matches Check-It) */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pr-12">
