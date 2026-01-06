@@ -1,29 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * ToolStack — Trip-It (Duty Trip Log) — Styled v1 (Module-ready retrofit)
- *
- * Included:
- * - Vehicles (add/edit/delete), select active vehicle
- * - Trips stored per-vehicle + month filter
- * - Fuel log stored per-vehicle + month filter
- * - Monthly totals: distance + costs + fuel spend + liters
- * - Export/Import JSON (includes fuel logs)
- * - Export CSV for trips + fuel
- * - Print Preview (prints only preview sheet)
- *
- * ToolStack UI master applied (matches Check-It):
- * - Main heading style: Trip + lime It
- * - Primary buttons: neutral-700
- * - Text: neutral-800/700
- * - Preview modal header bar style aligned
- *
- * Added/kept:
- * - Help Pack v1 modal (canonical)
- * - Help icon (?) pinned far-right of the top menu
- * - Module-ready storage namespace + legacy migration from old key
- * - Shared profile key (toolstack.profile.v1) used in print header (no extra UI)
- * - Footer “Return to ToolStack hub” link
+ * ToolStack — Trip-It (Duty Trip Log) — Styled v1.1 (Module-ready)
+ * Paste into: src/App.jsx
+ * Requires: Tailwind v4 configured.
  */
 
 // ----- Module-ready keys -----
@@ -38,10 +18,16 @@ const LEGACY_LS_KEY = "toolstack_tripit_v1";
 // Optional: set later
 const HUB_URL = "https://YOUR-WIX-HUB-URL-HERE";
 
+// Master accent
+const ACCENT = "#D5FF00"; // rgb(213,255,0)
+const ACCENT_RGB = "213 255 0";
+
 const uid = () => {
   try {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  } catch {}
+  } catch {
+    // ignore
+  }
   return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 };
 
@@ -108,6 +94,16 @@ const monthLabel = (ym) => {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long" });
 };
 
+// ---------- Accent underline (fixed, non-dynamic Tailwind) ----------
+function AccentUnderline({ className = "" }) {
+  return (
+    <div
+      className={`h-[2px] rounded-full ${className}`}
+      style={{ background: `linear-gradient(to right, transparent, ${ACCENT}, transparent)` }}
+    />
+  );
+}
+
 // ---------- Shared profile ----------
 function loadProfile() {
   const p = safeParse(safeStorageGet(PROFILE_KEY), null);
@@ -121,67 +117,25 @@ function loadProfile() {
   );
 }
 
-// ---------- Normalized top actions (mobile grid) ----------
+// ---------- Normalized top actions (Master Pack) ----------
 const ACTION_BASE =
-  "print:hidden h-10 w-full min-w-0 px-3 rounded-xl text-sm font-medium leading-none whitespace-nowrap overflow-hidden text-ellipsis border transition shadow-sm active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center";
+  "print:hidden h-10 rounded-xl border px-3 shadow-sm active:translate-y-[1px] transition flex items-center justify-center min-w-0 " +
+  "text-[13px] sm:text-sm font-medium";
+
+// Match the "?" Help hover (accent tint + accent border)
+const HOVER_ACCENT = "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]";
 
 function ActionButton({ children, onClick, tone = "default", disabled, title }) {
   const cls =
     tone === "primary"
-      ? "bg-neutral-700 hover:bg-neutral-600 text-white border-neutral-700"
+      ? `bg-neutral-700 text-white border-neutral-700 ${HOVER_ACCENT} hover:text-neutral-800`
       : tone === "danger"
       ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-      : "bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200";
+      : `bg-white text-neutral-700 border-neutral-200 ${HOVER_ACCENT}`;
 
   return (
     <button type="button" onClick={onClick} title={title} disabled={disabled} className={`${ACTION_BASE} ${cls}`}>
-      <span className="truncate">{children}</span>
-    </button>
-  );
-}
-
-function ActionFileButton({ children, onFile, accept = "application/json", tone = "primary", title }) {
-  const inputIdRef = useRef(uid());
-
-  const cls =
-    tone === "primary"
-      ? "bg-neutral-700 hover:bg-neutral-600 text-white border-neutral-700"
-      : "bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200";
-
-  return (
-    <label title={title} className={`${ACTION_BASE} ${cls} cursor-pointer`} htmlFor={inputIdRef.current}>
-      <span className="truncate">{children}</span>
-      <input
-        id={inputIdRef.current}
-        type="file"
-        accept={accept}
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0] || null;
-          onFile?.(file);
-          e.target.value = "";
-        }}
-      />
-    </label>
-  );
-}
-
-// ---------- Help icon pinned far-right ----------
-function HelpIconButton({ onClick, title = "Help", className = "" }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={
-        "print:hidden h-10 w-10 shrink-0 rounded-xl border border-neutral-200 bg-white shadow-sm " +
-        "hover:bg-neutral-50 active:translate-y-[1px] transition flex items-center justify-center " +
-        "focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 " +
-        className
-      }
-    >
-      <span className="text-base font-black text-neutral-700 leading-none">?</span>
+      <span className="truncate w-full text-center">{children}</span>
     </button>
   );
 }
@@ -201,7 +155,7 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
   const baseActions = [
     { name: "Preview", desc: "Open a clean report sheet inside the app (print-safe)." },
-    { name: "Print", desc: "Use your browser print dialog to print or save a PDF." },
+    { name: "Print / Save PDF", desc: "Use your browser print dialog to print or save a PDF." },
     { name: "Export", desc: "Download a JSON backup of your saved data." },
     { name: "Import", desc: "Load a JSON backup (replaces current saved data)." },
   ];
@@ -223,30 +177,30 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
-          {/* Header (matches master modal header style) */}
           <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
             <div>
               <div className="text-sm text-neutral-500">ToolStack • Help Pack v1</div>
               <h2 className="text-lg font-semibold text-neutral-800">{appName} — how your data works</h2>
-              <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+              <div className="mt-3">
+                <AccentUnderline className="w-56" />
+              </div>
             </div>
 
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
               onClick={onClose}
             >
               Close
             </button>
           </div>
 
-          {/* Body */}
           <div className="p-4 space-y-3 max-h-[70vh] overflow-auto">
             <Card title="Quick start">
               <ul className="space-y-1">
                 <Bullet>Use the app normally — it autosaves as you type.</Bullet>
                 <Bullet>
-                  Use <b>Preview</b> → then <b>Print</b> for a clean report.
+                  Use <b>Preview</b> → then <b>Print / Save PDF</b> for a clean report.
                 </Bullet>
                 <Bullet>
                   Use <b>Export</b> regularly to create backups.
@@ -326,11 +280,10 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
             </Card>
           </div>
 
-          {/* Footer */}
           <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
               onClick={onClose}
             >
               Close
@@ -344,9 +297,21 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
 // ---------- UI helpers ----------
 const btnSecondary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white text-neutral-800 shadow-sm " +
+  "active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed " +
+  HOVER_ACCENT;
+
 const btnPrimary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white shadow-sm hover:bg-neutral-600 active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed";
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white shadow-sm " +
+  "active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed " +
+  HOVER_ACCENT +
+  " hover:text-neutral-800";
+
+// Accent (green) button (requested: green with dark-grey text)
+const btnAccent =
+  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-800 shadow-sm " +
+  "active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed " +
+  "hover:bg-[rgb(var(--ts-accent-rgb)/0.85)]";
 
 const inputBase =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
@@ -373,12 +338,14 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
         <div className="p-4 border-b border-neutral-100">
           <div className="text-lg font-semibold text-neutral-800">{title}</div>
           <div className="text-sm text-neutral-700 mt-1">{message}</div>
-          <div className="mt-3 h-[2px] w-40 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+          <div className="mt-3">
+            <AccentUnderline className="w-40" />
+          </div>
         </div>
         <div className="p-4 flex items-center justify-end gap-2">
           <button
             type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+            className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
             onClick={onCancel}
           >
             Cancel
@@ -407,11 +374,13 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
             <div>
               <div className="text-sm text-neutral-500">ToolStack • Email</div>
               <h2 className="text-lg font-semibold text-neutral-800">Send report via email</h2>
-              <div className="mt-3 h-[2px] w-56 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+              <div className="mt-3">
+                <AccentUnderline className="w-56" />
+              </div>
             </div>
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
               onClick={onClose}
             >
               Close
@@ -453,14 +422,14 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
           <div className="p-4 border-t border-neutral-100 flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
               onClick={onCopy}
             >
               Copy
             </button>
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600 transition"
+              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] hover:text-neutral-800 transition"
               onClick={onOpenEmail}
             >
               Open email
@@ -472,7 +441,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
   );
 }
 
-// ---------- Month Picker (consistent UI; popup defaults to CURRENT year/month; year changeable) ----------
+// ---------- Month Picker (Trip-It style) ----------
 function MonthPicker({ value, onChange, disabled }) {
   const [open, setOpen] = useState(false);
 
@@ -480,7 +449,7 @@ function MonthPicker({ value, onChange, disabled }) {
   const currentYear = now.getFullYear();
   const currentMonthNum = now.getMonth() + 1;
 
-  // IMPORTANT: popup defaults to current year/month (not the currently selected value)
+  // popup defaults to current year when opened
   const [year, setYear] = useState(currentYear);
   useEffect(() => {
     if (open) setYear(currentYear);
@@ -523,15 +492,14 @@ function MonthPicker({ value, onChange, disabled }) {
 
   return (
     <>
-      {/* Field */}
       <div className="mt-2 flex items-center gap-2">
         <button
           type="button"
           disabled={disabled}
           onClick={() => setOpen(true)}
           className={
-            "w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-700 shadow-sm " +
-            "hover:bg-neutral-50 transition flex items-center justify-between gap-3 " +
+            "w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-[13px] sm:text-sm text-neutral-700 shadow-sm " +
+            "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] transition flex items-center justify-between gap-3 " +
             (disabled ? "opacity-50 cursor-not-allowed" : "")
           }
           title="Choose month"
@@ -540,11 +508,10 @@ function MonthPicker({ value, onChange, disabled }) {
           <span
             className={
               "h-8 w-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center shrink-0 " +
-              "hover:bg-neutral-50"
+              "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]"
             }
             aria-hidden="true"
           >
-            {/* calendar icon */}
             <svg
               viewBox="0 0 24 24"
               className="h-4 w-4 text-neutral-700"
@@ -563,7 +530,6 @@ function MonthPicker({ value, onChange, disabled }) {
         </button>
       </div>
 
-      {/* Popup */}
       {open ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-hidden="true" />
@@ -573,11 +539,13 @@ function MonthPicker({ value, onChange, disabled }) {
                 <div>
                   <div className="text-sm text-neutral-500">ToolStack • Month picker</div>
                   <div className="text-lg font-semibold text-neutral-800">Select month</div>
-                  <div className="mt-3 h-[2px] w-44 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+                  <div className="mt-3">
+                    <AccentUnderline className="w-44" />
+                  </div>
                 </div>
                 <button
                   type="button"
-                  className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+                  className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
                   onClick={() => setOpen(false)}
                 >
                   Close
@@ -602,9 +570,7 @@ function MonthPicker({ value, onChange, disabled }) {
 
                 <div className="grid grid-cols-3 gap-2">
                   {months.map((m) => {
-                    const isCurrentDefault = year === currentYear && m.n === currentMonthNum;
-                    const active = isCurrentDefault;
-
+                    const active = year === currentYear && m.n === currentMonthNum;
                     return (
                       <button
                         key={m.n}
@@ -613,7 +579,7 @@ function MonthPicker({ value, onChange, disabled }) {
                           "h-10 rounded-xl border text-sm font-medium transition " +
                           (active
                             ? "border-neutral-700 bg-neutral-700 text-white"
-                            : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700")
+                            : "border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-700")
                         }
                         onClick={() => pick(m.n)}
                       >
@@ -626,7 +592,7 @@ function MonthPicker({ value, onChange, disabled }) {
                 <div className="flex items-center justify-between gap-2 pt-2">
                   <button
                     type="button"
-                    className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 transition"
+                    className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
                     onClick={setThisMonth}
                   >
                     This month
@@ -636,9 +602,7 @@ function MonthPicker({ value, onChange, disabled }) {
                   </div>
                 </div>
 
-                <div className="text-xs text-neutral-600">
-                  Default highlight is always the current month. Pick any month to change the selection.
-                </div>
+                <div className="text-xs text-neutral-600">Default highlight is always the current month.</div>
               </div>
             </div>
           </div>
@@ -771,7 +735,9 @@ function migrateLegacyIfNeeded(saved) {
       const odoStart = t.odoStart ?? t.odometerStart ?? "";
       const odoEnd = t.odoEnd ?? t.odometerEnd ?? "";
       const dist =
-        t.distance != null && t.distance !== "" ? toNumber(t.distance) : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+        t.distance != null && t.distance !== ""
+          ? toNumber(t.distance)
+          : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
 
       return {
         id: t.id || uid(),
@@ -804,31 +770,58 @@ function migrateLegacyIfNeeded(saved) {
   };
 }
 
-function isoToday() {
-  return todayISO();
-}
-
 export default function App() {
-  const [profile, setProfile] = useState(loadProfile());
+  const importInputRef = useRef(null);
+
+  const [profile, setProfile] = useState(loadProfile);
 
   const [app, setApp] = useState(() => {
-    // Prefer module-ready key; fallback to legacy key; then empty.
     const raw = safeStorageGet(KEY) ?? safeStorageGet(LEGACY_LS_KEY) ?? null;
-
     const saved = raw ? safeParse(raw, null) : null;
     const migrated = migrateLegacyIfNeeded(saved);
     const norm = normalizeApp(migrated ?? emptyApp());
 
-    // If we loaded legacy key, immediately migrate to KEY (and optionally remove legacy).
     try {
       const fromLegacy = !safeStorageGet(KEY) && !!safeStorageGet(LEGACY_LS_KEY);
       if (fromLegacy) {
         safeStorageSet(KEY, JSON.stringify(norm));
         safeStorageRemove(LEGACY_LS_KEY);
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
+
     return norm;
   });
+
+  // Dev-only sanity checks (do not run unless enabled)
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const qs = new URLSearchParams(window.location.search);
+      const enabled = !!window.__TOOLSTACK_DEV_TESTS__ || qs.get("tests") === "1";
+      if (!enabled) return;
+
+      console.assert(toNumber("1,5") === 1.5, "toNumber should accept comma decimals");
+      console.assert(toNumber("abc") === 0, "toNumber should default non-numeric to 0");
+      console.assert(monthKey("2026-01-04") === "2026-01", "monthKey should format YYYY-MM");
+      console.assert(String(monthLabel("2026-01") || "").length > 0, "monthLabel should return a readable label");
+      console.assert(safeParse('{"a":1}', null)?.a === 1, "safeParse should parse JSON");
+      console.assert(safeParse("{bad}", { ok: true })?.ok === true, "safeParse should return fallback on error");
+      const u = uid();
+      console.assert(typeof u === "string" && u.length > 6, "uid should be a string");
+
+      const norm = normalizeApp({ vehicles: [{ id: "v1", name: "X" }], activeVehicleId: "v1" });
+      console.assert(Array.isArray(norm.vehicles) && norm.vehicles.length === 1, "normalizeApp should keep vehicles");
+
+      const legacy = migrateLegacyIfNeeded({ trips: [{ date: "2026-01-01", from: "A", to: "B", odoStart: 0, odoEnd: 10 }] });
+      console.assert(legacy?.vehicles?.length === 1, "migrateLegacyIfNeeded should create one imported vehicle");
+
+      console.assert(money(1, "EUR").includes("€"), "money should include € for EUR");
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -854,17 +847,6 @@ export default function App() {
   useEffect(() => {
     safeStorageSet(PROFILE_KEY, JSON.stringify(profile));
   }, [profile]);
-
-  const moduleManifest = useMemo(
-    () => ({
-      id: APP_ID,
-      name: "Trip-It",
-      version: APP_VERSION,
-      storageKeys: [KEY, PROFILE_KEY],
-      exports: ["print", "json", "csv"],
-    }),
-    []
-  );
 
   const activeVehicle = useMemo(
     () => app.vehicles.find((v) => v.id === app.activeVehicleId) || null,
@@ -955,7 +937,7 @@ export default function App() {
     if (!activeVehicle) return notify("Add a vehicle first");
     const t = {
       id: uid(),
-      date: isoToday(),
+      date: todayISO(),
       from: "",
       to: "",
       purpose: "",
@@ -1006,7 +988,7 @@ export default function App() {
     if (!activeVehicle) return notify("Add a vehicle first");
     const f = {
       id: uid(),
-      date: isoToday(),
+      date: todayISO(),
       odometer: "",
       liters: 0,
       totalCost: 0,
@@ -1052,7 +1034,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `toolstack-trip-it-${APP_VERSION}-${isoToday()}.json`;
+    a.download = `toolstack-trip-it-${APP_VERSION}-${todayISO()}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1075,135 +1057,21 @@ export default function App() {
     notify("Imported");
   };
 
-  const exportTripsCSV = () => {
-    if (!activeVehicle) return notify("Select a vehicle first");
-    const v = activeVehicle;
-    const m = app.ui.month;
-
-    const rows = [
-      [
-        "vehicle_name",
-        "make",
-        "model",
-        "plate",
-        "month",
-        "date",
-        "from",
-        "to",
-        "purpose",
-        "driver",
-        "passengers",
-        "odo_start",
-        "odo_end",
-        "distance_km",
-        "fuel",
-        "tolls",
-        "parking",
-        "other",
-        "currency",
-        "notes",
-      ],
-    ];
-
-    for (const t of tripsForMonth) {
-      rows.push([
-        v.name,
-        v.make,
-        v.model,
-        v.plate,
-        m,
-        t.date,
-        t.from,
-        t.to,
-        t.purpose,
-        t.driver,
-        t.passengers,
-        t.odoStart,
-        t.odoEnd,
-        String(toNumber(t.distance).toFixed(1)),
-        String(toNumber(t.costs?.fuel).toFixed(2)),
-        String(toNumber(t.costs?.tolls).toFixed(2)),
-        String(toNumber(t.costs?.parking).toFixed(2)),
-        String(toNumber(t.costs?.other).toFixed(2)),
-        t.costs?.currency || "EUR",
-        (t.notes || "").replace(/\r?\n/g, " ").trim(),
-      ]);
-    }
-
-    const csv = rows
-      .map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const safeName = (v.name || "vehicle").replace(/[^\w\-]+/g, "_").slice(0, 32);
-    a.download = `trip-it_trips_${safeName}_${m}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  const onImportPick = () => {
+    if (importInputRef.current) importInputRef.current.click();
   };
 
-  const exportFuelCSV = () => {
-    if (!activeVehicle) return notify("Select a vehicle first");
-    const v = activeVehicle;
-    const m = app.ui.month;
-
-    const rows = [
-      [
-        "vehicle_name",
-        "make",
-        "model",
-        "plate",
-        "month",
-        "date",
-        "odometer",
-        "liters",
-        "total_cost",
-        "currency",
-        "full_tank",
-        "station",
-        "notes",
-      ],
-    ];
-
-    for (const f of fuelForMonth) {
-      rows.push([
-        v.name,
-        v.make,
-        v.model,
-        v.plate,
-        m,
-        f.date,
-        f.odometer,
-        String(toNumber(f.liters).toFixed(2)),
-        String(toNumber(f.totalCost).toFixed(2)),
-        f.currency || "EUR",
-        f.fullTank ? "yes" : "no",
-        (f.station || "").trim(),
-        (f.notes || "").replace(/\r?\n/g, " ").trim(),
-      ]);
+  // ---------- Header actions (Master Pack) ----------
+  const openHub = () => {
+    const url = String(HUB_URL || "").trim();
+    if (!url || url.includes("YOUR-WIX-HUB-URL-HERE")) return notify("Set HUB_URL first");
+    try {
+      window.open(url, "_blank", "noreferrer");
+    } catch {
+      window.location.href = url;
     }
-
-    const csv = rows
-      .map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const safeName = (v.name || "vehicle").replace(/[^\w\-]+/g, "_").slice(0, 32);
-    a.download = `trip-it_fuel_${safeName}_${m}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
   };
 
-  // ---------- Print preview ----------
   const openPreview = () => {
     if (!activeVehicle) return notify("Select a vehicle first");
     setPreviewOpen(true);
@@ -1229,43 +1097,7 @@ export default function App() {
     lines.push(`- Fuel spend: ${money(fuelTotals.spend, fuelTotals.currency)} (${fuelTotals.liters.toFixed(2)} L)`);
     lines.push("");
 
-    const maxTrips = 20;
-    const maxFuel = 20;
-
-    if (tripsForMonth.length) {
-      lines.push(`Trips (showing up to ${maxTrips})`);
-      tripsForMonth.slice(0, maxTrips).forEach((t) => {
-        const cost =
-          toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other);
-        const cur = t.costs?.currency || "EUR";
-        const route = `${(t.from || "-").trim()} → ${(t.to || "-").trim()}`;
-        const purpose = (t.purpose || "").trim();
-        const who = (t.driver || "").trim();
-        lines.push(
-          `- ${t.date} | ${route} | ${purpose}${who ? ` | ${who}` : ""} | ${toNumber(t.distance).toFixed(1)} km | ${money(cost, cur)}`
-        );
-      });
-      if (tripsForMonth.length > maxTrips) lines.push(`…and ${tripsForMonth.length - maxTrips} more trip(s).`);
-      lines.push("");
-    }
-
-    if (fuelForMonth.length) {
-      lines.push(`Fuel (showing up to ${maxFuel})`);
-      fuelForMonth.slice(0, maxFuel).forEach((f) => {
-        const liters = toNumber(f.liters);
-        const cost = toNumber(f.totalCost);
-        const cur = f.currency || "EUR";
-        const ppl = liters > 0 ? (cost / liters).toFixed(3) : "0.000";
-        const station = (f.station || "").trim();
-        lines.push(
-          `- ${f.date} | ${liters.toFixed(2)} L | ${money(cost, cur)} | ${ppl} /L${station ? ` | ${station}` : ""}${f.fullTank ? " | full" : ""}`
-        );
-      });
-      if (fuelForMonth.length > maxFuel) lines.push(`…and ${fuelForMonth.length - maxFuel} more fuel entry(ies).`);
-      lines.push("");
-    }
-
-    lines.push("For full details, use Export (JSON) or Trips/Fuel CSV from Trip-It.");
+    lines.push("For full details, use Export (JSON) or CSV.");
 
     return { subject, body: lines.join("\n") };
   };
@@ -1295,12 +1127,11 @@ export default function App() {
     }
   };
 
-  const openEmailClient = () => {
+  const openEmailClientFromModal = () => {
     const to = (emailModal.to || "").trim();
     const subject = encodeURIComponent(emailModal.subject || "");
     const body = encodeURIComponent(emailModal.body || "");
-    const href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
-    window.location.href = href;
+    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
   };
 
   // ---------- Vehicle modal state ----------
@@ -1319,7 +1150,13 @@ export default function App() {
   const vehicleSaveDisabled = useMemo(() => !String(vehicleDraft?.name || "").trim(), [vehicleDraft]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-800">
+    <div
+      className="min-h-screen bg-neutral-50 text-neutral-800"
+      style={{
+        "--ts-accent": ACCENT,
+        "--ts-accent-rgb": ACCENT_RGB,
+      }}
+    >
       {/* Print rules */}
       <style>{`
         @media print {
@@ -1369,15 +1206,22 @@ export default function App() {
         onChangeTo={(v) => setEmailModal((m) => ({ ...m, to: v }))}
         onChangeBody={(v) => setEmailModal((m) => ({ ...m, body: v }))}
         onCopy={copyEmail}
-        onOpenEmail={openEmailClient}
+        onOpenEmail={openEmailClientFromModal}
       />
 
-      <HelpModal
-        open={helpOpen}
-        onClose={() => setHelpOpen(false)}
-        appName="Trip-It"
-        storageKey={KEY}
-        actions={["Email", "Trips CSV", "Fuel CSV"]}
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} appName="Trip-It" storageKey={KEY} actions={["Email"]} />
+
+      {/* Hidden file input for Import button */}
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0] || null;
+          if (file) setImportConfirm({ open: true, file });
+          e.target.value = "";
+        }}
       />
 
       {/* Vehicle modal */}
@@ -1390,11 +1234,11 @@ export default function App() {
           <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
             <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-neutral-800">
-                  {vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}
-                </div>
+                <div className="text-lg font-semibold text-neutral-800">{vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}</div>
                 <div className="text-sm text-neutral-700 mt-1">Trips + fuel logs are stored per vehicle.</div>
-                <div className="mt-3 h-[2px] w-52 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+                <div className="mt-3">
+                  <AccentUnderline className="w-52" />
+                </div>
               </div>
               <button className={btnSecondary} onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}>
                 Close
@@ -1486,8 +1330,12 @@ export default function App() {
           <div className="relative w-full max-w-5xl">
             <div className="mb-3 rounded-2xl bg-white border border-neutral-200 shadow-sm p-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold text-neutral-800">Preview</div>
-                <div className="text-xs text-neutral-600">Use your browser print (Ctrl+P / ⌘P) to print or save a PDF.</div>
+                <div className="text-sm text-neutral-500">ToolStack • Preview</div>
+                <div className="text-lg font-semibold text-neutral-800">Trip-It preview</div>
+                <div className="mt-3">
+                  <AccentUnderline className="w-40" />
+                </div>
+                <div className="text-xs text-neutral-600 mt-2">Use your browser print (Ctrl+P / ⌘P) to print or save a PDF.</div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1500,7 +1348,7 @@ export default function App() {
                     }
                   }}
                 >
-                  Print
+                  Print / save PDF
                 </button>
                 <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>
                   Close
@@ -1517,7 +1365,9 @@ export default function App() {
                       Trip-It • {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
                     </div>
                     {profile.user ? <div className="text-sm text-neutral-700">Prepared by: {profile.user}</div> : null}
-                    <div className="mt-3 h-[2px] w-72 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
+                    <div className="mt-3">
+                      <AccentUnderline className="w-72" />
+                    </div>
                   </div>
                   <div className="text-sm text-neutral-700">Generated: {new Date().toLocaleString()}</div>
                 </div>
@@ -1533,9 +1383,7 @@ export default function App() {
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">Fuel spend</div>
-                    <div className="text-2xl font-semibold text-neutral-800 mt-1">
-                      {money(fuelTotals.spend, fuelTotals.currency)}
-                    </div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">Fuel liters</div>
@@ -1544,7 +1392,7 @@ export default function App() {
                 </div>
 
                 <div className="mt-5 text-xs text-neutral-600">
-                  Module: {moduleManifest.id}.{moduleManifest.version} • Storage key: <span className="font-mono">{KEY}</span>
+                  Storage key: <span className="font-mono">{KEY}</span>
                 </div>
               </div>
             </div>
@@ -1556,123 +1404,128 @@ export default function App() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            {/* MAIN HEADING — matches Check-It */}
             <div className="text-4xl sm:text-5xl font-black tracking-tight text-neutral-700">
               <span>Trip</span>
-              <span className="text-[#D5FF00]">It</span>
+              <span style={{ color: ACCENT }}>It</span>
             </div>
-            <div className="text-sm text-neutral-700">Record your daily vehicle trips</div>
-            <div className="mt-3 h-[2px] w-80 rounded-full bg-gradient-to-r from-lime-400/0 via-lime-400 to-emerald-400/0" />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Pill tone="accent">{activeVehicle ? activeVehicle.name : "No vehicle selected"}</Pill>
-              <Pill>{monthLabel(app.ui.month)}</Pill>
-              <Pill>{tripTotals.count} trips</Pill>
-              <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
-              <Pill>
-                Fuel: {money(fuelTotals.spend, fuelTotals.currency)} • {fuelTotals.liters.toFixed(2)}L
-              </Pill>
+            <div className="mt-3">
+              <AccentUnderline className="w-80" />
             </div>
+            <div className="mt-2 text-sm text-neutral-700">Record your daily vehicle trips</div>
           </div>
 
-          {/* Top actions + pinned help icon */}
-          <div className="w-full sm:w-auto relative">
-            {/* Master Top Actions grid (matches Check-It) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pr-12">
-              <ActionButton onClick={openPreview} disabled={!activeVehicle}>
-                Preview
-              </ActionButton>
-              <ActionButton onClick={openEmail} disabled={!activeVehicle}>
-                Email
-              </ActionButton>
-              <ActionButton onClick={exportJSON}>Export</ActionButton>
-              <ActionFileButton
-                onFile={(f) => {
-                  if (!f) return;
-                  setImportConfirm({ open: true, file: f });
-                }}
-                tone="primary"
-                title="Import JSON backup (replaces current data)"
-              >
-                Import
-              </ActionFileButton>
-              <ActionButton onClick={exportTripsCSV} disabled={!activeVehicle}>
-                Trips CSV
-              </ActionButton>
-              <ActionButton onClick={exportFuelCSV} disabled={!activeVehicle}>
-                Fuel CSV
-              </ActionButton>
-            </div>
+          {/* Normalized top actions grid (with pinned help) */}
+          <div className="w-full sm:w-[820px]">
+            <div className="relative">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 pr-12">
+                <ActionButton onClick={openHub} title="Return to ToolStack hub">
+                  Hub
+                </ActionButton>
+                <ActionButton onClick={openPreview} disabled={!activeVehicle}>
+                  Preview
+                </ActionButton>
+                <ActionButton onClick={exportJSON}>Export</ActionButton>
+                <ActionButton onClick={onImportPick} title="Import JSON backup (replaces current data)">
+                  Import
+                </ActionButton>
+                <ActionButton onClick={() => setHelpOpen(true)}>Help</ActionButton>
+              </div>
 
-            <div className="absolute right-0 top-0">
-              <HelpIconButton onClick={() => setHelpOpen(true)} />
+              <button
+                type="button"
+                title="Help"
+                onClick={() => setHelpOpen(true)}
+                className={
+                  "print:hidden absolute right-0 top-0 h-10 w-10 rounded-xl border border-neutral-200 bg-white shadow-sm " +
+                  "flex items-center justify-center font-bold text-neutral-800 transition " +
+                  "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]"
+                }
+                aria-label="Help"
+              >
+                ?
+              </button>
             </div>
           </div>
         </div>
 
+        {/* CONTENT */}
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-3">
           {/* Left: Vehicle + Month */}
-          <div className={card}>
-            <div className={`${cardHead} flex items-center justify-between`}>
-              <div className="font-semibold text-neutral-800">Vehicle & Month</div>
-              <button className={btnSecondary} onClick={openNewVehicle}>
-                + Add vehicle
-              </button>
-            </div>
-
-            <div className={`${cardPad} space-y-3`}>
-              <div>
-                <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
-                {app.vehicles.length ? (
-                  <select
-                    className={`${inputBase} mt-2`}
-                    value={app.activeVehicleId || ""}
-                    onChange={(e) => selectVehicle(e.target.value)}
-                  >
-                    {app.vehicles.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="mt-2 text-sm text-neutral-700">
-                    No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
-                  </div>
-                )}
+          <div className="space-y-3">
+            <div className={card}>
+              <div className={`${cardHead} flex items-center justify-between`}>
+                <div className="font-semibold text-neutral-800">Vehicle</div>
+                <button className={btnAccent} onClick={openNewVehicle}>
+                  + Add vehicle
+                </button>
               </div>
 
-              {activeVehicle ? (
-                <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="font-semibold text-neutral-800">{activeVehicle.name}</div>
-                  <div className="text-sm text-neutral-700 mt-1">
-                    {(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}
-                  </div>
-                  <div className="text-sm text-neutral-700">Plate: {activeVehicle.plate || "-"}</div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      className={btnSecondary}
-                      onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
-                      onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
-                    >
-                      Delete
-                    </button>
+              <div className={`${cardPad} space-y-3`}>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
+                  {app.vehicles.length ? (
+                    <select className={`${inputBase} mt-2`} value={app.activeVehicleId || ""} onChange={(e) => selectVehicle(e.target.value)}>
+                      {app.vehicles.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-sm text-neutral-700">
+                      No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
+                    </div>
+                  )}
+                </div>
+
+                {activeVehicle ? (
+                  <>
+                    <div className="rounded-2xl border border-neutral-200 p-4">
+                      <div className="font-semibold text-neutral-800">{activeVehicle.name}</div>
+                      <div className="text-sm text-neutral-700 mt-1">{(activeVehicle.make || "-") + " " + (activeVehicle.model || "")}</div>
+                      <div className="text-sm text-neutral-700">Plate: {activeVehicle.plate || "-"}</div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button className={btnSecondary} onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}>
+                          Edit
+                        </button>
+                        <button
+                          className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
+                          onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Month</label>
+                      <MonthPicker value={app.ui.month} onChange={setMonth} disabled={!activeVehicle} />
+                    </div>
+
+                    <div className="text-xs text-neutral-600">
+                      Stored at <span className="font-mono">{KEY}</span> • Profile at <span className="font-mono">{PROFILE_KEY}</span>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Hide the “0 trips / Jan 2026 / etc” summary until a vehicle exists */}
+            {activeVehicle ? (
+              <div className={card}>
+                <div className={cardHead}>
+                  <div className="font-semibold text-neutral-800">Month summary</div>
+                </div>
+                <div className={`${cardPad} space-y-2`}>
+                  <div className="flex flex-wrap gap-2">
+                    <Pill>{tripTotals.count} trips</Pill>
+                    <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
+                    <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
+                    <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
                   </div>
                 </div>
-              ) : null}
-
-              <div>
-                <label className="text-sm font-medium text-neutral-700">Month</label>
-                <MonthPicker value={app.ui.month} onChange={setMonth} disabled={!activeVehicle} />
               </div>
-              <div className="text-xs text-neutral-600">
-                Stored at <span className="font-mono">{KEY}</span> • Profile at <span className="font-mono">{PROFILE_KEY}</span>
-              </div>
-            </div>
+            ) : null}
           </div>
 
           {/* Right: Trips + Fuel */}
@@ -1682,11 +1535,11 @@ export default function App() {
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
                 <div className="font-semibold text-neutral-800">Trips</div>
                 <button
-                  className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
+                  className={
                     activeVehicle
-                      ? "border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
-                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                  }`}
+                      ? btnAccent
+                      : "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-neutral-100 text-neutral-400 shadow-sm cursor-not-allowed"
+                  }
                   onClick={addTrip}
                   disabled={!activeVehicle}
                 >
@@ -1716,49 +1569,24 @@ export default function App() {
                         <div className="md:col-span-3">
                           <label className="text-xs text-neutral-600 font-medium">Route</label>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input
-                              className={inputBase}
-                              value={t.from}
-                              onChange={(e) => updateTrip(t.id, { from: e.target.value })}
-                              placeholder="From"
-                            />
-                            <input
-                              className={inputBase}
-                              value={t.to}
-                              onChange={(e) => updateTrip(t.id, { to: e.target.value })}
-                              placeholder="To"
-                            />
+                            <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
+                            <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
                           </div>
                         </div>
 
                         <div className="md:col-span-2">
                           <label className="text-xs text-neutral-600 font-medium">Purpose</label>
-                          <input
-                            className={`${inputBase} mt-2`}
-                            value={t.purpose}
-                            onChange={(e) => updateTrip(t.id, { purpose: e.target.value })}
-                            placeholder="Purpose"
-                          />
+                          <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Driver</label>
-                          <input
-                            className={`${inputBase} mt-2`}
-                            value={t.driver}
-                            onChange={(e) => updateTrip(t.id, { driver: e.target.value })}
-                            placeholder="Driver"
-                          />
+                          <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
                         </div>
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Passengers</label>
-                          <input
-                            className={`${inputBase} mt-2`}
-                            value={t.passengers}
-                            onChange={(e) => updateTrip(t.id, { passengers: e.target.value })}
-                            placeholder="Optional"
-                          />
+                          <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
                         </div>
 
                         <div>
@@ -1785,9 +1613,7 @@ export default function App() {
 
                         <div>
                           <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
-                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
-                            {toNumber(t.distance).toFixed(1)} km
-                          </div>
+                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
                         </div>
 
                         <div className="md:col-span-4">
@@ -1821,21 +1647,14 @@ export default function App() {
                               onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })}
                               placeholder="Other"
                             />
-                            <select
-                              className={inputBase}
-                              value={t.costs?.currency || "EUR"}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}
-                            >
+                            <select className={inputBase} value={t.costs?.currency || "EUR"} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}>
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
                             </select>
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-right tabular-nums">
                               {money(
-                                toNumber(t.costs?.fuel) +
-                                  toNumber(t.costs?.tolls) +
-                                  toNumber(t.costs?.parking) +
-                                  toNumber(t.costs?.other),
+                                toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other),
                                 t.costs?.currency || "EUR"
                               )}
                             </div>
@@ -1844,12 +1663,7 @@ export default function App() {
 
                         <div className="md:col-span-4">
                           <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                          <textarea
-                            className={`${inputBase} mt-2 min-h-[70px]`}
-                            value={t.notes}
-                            onChange={(e) => updateTrip(t.id, { notes: e.target.value })}
-                            placeholder="Optional notes..."
-                          />
+                          <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
                         </div>
                       </div>
 
@@ -1869,11 +1683,11 @@ export default function App() {
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
                 <div className="font-semibold text-neutral-800">Fuel</div>
                 <button
-                  className={`print:hidden px-3 py-2 rounded-xl text-sm font-medium border shadow-sm active:translate-y-[1px] transition ${
+                  className={
                     activeVehicle
-                      ? "border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
-                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                  }`}
+                      ? btnAccent
+                      : "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-neutral-100 text-neutral-400 shadow-sm cursor-not-allowed"
+                  }
                   onClick={addFuel}
                   disabled={!activeVehicle}
                 >
@@ -1897,12 +1711,7 @@ export default function App() {
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Date</label>
-                            <input
-                              type="date"
-                              className={`${inputBase} mt-2`}
-                              value={f.date}
-                              onChange={(e) => updateFuel(f.id, { date: e.target.value })}
-                            />
+                            <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
                           </div>
 
                           <div>
@@ -1940,11 +1749,7 @@ export default function App() {
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">Currency</label>
-                            <select
-                              className={`${inputBase} mt-2`}
-                              value={f.currency || "EUR"}
-                              onChange={(e) => updateFuel(f.id, { currency: e.target.value })}
-                            >
+                            <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
                               <option value="EUR">EUR</option>
                               <option value="USD">USD</option>
                               <option value="GBP">GBP</option>
@@ -1953,29 +1758,17 @@ export default function App() {
 
                           <div>
                             <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
-                            <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>
-                              {pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}
-                            </div>
+                            <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}</div>
                           </div>
 
                           <div className="md:col-span-3">
                             <label className="text-xs text-neutral-600 font-medium">Station</label>
-                            <input
-                              className={`${inputBase} mt-2`}
-                              value={f.station || ""}
-                              onChange={(e) => updateFuel(f.id, { station: e.target.value })}
-                              placeholder="Optional (e.g., Aral, Shell)"
-                            />
+                            <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
                           </div>
 
                           <div className="md:col-span-3 flex items-end gap-3">
                             <label className="inline-flex items-center gap-2 text-sm text-neutral-700 select-none">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4"
-                                checked={!!f.fullTank}
-                                onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })}
-                              />
+                              <input type="checkbox" className="h-4 w-4" checked={!!f.fullTank} onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })} />
                               Full tank
                             </label>
                             <div className="text-sm text-neutral-700">
@@ -1985,12 +1778,7 @@ export default function App() {
 
                           <div className="md:col-span-6">
                             <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                            <textarea
-                              className={`${inputBase} mt-2 min-h-[60px]`}
-                              value={f.notes || ""}
-                              onChange={(e) => updateFuel(f.id, { notes: e.target.value })}
-                              placeholder="Optional notes..."
-                            />
+                            <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
                           </div>
                         </div>
 
@@ -2013,36 +1801,8 @@ export default function App() {
                       <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
                       <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-600">
-                      Next upgrade (optional): calculate consumption (L/100km) using “Full tank” entries + odometer.
-                    </div>
                   </div>
                 ) : null}
-              </div>
-            </div>
-
-            {/* Summary card */}
-            <div className={card}>
-              <div className={cardHead}>
-                <div className="font-semibold text-neutral-800">Month summary</div>
-              </div>
-              <div className={`${cardPad} grid grid-cols-1 md:grid-cols-4 gap-3`}>
-                <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-700">Trips</div>
-                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.count}</div>
-                </div>
-                <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-700">Distance</div>
-                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.distance.toFixed(1)} km</div>
-                </div>
-                <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-700">Fuel spend</div>
-                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
-                </div>
-                <div className="rounded-2xl border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-700">Fuel liters</div>
-                  <div className="text-2xl font-semibold text-neutral-800 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
-                </div>
               </div>
             </div>
           </div>
@@ -2055,33 +1815,14 @@ export default function App() {
         ) : null}
 
         {/* Footer link */}
-        <div className="mt-6 text-sm text-neutral-700">
-          <a className="underline hover:text-neutral-800" href={HUB_URL} target="_blank" rel="noreferrer">
-            Return to ToolStack hub
-          </a>
-        </div>
+        {String(HUB_URL || "").trim() && !String(HUB_URL).includes("YOUR-WIX-HUB-URL-HERE") ? (
+          <div className="mt-6 text-sm text-neutral-700">
+            <a className="underline hover:text-neutral-800" href={HUB_URL} target="_blank" rel="noreferrer">
+              Return to ToolStack hub
+            </a>
+          </div>
+        ) : null}
       </div>
-
-      {/* Dev-only sanity checks (won't run unless you set window.__TOOLSTACK_DEV_TESTS__ = true) */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            try {
-              if (typeof window !== 'undefined' && window.__TOOLSTACK_DEV_TESTS__) {
-                console.assert(String(${toNumber.toString()}('1,5')) === '1.5', 'toNumber should accept comma decimals');
-                console.assert(${monthKey.toString()}('2026-01-04') === '2026-01', 'monthKey should format YYYY-MM');
-                console.assert(${safeParse.toString()}('{"a":1}', null).a === 1, 'safeParse should parse JSON');
-                console.assert('a\\nb'.includes('\\n'), 'newline literal should be valid');
-                // Added test: uid should return a non-empty string
-                const u = (${uid.toString()})();
-                console.assert(typeof u === 'string' && u.length > 6, 'uid should be a string');
-              }
-            } catch (e) {
-              // ignore
-            }
-          `,
-        }}
-      />
     </div>
   );
 }
