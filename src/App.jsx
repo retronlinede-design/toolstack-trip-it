@@ -43,9 +43,10 @@ const safeParse = (s, fallback) => {
   }
 };
 
+// B1) Harden localStorage completely
 const safeStorageGet = (key) => {
   try {
-    if (typeof window === "undefined") return null;
+    if (typeof window === "undefined" || !window.localStorage) return null;
     return window.localStorage.getItem(key);
   } catch {
     return null;
@@ -54,16 +55,17 @@ const safeStorageGet = (key) => {
 
 const safeStorageSet = (key, value) => {
   try {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !window.localStorage) return false;
     window.localStorage.setItem(key, value);
+    return true;
   } catch {
-    // ignore
+    return false;
   }
 };
 
 const safeStorageRemove = (key) => {
   try {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !window.localStorage) return;
     window.localStorage.removeItem(key);
   } catch {
     // ignore
@@ -824,30 +826,63 @@ function migrateLegacyIfNeeded(saved) {
   };
 }
 
-// 3) Error Boundary
+// A) Crash Overlay & Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null, stack: null };
   }
+
   static getDerivedStateFromError(error) {
-    return { hasError: true };
+    return { hasError: true, error };
   }
+
   componentDidCatch(error, errorInfo) {
-    console.error("Trip-It Error:", error, errorInfo);
+    const stack = errorInfo?.componentStack || error?.stack || "";
+    this.setState({ stack });
+    console.error("Trip-It Crash:", error);
   }
+
+  componentDidMount() {
+    window.addEventListener("error", this.onWindowError);
+    window.addEventListener("unhandledrejection", this.onPromiseRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("error", this.onWindowError);
+    window.removeEventListener("unhandledrejection", this.onPromiseRejection);
+  }
+
+  onWindowError = (event) => {
+    this.setState({ hasError: true, error: event.error || new Error(event.message), stack: event.error?.stack });
+  };
+
+  onPromiseRejection = (event) => {
+    this.setState({ hasError: true, error: event.reason || new Error("Unhandled Rejection"), stack: event.reason?.stack });
+  };
+
   render() {
     if (this.state.hasError) {
+      const { error, stack } = this.state;
+      const stackLines = (stack || "").split("\n").slice(0, 5).join("\n");
+      
       return (
-        <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-neutral-200 shadow-xl p-6 text-center">
-            <h2 className="text-lg font-bold text-neutral-800">Something went wrong</h2>
-            <p className="text-sm text-neutral-600 mt-2">The application encountered an error.</p>
-            <button
+        <div className="fixed inset-0 z-[9999] bg-white text-neutral-900 p-6 overflow-auto font-sans">
+          <div className="max-w-lg mx-auto space-y-4">
+            <h1 className="text-2xl font-bold text-red-600">Trip-It crashed</h1>
+            <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-sm">
+              <div className="font-semibold">{error?.toString() || "Unknown Error"}</div>
+            </div>
+            {stackLines && (
+              <div className="p-4 bg-neutral-100 border border-neutral-200 rounded-xl text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                {stackLines}
+              </div>
+            )}
+            <button 
               onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 rounded-xl bg-neutral-800 text-white text-sm font-medium"
+              className="w-full py-3 bg-neutral-800 text-white rounded-xl font-medium active:scale-95 transition"
             >
-              Reload
+              Reload Application
             </button>
           </div>
         </div>
@@ -861,6 +896,7 @@ function TripIt() {
   const importInputRef = useRef(null);
 
   const [profile, setProfile] = useState(loadProfile);
+  const [storageError, setStorageError] = useState(false);
 
   const [app, setApp] = useState(() => {
     const raw = safeStorageGet(KEY) || safeStorageGet(LEGACY_LS_KEY) || null;
@@ -918,8 +954,10 @@ function TripIt() {
   };
 
   useEffect(() => {
-    safeStorageSet(KEY, JSON.stringify(app));
-  }, [app]);
+    const success = safeStorageSet(KEY, JSON.stringify(app));
+    if (!success && !storageError) setStorageError(true);
+    else if (success && storageError) setStorageError(false);
+  }, [app, storageError]);
 
   useEffect(() => {
     safeStorageSet(PROFILE_KEY, JSON.stringify(profile));
@@ -971,7 +1009,7 @@ function TripIt() {
   const fuelTotals = useMemo(() => {
     const liters = fuelForMonth.reduce((s, f) => s + toNumber(f.liters), 0);
     const spend = fuelForMonth.reduce((s, f) => s + toNumber(f.totalCost), 0);
-    const currency = fuelForMonth.find((f) => f.currency)?.currency || "EUR";
+    const currency = (fuelForMonth[0] && fuelForMonth[0].currency) || "EUR";
     const avgPerLiter = liters > 0 ? spend / liters : 0;
     return { liters, spend, currency, avgPerLiter, count: fuelForMonth.length };
   }, [fuelForMonth]);
@@ -1906,6 +1944,11 @@ function TripIt() {
                 ) : null}
               </div>
               <div className={cardPad}>
+                {storageError && (
+                  <div className="mb-4 bg-amber-100 border border-amber-200 text-amber-900 px-4 py-2 text-xs rounded-lg text-center">
+                    Storage unavailable. Data may not persist.
+                  </div>
+                )}
                 {!activeVehicle ? (
                   <div className="text-sm text-neutral-700">Add a vehicle to start logging trips.</div>
                 ) : activeTrip ? (
