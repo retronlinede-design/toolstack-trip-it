@@ -22,13 +22,16 @@ const HUB_URL = "https://YOUR-WIX-HUB-URL-HERE";
 const ACCENT = "#D5FF00"; // rgb(213,255,0)
 const ACCENT_RGB = "213 255 0";
 
+// 1) Safe uid helper (Hardened for mobile/older browsers)
 const uid = () => {
   try {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
   } catch {
     // ignore
   }
-  return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
 const safeParse = (s, fallback) => {
@@ -821,7 +824,40 @@ function migrateLegacyIfNeeded(saved) {
   };
 }
 
-export default function App() {
+// 3) Error Boundary
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("Trip-It Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-neutral-200 shadow-xl p-6 text-center">
+            <h2 className="text-lg font-bold text-neutral-800">Something went wrong</h2>
+            <p className="text-sm text-neutral-600 mt-2">The application encountered an error.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 rounded-xl bg-neutral-800 text-white text-sm font-medium"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function TripIt() {
   const importInputRef = useRef(null);
 
   const [profile, setProfile] = useState(loadProfile);
@@ -2242,5 +2278,13 @@ export default function App() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <TripIt />
+    </ErrorBoundary>
   );
 }
