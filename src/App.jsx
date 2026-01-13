@@ -681,11 +681,12 @@ function normalizeApp(raw) {
   }));
 
   const normFuelByVehicle = {};
-  const normActiveTripByVehicle = a.activeTripByVehicle || {};
-  const normTripsByVehicle = a.tripsByVehicle || {};
+  // Ensure objects
+  const normActiveTripByVehicle = (a.activeTripByVehicle && typeof a.activeTripByVehicle === 'object') ? a.activeTripByVehicle : {};
+  const normTripsByVehicle = (a.tripsByVehicle && typeof a.tripsByVehicle === 'object') ? a.tripsByVehicle : {};
 
   // Migration: Convert legacy legsByVehicle to tripsByVehicle if trips are missing
-  if (a.legsByVehicle && Object.keys(normTripsByVehicle).length === 0) {
+  if (a.legsByVehicle && typeof a.legsByVehicle === 'object' && Object.keys(normTripsByVehicle).length === 0) {
     for (const vid in a.legsByVehicle) {
       const legs = Array.isArray(a.legsByVehicle[vid]) ? a.legsByVehicle[vid] : [];
       if (legs.length === 0) continue;
@@ -733,8 +734,22 @@ function normalizeApp(raw) {
 
   for (const v of normVehicles) {
     // Ensure arrays exist
-    if (!normTripsByVehicle[v.id]) normTripsByVehicle[v.id] = [];
-    if (!normActiveTripByVehicle[v.id]) normActiveTripByVehicle[v.id] = null;
+    if (!Array.isArray(normTripsByVehicle[v.id])) normTripsByVehicle[v.id] = [];
+    
+    // Ensure each trip has legs array
+    normTripsByVehicle[v.id] = normTripsByVehicle[v.id].map(t => {
+        if (!t) return null;
+        return { ...t, legs: Array.isArray(t.legs) ? t.legs : [] };
+    }).filter(Boolean);
+
+    if (!normActiveTripByVehicle[v.id]) {
+        normActiveTripByVehicle[v.id] = null;
+    } else {
+        // Ensure active trip has legs array
+        if (!Array.isArray(normActiveTripByVehicle[v.id].legs)) {
+            normActiveTripByVehicle[v.id] = { ...normActiveTripByVehicle[v.id], legs: [] };
+        }
+    }
 
     // Normalize Fuel
     const flist = Array.isArray(fuelByVehicle[v.id]) ? fuelByVehicle[v.id] : [];
@@ -998,7 +1013,7 @@ function TripIt() {
     let distance = 0;
     let legCount = 0;
     tripsForMonth.forEach(t => {
-      t.legs.forEach(l => {
+      (t.legs || []).forEach(l => {
         distance += toNumber(l.km);
         legCount++;
       });
@@ -1034,7 +1049,7 @@ function TripIt() {
     let distance = 0;
     let legCount = 0;
     filteredTrips.forEach(t => {
-      t.legs.forEach(l => {
+      (t.legs || []).forEach(l => {
         distance += toNumber(l.km);
         legCount++;
       });
@@ -1357,7 +1372,7 @@ function TripIt() {
     const rows = [["Date", "Trip Title", "Start Place", "End Place", "Start Time", "End Time", "Distance (km)", "Odo Start", "Odo End", "Notes"]];
     
     trips.forEach(t => {
-      t.legs.forEach(l => {
+      (t.legs || []).forEach(l => {
         rows.push([
           t.startDate,
           `"${(t.title || t.purpose || "").replace(/"/g, '""')}"`,
