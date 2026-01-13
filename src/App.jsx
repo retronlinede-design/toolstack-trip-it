@@ -37,7 +37,7 @@ const uid = () => {
 const safeParse = (s, fallback) => {
   try {
     const v = JSON.parse(s);
-    return v ?? fallback;
+    return v != null ? v : fallback;
   } catch {
     return fallback;
   }
@@ -429,7 +429,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
               <input
                 className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 mt-2"
                 value={to}
-                onChange={(e) => onChangeTo?.(e.target.value)}
+                onChange={(e) => onChangeTo && onChangeTo(e.target.value)}
                 placeholder="email@example.com (optional)"
               />
               <div className="text-xs text-neutral-600 mt-2">
@@ -450,7 +450,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
               <textarea
                 className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 mt-2 min-h-[220px]"
                 value={body}
-                onChange={(e) => onChangeBody?.(e.target.value)}
+                onChange={(e) => onChangeBody && onChangeBody(e.target.value)}
               />
             </div>
           </div>
@@ -516,13 +516,13 @@ function MonthPicker({ value, onChange, disabled }) {
 
   const pick = (monthNum) => {
     const mm = String(monthNum).padStart(2, "0");
-    onChange?.(`${year}-${mm}`);
+    onChange && onChange(`${year}-${mm}`);
     setOpen(false);
   };
 
   const setThisMonth = () => {
     const mm = String(currentMonthNum).padStart(2, "0");
-    onChange?.(`${currentYear}-${mm}`);
+    onChange && onChange(`${currentYear}-${mm}`);
     setOpen(false);
   };
 
@@ -670,12 +670,12 @@ function normalizeApp(raw) {
 
   const normVehicles = vehicles.map((v) => ({
     id: v.id || uid(),
-    name: String(v.name ?? "").trim(),
-    make: String(v.make ?? "").trim(),
-    model: String(v.model ?? "").trim(),
-    plate: String(v.plate ?? "").trim(),
-    vin: String(v.vin ?? "").trim(),
-    notes: String(v.notes ?? ""),
+    name: String(v.name || "").trim(),
+    make: String(v.make || "").trim(),
+    model: String(v.model || "").trim(),
+    plate: String(v.plate || "").trim(),
+    vin: String(v.vin || "").trim(),
+    notes: String(v.notes || ""),
   }));
 
   const normFuelByVehicle = {};
@@ -741,13 +741,13 @@ function normalizeApp(raw) {
       .map((f) => ({
         id: f.id || uid(),
         date: typeof f.date === "string" && f.date ? f.date : todayISO(),
-        odometer: f.odometer ?? "",
-        liters: f.liters ?? 0,
-        totalCost: f.totalCost ?? 0,
-        currency: String(f.currency ?? "EUR") || "EUR",
+        odometer: f.odometer != null ? f.odometer : "",
+        liters: f.liters != null ? f.liters : 0,
+        totalCost: f.totalCost != null ? f.totalCost : 0,
+        currency: String(f.currency || "EUR") || "EUR",
         fullTank: !!f.fullTank,
-        station: String(f.station ?? ""),
-        notes: String(f.notes ?? ""),
+        station: String(f.station || ""),
+        notes: String(f.notes || ""),
       }));
   }
 
@@ -790,8 +790,8 @@ function migrateLegacyIfNeeded(saved) {
   const normLegs = legacyTrips
     .filter(Boolean)
     .map((t) => {
-      const odoStart = t.odoStart ?? t.odometerStart ?? null;
-      const odoEnd = t.odoEnd ?? t.odometerEnd ?? null;
+      const odoStart = t.odoStart != null ? t.odoStart : (t.odometerStart != null ? t.odometerStart : null);
+      const odoEnd = t.odoEnd != null ? t.odoEnd : (t.odometerEnd != null ? t.odometerEnd : null);
       const dist =
         t.distance != null && t.distance !== ""
           ? toNumber(t.distance)
@@ -802,14 +802,14 @@ function migrateLegacyIfNeeded(saved) {
         vehicleId: vid,
         startDate: typeof t.date === "string" && t.date ? t.date : todayISO(),
         startTime: "",
-        startPlace: String(t.from ?? t.start ?? ""),
+        startPlace: String(t.from || t.start || ""),
         odoStart: odoStart != null ? toNumber(odoStart) : null,
         endTime: "",
-        endPlace: String(t.to ?? t.end ?? ""),
+        endPlace: String(t.to || t.end || ""),
         odoEnd: odoEnd != null ? toNumber(odoEnd) : null,
         km: dist,
-        purpose: String(t.purpose ?? ""),
-        note: String(t.notes ?? ""),
+        purpose: String(t.purpose || ""),
+        note: String(t.notes || ""),
         createdAt: new Date().toISOString(),
       };
     });
@@ -863,10 +863,10 @@ function TripIt() {
   const [profile, setProfile] = useState(loadProfile);
 
   const [app, setApp] = useState(() => {
-    const raw = safeStorageGet(KEY) ?? safeStorageGet(LEGACY_LS_KEY) ?? null;
+    const raw = safeStorageGet(KEY) || safeStorageGet(LEGACY_LS_KEY) || null;
     const saved = raw ? safeParse(raw, null) : null;
     const migrated = migrateLegacyIfNeeded(saved);
-    const norm = normalizeApp(migrated ?? emptyApp());
+    const norm = normalizeApp(migrated || emptyApp());
 
     try {
       const fromLegacy = !safeStorageGet(KEY) && !!safeStorageGet(LEGACY_LS_KEY);
@@ -1004,7 +1004,7 @@ function TripIt() {
 
     const liters = filteredFuel.reduce((acc, f) => acc + toNumber(f.liters), 0);
     const spend = filteredFuel.reduce((acc, f) => acc + toNumber(f.totalCost), 0);
-    const currency = filteredFuel[0]?.currency || "EUR";
+    const currency = (filteredFuel[0] && filteredFuel[0].currency) || "EUR";
 
     return {
       trips: filteredTrips,
@@ -1277,7 +1277,7 @@ function TripIt() {
 
     const migrated = migrateLegacyIfNeeded(incomingData);
     setProfile(incomingProfile);
-    setApp(normalizeApp(migrated ?? emptyApp()));
+    setApp(normalizeApp(migrated || emptyApp()));
     notify("Imported");
   };
 
@@ -1368,7 +1368,7 @@ function TripIt() {
 
   // ---------- Email ----------
   const buildEmail = () => {
-    const vName = activeVehicle?.name || "(no vehicle)";
+    const vName = (activeVehicle && activeVehicle.name) || "(no vehicle)";
     const mLabel = monthLabel(app.ui.month);
     const subject = `Trip-It report — ${vName} — ${mLabel}`;
 
@@ -1401,7 +1401,7 @@ function TripIt() {
   const copyEmail = async () => {
     try {
       const text = `Subject: ${emailModal.subject}\n\n${emailModal.body}`;
-      if (navigator?.clipboard?.writeText) {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
       } else {
         const ta = document.createElement("textarea");
@@ -1437,7 +1437,7 @@ function TripIt() {
     if (vehicleFormVehicle) setVehicleDraft(vehicleFormVehicle);
   }, [vehicleFormVehicle]);
 
-  const vehicleSaveDisabled = useMemo(() => !String(vehicleDraft?.name || "").trim(), [vehicleDraft]);
+  const vehicleSaveDisabled = useMemo(() => !String((vehicleDraft && vehicleDraft.name) || "").trim(), [vehicleDraft]);
 
   // ---------- Trip Details Expand ----------
   const [expandedTripId, setExpandedTripId] = useState(null);
@@ -1513,7 +1513,7 @@ function TripIt() {
         accept="application/json"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0] || null;
+          const file = (e.target.files && e.target.files[0]) || null;
           if (file) setImportConfirm({ open: true, file });
           e.target.value = "";
         }}
@@ -1545,7 +1545,7 @@ function TripIt() {
                 <label className="text-sm font-medium text-neutral-700">Vehicle name *</label>
                 <input
                   className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.name ?? ""}
+                  value={(vehicleDraft && vehicleDraft.name) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, name: e.target.value }))}
                   placeholder="e.g., BMW 530i (Consulate)"
                 />
@@ -1555,7 +1555,7 @@ function TripIt() {
                 <label className="text-sm font-medium text-neutral-700">Make</label>
                 <input
                   className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.make ?? ""}
+                  value={(vehicleDraft && vehicleDraft.make) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, make: e.target.value }))}
                   placeholder="e.g., BMW"
                 />
@@ -1565,7 +1565,7 @@ function TripIt() {
                 <label className="text-sm font-medium text-neutral-700">Model</label>
                 <input
                   className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.model ?? ""}
+                  value={(vehicleDraft && vehicleDraft.model) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, model: e.target.value }))}
                   placeholder="e.g., 530i"
                 />
@@ -1575,7 +1575,7 @@ function TripIt() {
                 <label className="text-sm font-medium text-neutral-700">Plate</label>
                 <input
                   className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.plate ?? ""}
+                  value={(vehicleDraft && vehicleDraft.plate) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, plate: e.target.value }))}
                   placeholder="e.g., M-AB 1234"
                 />
@@ -1585,7 +1585,7 @@ function TripIt() {
                 <label className="text-sm font-medium text-neutral-700">VIN</label>
                 <input
                   className={`${inputBase} mt-2`}
-                  value={vehicleDraft?.vin ?? ""}
+                  value={(vehicleDraft && vehicleDraft.vin) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))}
                   placeholder="optional"
                 />
@@ -1595,7 +1595,7 @@ function TripIt() {
                 <label className="text-sm font-medium text-neutral-700">Notes</label>
                 <textarea
                   className={`${inputBase} mt-2 min-h-[90px]`}
-                  value={vehicleDraft?.notes ?? ""}
+                  value={(vehicleDraft && vehicleDraft.notes) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, notes: e.target.value }))}
                   placeholder="optional"
                 />
@@ -1609,7 +1609,7 @@ function TripIt() {
               <button
                 className={`${btnPrimary} ${vehicleSaveDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 disabled={vehicleSaveDisabled}
-                onClick={() => saveVehicle({ ...vehicleDraft, name: String(vehicleDraft?.name || "").trim() })}
+                onClick={() => saveVehicle({ ...vehicleDraft, name: String((vehicleDraft && vehicleDraft.name) || "").trim() })}
               >
                 Save vehicle
               </button>
@@ -1674,7 +1674,7 @@ function TripIt() {
                   <div>
                     <div className="text-2xl font-bold tracking-tight text-neutral-800">{profile.org || "ToolStack"}</div>
                     <div className="text-sm text-neutral-700 mt-1">
-                      Trip-It • {activeVehicle?.name || "(no vehicle)"}
+                      Trip-It • {(activeVehicle && activeVehicle.name) || "(no vehicle)"}
                     </div>
                     <div className="text-sm text-neutral-700">
                       Range: {previewConfig.start} to {previewConfig.end}
