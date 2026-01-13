@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * ToolStack — Trip-It (Duty Trip Log) — Styled v1.1 (Module-ready)
+ * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
  * Paste into: src/App.jsx
  * Requires: Tailwind v4 configured.
  */
@@ -68,6 +68,7 @@ const safeStorageRemove = (key) => {
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const nowTime = () => new Date().toTimeString().slice(0, 5);
 
 const toNumber = (v) => {
   const n = Number(String(v ?? "").replace(",", "."));
@@ -92,6 +93,47 @@ const monthLabel = (ym) => {
   if (!y || !m) return String(ym || "");
   const d = new Date(Number(y), Number(m) - 1, 1);
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+};
+
+// ---------- Date Range Helpers ----------
+const toLocalISO = (d) => {
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+};
+
+const getRangeDates = (mode) => {
+  const now = new Date();
+  const d = new Date(now);
+  
+  if (mode === "thisWeek") {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+    const mon = new Date(d.setDate(diff));
+    const sun = new Date(d.setDate(mon.getDate() + 6));
+    return { start: toLocalISO(mon), end: toLocalISO(sun) };
+  }
+  if (mode === "lastWeek") {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1) - 7;
+    const mon = new Date(d.setDate(diff));
+    const sun = new Date(d.setDate(mon.getDate() + 6));
+    return { start: toLocalISO(mon), end: toLocalISO(sun) };
+  }
+  if (mode === "thisMonth") {
+    const y = d.getFullYear(), m = d.getMonth();
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    return { start: toLocalISO(start), end: toLocalISO(end) };
+  }
+  if (mode === "lastMonth") {
+    const y = d.getFullYear(), m = d.getMonth() - 1;
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    return { start: toLocalISO(start), end: toLocalISO(end) };
+  }
+  // Default to today
+  const t = toLocalISO(now);
+  return { start: t, end: t };
 };
 
 // ---------- Accent underline (fixed, non-dynamic Tailwind) ----------
@@ -198,13 +240,10 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
           <div className="p-4 space-y-3 max-h-[70vh] overflow-auto">
             <Card title="Quick start">
               <ul className="space-y-1">
-                <Bullet>Use the app normally — it autosaves as you type.</Bullet>
-                <Bullet>
-                  Use <b>Preview</b> → then <b>Print / Save PDF</b> for a clean report.
-                </Bullet>
-                <Bullet>
-                  Use <b>Export</b> regularly to create backups.
-                </Bullet>
+                <Bullet>Start a <b>Trip</b> when you begin your day or journey.</Bullet>
+                <Bullet>Log individual <b>Legs</b> (Start → End) as you drive.</Bullet>
+                <Bullet>Click <b>End Trip</b> when you are done.</Bullet>
+                <Bullet>Use <b>Export</b> regularly to create backups.</Bullet>
               </ul>
             </Card>
 
@@ -272,12 +311,6 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
                 </p>
               </Card>
             </div>
-
-            <Card title="Privacy">
-              <p>
-                By default, your data stays on your device. It only leaves your device if you export it or share it yourself.
-              </p>
-            </Card>
           </div>
 
           <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
@@ -617,7 +650,8 @@ function emptyApp() {
   return {
     vehicles: [],
     activeVehicleId: null,
-    tripsByVehicle: {},
+    activeTripByVehicle: {}, // { [vid]: Trip | null }
+    tripsByVehicle: {},      // { [vid]: Trip[] }
     fuelByVehicle: {},
     ui: { month: monthKey(todayISO()) },
   };
@@ -628,7 +662,6 @@ function normalizeApp(raw) {
   const a = raw && typeof raw === "object" ? raw : base;
 
   const vehicles = Array.isArray(a.vehicles) ? a.vehicles.filter(Boolean) : [];
-  const tripsByVehicle = a.tripsByVehicle && typeof a.tripsByVehicle === "object" ? a.tripsByVehicle : {};
   const fuelByVehicle = a.fuelByVehicle && typeof a.fuelByVehicle === "object" ? a.fuelByVehicle : {};
   const ui = a.ui && typeof a.ui === "object" ? a.ui : base.ui;
 
@@ -642,43 +675,63 @@ function normalizeApp(raw) {
     notes: String(v.notes ?? ""),
   }));
 
-  const normTripsByVehicle = {};
   const normFuelByVehicle = {};
+  const normActiveTripByVehicle = a.activeTripByVehicle || {};
+  const normTripsByVehicle = a.tripsByVehicle || {};
 
-  for (const v of normVehicles) {
-    const list = Array.isArray(tripsByVehicle[v.id]) ? tripsByVehicle[v.id] : [];
-    normTripsByVehicle[v.id] = list
-      .filter(Boolean)
-      .map((t) => {
-        const odoStart = t.odoStart ?? "";
-        const odoEnd = t.odoEnd ?? "";
-        const dist =
-          t.distance != null && t.distance !== ""
-            ? toNumber(t.distance)
-            : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+  // Migration: Convert legacy legsByVehicle to tripsByVehicle if trips are missing
+  if (a.legsByVehicle && Object.keys(normTripsByVehicle).length === 0) {
+    for (const vid in a.legsByVehicle) {
+      const legs = Array.isArray(a.legsByVehicle[vid]) ? a.legsByVehicle[vid] : [];
+      if (legs.length === 0) continue;
 
-        return {
-          id: t.id || uid(),
-          date: typeof t.date === "string" && t.date ? t.date : todayISO(),
-          from: String(t.from ?? ""),
-          to: String(t.to ?? ""),
-          purpose: String(t.purpose ?? ""),
-          driver: String(t.driver ?? ""),
-          passengers: String(t.passengers ?? ""),
-          odoStart,
-          odoEnd,
-          distance: dist,
-          costs: {
-            fuel: t.costs?.fuel ?? 0,
-            tolls: t.costs?.tolls ?? 0,
-            parking: t.costs?.parking ?? 0,
-            other: t.costs?.other ?? 0,
-            currency: String(t.costs?.currency ?? "EUR") || "EUR",
-          },
-          notes: String(t.notes ?? ""),
-        };
+      // Group legs by date
+      const byDate = {};
+      legs.forEach(l => {
+        const d = l.startDate || todayISO();
+        if (!byDate[d]) byDate[d] = [];
+        byDate[d].push(l);
       });
 
+      const trips = [];
+      for (const date in byDate) {
+        const dayLegs = byDate[date].sort((x, y) => (x.startTime || "").localeCompare(y.startTime || ""));
+        const newLegs = dayLegs.map(l => ({
+          id: l.id || uid(),
+          startPlace: l.startPlace || "",
+          startTime: l.startTime || "",
+          odoStart: l.odoStart != null ? toNumber(l.odoStart) : null,
+          endPlace: l.endPlace || "",
+          endTime: l.endTime || "",
+          odoEnd: l.odoEnd != null ? toNumber(l.odoEnd) : null,
+          km: toNumber(l.km),
+          note: l.note || l.purpose || "", // Map purpose to note for legacy
+          createdAt: l.createdAt || new Date().toISOString()
+        }));
+
+        trips.push({
+          id: uid(),
+          vehicleId: vid,
+          title: `Trip on ${date}`,
+          purpose: "",
+          startedAt: new Date(date).toISOString(),
+          startDate: date,
+          status: "finished",
+          legs: newLegs,
+          notes: "",
+          finishedAt: new Date(date).toISOString()
+        });
+      }
+      normTripsByVehicle[vid] = trips.sort((x, y) => (x.startDate < y.startDate ? 1 : -1));
+    }
+  }
+
+  for (const v of normVehicles) {
+    // Ensure arrays exist
+    if (!normTripsByVehicle[v.id]) normTripsByVehicle[v.id] = [];
+    if (!normActiveTripByVehicle[v.id]) normActiveTripByVehicle[v.id] = null;
+
+    // Normalize Fuel
     const flist = Array.isArray(fuelByVehicle[v.id]) ? fuelByVehicle[v.id] : [];
     normFuelByVehicle[v.id] = flist
       .filter(Boolean)
@@ -704,16 +757,17 @@ function normalizeApp(raw) {
   return {
     vehicles: normVehicles,
     activeVehicleId,
+    activeTripByVehicle: normActiveTripByVehicle,
     tripsByVehicle: normTripsByVehicle,
     fuelByVehicle: normFuelByVehicle,
     ui: { month },
   };
 }
 
-// Legacy migration (best-effort): if old format has `trips`, migrate into one Imported vehicle.
+// Legacy migration (best-effort): if old format has `trips` (really legs), migrate into one Imported vehicle.
 function migrateLegacyIfNeeded(saved) {
   if (!saved || typeof saved !== "object") return null;
-  if (Array.isArray(saved.vehicles) || saved.tripsByVehicle) return saved;
+  if (Array.isArray(saved.vehicles) || saved.legsByVehicle || saved.tripsByVehicle) return saved;
 
   const legacyTrips = Array.isArray(saved.trips) ? saved.trips : null;
   if (!legacyTrips) return saved;
@@ -729,42 +783,39 @@ function migrateLegacyIfNeeded(saved) {
     notes: "Auto-created to preserve legacy Trip-It data.",
   };
 
-  const normTrips = legacyTrips
+  // Convert legacy flat trips to legsByVehicle format, normalizeApp will then convert to tripsByVehicle
+  const normLegs = legacyTrips
     .filter(Boolean)
     .map((t) => {
-      const odoStart = t.odoStart ?? t.odometerStart ?? "";
-      const odoEnd = t.odoEnd ?? t.odometerEnd ?? "";
+      const odoStart = t.odoStart ?? t.odometerStart ?? null;
+      const odoEnd = t.odoEnd ?? t.odometerEnd ?? null;
       const dist =
         t.distance != null && t.distance !== ""
           ? toNumber(t.distance)
-          : Math.max(0, toNumber(odoEnd) - toNumber(odoStart));
+          : (odoEnd != null && odoStart != null ? Math.max(0, toNumber(odoEnd) - toNumber(odoStart)) : 0);
 
       return {
         id: t.id || uid(),
-        date: typeof t.date === "string" && t.date ? t.date : todayISO(),
-        from: String(t.from ?? t.start ?? ""),
-        to: String(t.to ?? t.end ?? ""),
+        vehicleId: vid,
+        startDate: typeof t.date === "string" && t.date ? t.date : todayISO(),
+        startTime: "",
+        startPlace: String(t.from ?? t.start ?? ""),
+        odoStart: odoStart != null ? toNumber(odoStart) : null,
+        endTime: "",
+        endPlace: String(t.to ?? t.end ?? ""),
+        odoEnd: odoEnd != null ? toNumber(odoEnd) : null,
+        km: dist,
         purpose: String(t.purpose ?? ""),
-        driver: String(t.driver ?? ""),
-        passengers: String(t.passengers ?? ""),
-        odoStart,
-        odoEnd,
-        distance: dist,
-        costs: {
-          fuel: t.costs?.fuel ?? t.fuel ?? 0,
-          tolls: t.costs?.tolls ?? t.tolls ?? 0,
-          parking: t.costs?.parking ?? t.parking ?? 0,
-          other: t.costs?.other ?? t.other ?? 0,
-          currency: String(t.costs?.currency ?? "EUR") || "EUR",
-        },
-        notes: String(t.notes ?? ""),
+        note: String(t.notes ?? ""),
+        createdAt: new Date().toISOString(),
       };
     });
 
   return {
     vehicles: [importedVehicle],
     activeVehicleId: vid,
-    tripsByVehicle: { [vid]: normTrips },
+    activeTripByVehicle: { [vid]: null },
+    legsByVehicle: { [vid]: normLegs }, // Temporary for normalizeApp to consume
     fuelByVehicle: { [vid]: [] },
     ui: { month: monthKey(todayISO()) },
   };
@@ -794,45 +845,35 @@ export default function App() {
     return norm;
   });
 
-  // Dev-only sanity checks (do not run unless enabled)
-  useEffect(() => {
-    try {
-      if (typeof window === "undefined") return;
-      const qs = new URLSearchParams(window.location.search);
-      const enabled = !!window.__TOOLSTACK_DEV_TESTS__ || qs.get("tests") === "1";
-      if (!enabled) return;
-
-      console.assert(toNumber("1,5") === 1.5, "toNumber should accept comma decimals");
-      console.assert(toNumber("abc") === 0, "toNumber should default non-numeric to 0");
-      console.assert(monthKey("2026-01-04") === "2026-01", "monthKey should format YYYY-MM");
-      console.assert(String(monthLabel("2026-01") || "").length > 0, "monthLabel should return a readable label");
-      console.assert(safeParse('{"a":1}', null)?.a === 1, "safeParse should parse JSON");
-      console.assert(safeParse("{bad}", { ok: true })?.ok === true, "safeParse should return fallback on error");
-      const u = uid();
-      console.assert(typeof u === "string" && u.length > 6, "uid should be a string");
-
-      const norm = normalizeApp({ vehicles: [{ id: "v1", name: "X" }], activeVehicleId: "v1" });
-      console.assert(Array.isArray(norm.vehicles) && norm.vehicles.length === 1, "normalizeApp should keep vehicles");
-
-      const legacy = migrateLegacyIfNeeded({ trips: [{ date: "2026-01-01", from: "A", to: "B", odoStart: 0, odoEnd: 10 }] });
-      console.assert(legacy?.vehicles?.length === 1, "migrateLegacyIfNeeded should create one imported vehicle");
-
-      console.assert(money(1, "EUR").includes("€"), "money should include € for EUR");
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
 
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewConfig, setPreviewConfig] = useState({ mode: "thisMonth", start: "", end: "" });
+
   const [helpOpen, setHelpOpen] = useState(false);
   const [emailModal, setEmailModal] = useState({ open: false, to: "", subject: "", body: "" });
 
   const [vehicleModal, setVehicleModal] = useState({ open: false, mode: "new", vehicleId: null });
-  const [confirm, setConfirm] = useState({ open: false, kind: null, id: null });
+  const [confirm, setConfirm] = useState({ open: false, kind: null, id: null, payload: null });
   const [importConfirm, setImportConfirm] = useState({ open: false, file: null });
+
+  // Form States
+  const [tripStartForm, setTripStartForm] = useState({
+    title: "",
+    purpose: "",
+    startDate: todayISO()
+  });
+
+  const [legForm, setLegForm] = useState({
+    startPlace: "",
+    startTime: nowTime(),
+    odoStart: "",
+    endPlace: "",
+    endTime: nowTime(),
+    odoEnd: "",
+    note: ""
+  });
 
   const notify = (msg) => {
     setToast(msg);
@@ -853,6 +894,11 @@ export default function App() {
     [app.vehicles, app.activeVehicleId]
   );
 
+  const activeTrip = useMemo(() => {
+    if (!activeVehicle) return null;
+    return app.activeTripByVehicle[activeVehicle.id] || null;
+  }, [app.activeTripByVehicle, activeVehicle]);
+
   const trips = useMemo(() => {
     if (!activeVehicle) return [];
     return Array.isArray(app.tripsByVehicle[activeVehicle.id]) ? app.tripsByVehicle[activeVehicle.id] : [];
@@ -865,7 +911,8 @@ export default function App() {
 
   const tripsForMonth = useMemo(() => {
     const m = app.ui.month;
-    return trips.filter((t) => monthKey(t.date) === m).sort((a, b) => (a.date < b.date ? 1 : -1));
+    // Sort newest first
+    return trips.filter((t) => monthKey(t.startDate) === m).sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
   }, [trips, app.ui.month]);
 
   const fuelForMonth = useMemo(() => {
@@ -874,14 +921,15 @@ export default function App() {
   }, [fuelLogs, app.ui.month]);
 
   const tripTotals = useMemo(() => {
-    const distance = tripsForMonth.reduce((s, t) => s + toNumber(t.distance), 0);
-    const fuel = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.fuel), 0);
-    const tolls = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.tolls), 0);
-    const parking = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.parking), 0);
-    const other = tripsForMonth.reduce((s, t) => s + toNumber(t.costs?.other), 0);
-    const currency = tripsForMonth.find((t) => t.costs?.currency)?.costs?.currency || "EUR";
-    const totalCost = fuel + tolls + parking + other;
-    return { distance, fuel, tolls, parking, other, totalCost, currency, count: tripsForMonth.length };
+    let distance = 0;
+    let legCount = 0;
+    tripsForMonth.forEach(t => {
+      t.legs.forEach(l => {
+        distance += toNumber(l.km);
+        legCount++;
+      });
+    });
+    return { distance, count: legCount, tripCount: tripsForMonth.length };
   }, [tripsForMonth]);
 
   const fuelTotals = useMemo(() => {
@@ -892,7 +940,79 @@ export default function App() {
     return { liters, spend, currency, avgPerLiter, count: fuelForMonth.length };
   }, [fuelForMonth]);
 
+  // Preview Data Calculation
+  const previewData = useMemo(() => {
+    if (!previewOpen || !activeVehicle) return { trips: [], fuel: [], totals: {} };
+    
+    const { start, end } = previewConfig;
+    const s = start || "0000-00-00";
+    const e = end || "9999-99-99";
+
+    // Filter and sort ascending for report
+    const filteredTrips = trips
+      .filter(t => t.startDate >= s && t.startDate <= e)
+      .reverse(); // trips is desc, we want asc for report
+
+    const filteredFuel = fuelLogs
+      .filter(f => f.date >= s && f.date <= e)
+      .reverse();
+
+    let distance = 0;
+    let legCount = 0;
+    filteredTrips.forEach(t => {
+      t.legs.forEach(l => {
+        distance += toNumber(l.km);
+        legCount++;
+      });
+    });
+
+    const liters = filteredFuel.reduce((acc, f) => acc + toNumber(f.liters), 0);
+    const spend = filteredFuel.reduce((acc, f) => acc + toNumber(f.totalCost), 0);
+    const currency = filteredFuel[0]?.currency || "EUR";
+
+    return {
+      trips: filteredTrips,
+      fuel: filteredFuel,
+      totals: { distance, legCount, tripCount: filteredTrips.length, liters, spend, currency }
+    };
+  }, [previewOpen, activeVehicle, trips, fuelLogs, previewConfig]);
+
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
+
+  // Auto-fill leg form defaults when active trip changes or legs added
+  useEffect(() => {
+    if (activeTrip && activeTrip.legs.length > 0) {
+      const lastLeg = activeTrip.legs[activeTrip.legs.length - 1];
+      setLegForm(prev => ({
+        ...prev,
+        startPlace: lastLeg.endPlace,
+        startTime: nowTime(),
+        odoStart: lastLeg.odoEnd != null ? lastLeg.odoEnd : "",
+        endPlace: "",
+        endTime: nowTime(),
+        odoEnd: "",
+        note: ""
+      }));
+    } else if (activeTrip) {
+      // New trip, try to find last finished trip for odo
+      const lastTrip = trips[0];
+      let lastOdo = "";
+      if (lastTrip && lastTrip.legs.length > 0) {
+        const lastLeg = lastTrip.legs[lastTrip.legs.length - 1];
+        if (lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
+      }
+      setLegForm(prev => ({
+        ...prev,
+        startPlace: "",
+        startTime: nowTime(),
+        odoStart: lastOdo,
+        endPlace: "",
+        endTime: nowTime(),
+        odoEnd: "",
+        note: ""
+      }));
+    }
+  }, [activeTrip, trips]);
 
   // ---------- Vehicle CRUD ----------
   const openNewVehicle = () => setVehicleModal({ open: true, mode: "new", vehicleId: null });
@@ -902,11 +1022,15 @@ export default function App() {
       const exists = a.vehicles.some((v) => v.id === vehicle.id);
       const vehicles = exists ? a.vehicles.map((v) => (v.id === vehicle.id ? vehicle : v)) : [vehicle, ...a.vehicles];
       const tripsByVehicle = { ...a.tripsByVehicle };
+      const activeTripByVehicle = { ...a.activeTripByVehicle };
       const fuelByVehicle = { ...a.fuelByVehicle };
+      
       if (!tripsByVehicle[vehicle.id]) tripsByVehicle[vehicle.id] = [];
+      if (!activeTripByVehicle[vehicle.id]) activeTripByVehicle[vehicle.id] = null;
       if (!fuelByVehicle[vehicle.id]) fuelByVehicle[vehicle.id] = [];
+      
       const activeVehicleId = a.activeVehicleId || vehicle.id;
-      return normalizeApp({ ...a, vehicles, tripsByVehicle, fuelByVehicle, activeVehicleId });
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeTripByVehicle, fuelByVehicle, activeVehicleId });
     });
     setVehicleModal({ open: false, mode: "new", vehicleId: null });
     notify("Vehicle saved");
@@ -917,69 +1041,133 @@ export default function App() {
     setApp((a) => {
       const vehicles = a.vehicles.filter((v) => v.id !== id);
       const tripsByVehicle = { ...a.tripsByVehicle };
+      const activeTripByVehicle = { ...a.activeTripByVehicle };
       const fuelByVehicle = { ...a.fuelByVehicle };
+      
       delete tripsByVehicle[id];
+      delete activeTripByVehicle[id];
       delete fuelByVehicle[id];
 
       let activeVehicleId = a.activeVehicleId;
       if (activeVehicleId === id) activeVehicleId = vehicles.length ? vehicles[0].id : null;
 
-      return normalizeApp({ ...a, vehicles, tripsByVehicle, fuelByVehicle, activeVehicleId });
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeTripByVehicle, fuelByVehicle, activeVehicleId });
     });
-    setConfirm({ open: false, kind: null, id: null });
+    setConfirm({ open: false, kind: null, id: null, payload: null });
     notify("Vehicle deleted");
   };
 
   const selectVehicle = (id) => setApp((a) => ({ ...a, activeVehicleId: id }));
 
-  // ---------- Trip CRUD ----------
-  const addTrip = () => {
-    if (!activeVehicle) return notify("Add a vehicle first");
-    const t = {
+  // ---------- Trip Workflow ----------
+  const startTrip = () => {
+    if (!activeVehicle) return notify("Select a vehicle");
+    
+    const newTrip = {
       id: uid(),
-      date: todayISO(),
-      from: "",
-      to: "",
-      purpose: "",
-      driver: "",
-      passengers: "",
-      odoStart: "",
-      odoEnd: "",
-      distance: 0,
-      costs: { fuel: 0, tolls: 0, parking: 0, other: 0, currency: "EUR" },
-      notes: "",
+      vehicleId: activeVehicle.id,
+      title: tripStartForm.title,
+      purpose: tripStartForm.purpose,
+      startedAt: new Date().toISOString(),
+      startDate: tripStartForm.startDate,
+      status: "active",
+      legs: [],
+      notes: ""
     };
-    setApp((a) => {
-      const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
-      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: [t, ...list] } };
-    });
-    notify("Trip added");
+
+    setApp(a => ({
+      ...a,
+      activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: newTrip }
+    }));
+    
+    // Reset start form
+    setTripStartForm({ title: "", purpose: "", startDate: todayISO() });
+    notify("Trip started");
   };
 
-  const updateTrip = (tripId, patch) => {
+  const addLeg = () => {
+    if (!activeVehicle || !activeTrip) return;
+
+    const odoStart = legForm.odoStart !== "" ? toNumber(legForm.odoStart) : null;
+    const odoEnd = legForm.odoEnd !== "" ? toNumber(legForm.odoEnd) : null;
+
+    if (odoStart == null || odoEnd == null) return notify("Odometer readings required");
+    if (odoEnd < odoStart) return notify("End Odo cannot be less than Start Odo");
+
+    const km = Math.max(0, odoEnd - odoStart);
+
+    const newLeg = {
+      id: uid(),
+      startPlace: legForm.startPlace,
+      startTime: legForm.startTime,
+      odoStart: odoStart,
+      endPlace: legForm.endPlace,
+      endTime: legForm.endTime,
+      odoEnd: odoEnd,
+      km: km,
+      note: legForm.note,
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedTrip = {
+      ...activeTrip,
+      legs: [...activeTrip.legs, newLeg]
+    };
+
+    setApp(a => ({
+      ...a,
+      activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
+    }));
+
+    notify("Leg added");
+  };
+
+  const deleteLeg = (legId) => {
+    if (!activeVehicle || !activeTrip) return;
+    const updatedTrip = {
+      ...activeTrip,
+      legs: activeTrip.legs.filter(l => l.id !== legId)
+    };
+    setApp(a => ({
+      ...a,
+      activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
+    }));
+  };
+
+  const endTrip = () => {
+    if (!activeVehicle || !activeTrip) return;
+
+    const finishedTrip = {
+      ...activeTrip,
+      status: "finished",
+      finishedAt: new Date().toISOString()
+    };
+
+    setApp(a => ({
+      ...a,
+      tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: [finishedTrip, ...(a.tripsByVehicle[activeVehicle.id] || [])] },
+      activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: null }
+    }));
+
+    notify("Trip finished");
+  };
+
+  const cancelTrip = () => {
     if (!activeVehicle) return;
-    setApp((a) => {
-      const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
-      const next = list.map((t) => {
-        if (t.id !== tripId) return t;
-        const merged = { ...t, ...patch };
-        merged.costs = { ...t.costs, ...patch.costs };
-
-        const dist = Math.max(0, toNumber(merged.odoEnd) - toNumber(merged.odoStart));
-        merged.distance = dist;
-
-        return merged;
-      });
-      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: next } };
-    });
+    setApp(a => ({
+      ...a,
+      activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: null }
+    }));
+    setConfirm({ open: false, kind: null, id: null, payload: null });
+    notify("Trip cancelled");
   };
 
   const deleteTrip = (tripId) => {
     if (!activeVehicle) return;
-    setApp((a) => {
-      const list = Array.isArray(a.tripsByVehicle[activeVehicle.id]) ? a.tripsByVehicle[activeVehicle.id] : [];
-      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: list.filter((t) => t.id !== tripId) } };
-    });
+    setApp(a => ({
+      ...a,
+      tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: (a.tripsByVehicle[activeVehicle.id] || []).filter(t => t.id !== tripId) }
+    }));
     notify("Trip deleted");
   };
 
@@ -1074,7 +1262,72 @@ export default function App() {
 
   const openPreview = () => {
     if (!activeVehicle) return notify("Select a vehicle first");
+    const { start, end } = getRangeDates("thisMonth");
+    setPreviewConfig({ mode: "thisMonth", start, end });
     setPreviewOpen(true);
+  };
+
+  const updatePreviewMode = (mode) => {
+    if (mode === "custom") {
+      setPreviewConfig(prev => ({ ...prev, mode }));
+    } else {
+      const { start, end } = getRangeDates(mode);
+      setPreviewConfig({ mode, start, end });
+    }
+  };
+
+  const exportPreviewCSV = () => {
+    const { trips } = previewData;
+    if (!trips.length) return notify("No trips in range");
+    
+    const rows = [["Date", "Trip Title", "Start Place", "End Place", "Start Time", "End Time", "Distance (km)", "Odo Start", "Odo End", "Notes"]];
+    
+    trips.forEach(t => {
+      t.legs.forEach(l => {
+        rows.push([
+          t.startDate,
+          `"${(t.title || t.purpose || "").replace(/"/g, '""')}"`,
+          `"${l.startPlace.replace(/"/g, '""')}"`,
+          `"${l.endPlace.replace(/"/g, '""')}"`,
+          l.startTime,
+          l.endTime,
+          l.km,
+          l.odoStart,
+          l.odoEnd,
+          `"${(l.note || "").replace(/"/g, '""')}"`
+        ]);
+      });
+    });
+
+    const csvContent = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tripit-export-${previewConfig.start}-to-${previewConfig.end}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPreviewJSON = () => {
+    const payload = {
+      range: { start: previewConfig.start, end: previewConfig.end },
+      exportedAt: new Date().toISOString(),
+      vehicle: { name: activeVehicle.name, plate: activeVehicle.plate },
+      trips: previewData.trips,
+      fuel: previewData.fuel
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tripit-export-${previewConfig.start}-to-${previewConfig.end}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   // ---------- Email ----------
@@ -1092,7 +1345,8 @@ export default function App() {
     lines.push(`Generated: ${new Date().toLocaleString()}`);
     lines.push("");
     lines.push("Summary");
-    lines.push(`- Trips: ${tripTotals.count}`);
+    lines.push(`- Trips: ${tripTotals.tripCount}`);
+    lines.push(`- Legs: ${tripTotals.count}`);
     lines.push(`- Distance: ${tripTotals.distance.toFixed(1)} km`);
     lines.push(`- Fuel spend: ${money(fuelTotals.spend, fuelTotals.currency)} (${fuelTotals.liters.toFixed(2)} L)`);
     lines.push("");
@@ -1149,6 +1403,10 @@ export default function App() {
 
   const vehicleSaveDisabled = useMemo(() => !String(vehicleDraft?.name || "").trim(), [vehicleDraft]);
 
+  // ---------- Trip Details Expand ----------
+  const [expandedTripId, setExpandedTripId] = useState(null);
+  const toggleTrip = (id) => setExpandedTripId(prev => prev === id ? null : id);
+
   return (
     <div
       className="min-h-screen bg-neutral-50 text-neutral-800"
@@ -1177,11 +1435,12 @@ export default function App() {
       ) : null}
 
       <ConfirmModal
-        open={confirm.open && confirm.kind === "vehicle"}
-        title="Delete vehicle?"
-        message="This will delete the vehicle and all trips + fuel logs saved under it."
-        onCancel={() => setConfirm({ open: false, kind: null, id: null })}
-        onConfirm={deleteVehicleNow}
+        open={confirm.open}
+        title={confirm.kind === "vehicle" ? "Delete vehicle?" : "Cancel trip?"}
+        message={confirm.kind === "vehicle" ? "This will delete the vehicle and all trips + fuel logs saved under it." : "This will discard the current active trip and all its legs."}
+        confirmText={confirm.kind === "vehicle" ? "Delete" : "Cancel Trip"}
+        onCancel={() => setConfirm({ open: false, kind: null, id: null, payload: null })}
+        onConfirm={confirm.kind === "vehicle" ? deleteVehicleNow : cancelTrip}
       />
 
       <ConfirmModal
@@ -1327,71 +1586,140 @@ export default function App() {
       {previewOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
           <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewOpen(false)} />
-          <div className="relative w-full max-w-5xl">
-            <div className="mb-3 rounded-2xl bg-white border border-neutral-200 shadow-sm p-3 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm text-neutral-500">ToolStack • Preview</div>
-                <div className="text-lg font-semibold text-neutral-800">Trip-It preview</div>
-                <div className="mt-3">
-                  <AccentUnderline className="w-40" />
+          <div className="relative w-full max-w-5xl flex flex-col max-h-[90vh]">
+            {/* Controls Header (Non-printable) */}
+            <div className="mb-3 rounded-2xl bg-white border border-neutral-200 shadow-sm p-3 print:hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm text-neutral-500">ToolStack • Preview</div>
+                  <div className="text-lg font-semibold text-neutral-800">Trip-It Report</div>
                 </div>
-                <div className="text-xs text-neutral-600 mt-2">Use your browser print (Ctrl+P / ⌘P) to print or save a PDF.</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className={btnPrimary}
-                  onClick={() => {
-                    try {
-                      if (typeof window !== "undefined") window.print();
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                >
-                  Print / save PDF
-                </button>
-                <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>
-                  Close
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select 
+                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25"
+                    value={previewConfig.mode}
+                    onChange={(e) => updatePreviewMode(e.target.value)}
+                  >
+                    <option value="thisWeek">This Week</option>
+                    <option value="lastWeek">Last Week</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="lastMonth">Last Month</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  
+                  <input 
+                    type="date" 
+                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25"
+                    value={previewConfig.start}
+                    onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
+                  />
+                  <span className="text-neutral-400">-</span>
+                  <input 
+                    type="date" 
+                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25"
+                    value={previewConfig.end}
+                    onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
+                  />
+                  
+                  <div className="w-px h-6 bg-neutral-200 mx-1 hidden sm:block"></div>
+
+                  <button className={btnSecondary} onClick={exportPreviewCSV}>CSV</button>
+                  <button className={btnSecondary} onClick={exportPreviewJSON}>JSON</button>
+                  <button className={btnPrimary} onClick={() => window.print()}>Print</button>
+                  <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>Close</button>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-auto max-h-[80vh]">
-              <div id="tripit-print" className="p-6">
+            {/* Printable Content */}
+            <div className="rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-auto flex-1">
+              <div id="tripit-print" className="p-6 sm:p-10">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-2xl font-bold tracking-tight text-neutral-800">{profile.org || "ToolStack"}</div>
+                    <div className="text-sm text-neutral-700 mt-1">
+                      Trip-It • {activeVehicle?.name || "(no vehicle)"}
+                    </div>
                     <div className="text-sm text-neutral-700">
-                      Trip-It • {activeVehicle?.name || "(no vehicle)"} • {monthLabel(app.ui.month)}
+                      Range: {previewConfig.start} to {previewConfig.end}
                     </div>
                     {profile.user ? <div className="text-sm text-neutral-700">Prepared by: {profile.user}</div> : null}
                     <div className="mt-3">
                       <AccentUnderline className="w-72" />
                     </div>
                   </div>
-                  <div className="text-sm text-neutral-700">Generated: {new Date().toLocaleString()}</div>
+                  <div className="text-sm text-neutral-700 text-right">
+                    <div>Generated:</div>
+                    <div>{new Date().toLocaleString()}</div>
+                  </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">Trips</div>
-                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.count}</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.tripCount}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 p-4">
+                    <div className="text-sm text-neutral-700">Legs</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.legCount}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">Distance</div>
-                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{tripTotals.distance.toFixed(1)} km</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.distance.toFixed(1)} km</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-700">Fuel spend</div>
-                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(fuelTotals.spend, fuelTotals.currency)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-700">Fuel liters</div>
-                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{fuelTotals.liters.toFixed(2)} L</div>
+                    <div className="text-sm text-neutral-700">Fuel</div>
+                    <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(previewData.totals.spend, previewData.totals.currency)}</div>
                   </div>
                 </div>
 
-                <div className="mt-5 text-xs text-neutral-600">
+                <table className="w-full text-sm text-left mt-8 border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="border-b border-neutral-200 py-2 font-medium text-neutral-600 w-24">Date</th>
+                      <th className="border-b border-neutral-200 py-2 font-medium text-neutral-600">Trip / Purpose</th>
+                      <th className="border-b border-neutral-200 py-2 font-medium text-neutral-600">Route</th>
+                      <th className="border-b border-neutral-200 py-2 font-medium text-neutral-600 w-20 text-right">Dist</th>
+                      <th className="border-b border-neutral-200 py-2 font-medium text-neutral-600 w-32 text-right">Odo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.trips.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="py-8 text-center text-neutral-500 italic">No trips found in this date range.</td>
+                      </tr>
+                    ) : (
+                      previewData.trips.map(t => (
+                        <React.Fragment key={t.id}>
+                          {t.legs.map((l, i) => (
+                            <tr key={l.id} className="border-b border-neutral-100 last:border-0">
+                              <td className="py-2 align-top text-neutral-800 whitespace-nowrap">{i === 0 ? t.startDate : ""}</td>
+                              <td className="py-2 align-top text-neutral-800">
+                                {i === 0 && (t.title || t.purpose) ? (
+                                  <div>
+                                    <div className="font-medium">{t.title}</div>
+                                    {t.purpose && <div className="text-xs text-neutral-500">{t.purpose}</div>}
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="py-2 align-top text-neutral-800">
+                                <div>{l.startPlace} → {l.endPlace}</div>
+                                <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime}</div>
+                                {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
+                              </td>
+                              <td className="py-2 align-top text-neutral-800 text-right">{l.km.toFixed(1)}</td>
+                              <td className="py-2 align-top text-neutral-800 text-xs text-neutral-500 text-right tabular-nums">
+                                {l.odoStart} - {l.odoEnd}
+                              </td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+
+                <div className="mt-8 text-xs text-neutral-400 border-t border-neutral-100 pt-4">
                   Storage key: <span className="font-mono">{KEY}</span>
                 </div>
               </div>
@@ -1518,7 +1846,7 @@ export default function App() {
                 </div>
                 <div className={`${cardPad} space-y-2`}>
                   <div className="flex flex-wrap gap-2">
-                    <Pill>{tripTotals.count} trips</Pill>
+                    <Pill>{tripTotals.tripCount} trips</Pill>
                     <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
                     <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
                     <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
@@ -1530,155 +1858,245 @@ export default function App() {
 
           {/* Right: Trips + Fuel */}
           <div className="lg:col-span-2 space-y-3">
-            {/* Trips */}
+            
+            {/* 1. Active Trip Card */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
-                <div className="font-semibold text-neutral-800">Trips</div>
-                <button
-                  className={
-                    activeVehicle
-                      ? btnAccent
-                      : "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-neutral-100 text-neutral-400 shadow-sm cursor-not-allowed"
-                  }
-                  onClick={addTrip}
-                  disabled={!activeVehicle}
-                >
-                  + Add trip
-                </button>
+                <div className="font-semibold text-neutral-800">{activeTrip ? "Active Trip" : "Start Trip"}</div>
+                {activeTrip ? (
+                  <button className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition" onClick={() => setConfirm({ open: true, kind: "cancel", id: null })}>
+                    Cancel Trip
+                  </button>
+                ) : null}
               </div>
-
-              <div className={`${cardPad} space-y-3`}>
+              <div className={cardPad}>
                 {!activeVehicle ? (
                   <div className="text-sm text-neutral-700">Add a vehicle to start logging trips.</div>
-                ) : tripsForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-700">No trips for this month yet.</div>
-                ) : (
-                  tripsForMonth.map((t) => (
-                    <div key={t.id} className="rounded-2xl border border-neutral-200 p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input
-                            type="date"
-                            className={`${inputBase} mt-2`}
-                            value={t.date}
-                            onChange={(e) => updateTrip(t.id, { date: e.target.value })}
-                          />
-                        </div>
+                ) : activeTrip ? (
+                  // Active Trip View
+                  <div className="space-y-4">
+                    <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-3 text-sm text-neutral-700">
+                      <div className="font-medium text-neutral-800">{activeTrip.title || "Untitled Trip"}</div>
+                      <div className="mt-1">Started: {new Date(activeTrip.startedAt).toLocaleString()}</div>
+                      {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">Purpose: {activeTrip.purpose}</div> : null}
+                    </div>
 
-                        <div className="md:col-span-3">
-                          <label className="text-xs text-neutral-600 font-medium">Route</label>
-                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input className={inputBase} value={t.from} onChange={(e) => updateTrip(t.id, { from: e.target.value })} placeholder="From" />
-                            <input className={inputBase} value={t.to} onChange={(e) => updateTrip(t.id, { to: e.target.value })} placeholder="To" />
-                          </div>
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <label className="text-xs text-neutral-600 font-medium">Purpose</label>
-                          <input className={`${inputBase} mt-2`} value={t.purpose} onChange={(e) => updateTrip(t.id, { purpose: e.target.value })} placeholder="Purpose" />
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Driver</label>
-                          <input className={`${inputBase} mt-2`} value={t.driver} onChange={(e) => updateTrip(t.id, { driver: e.target.value })} placeholder="Driver" />
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Passengers</label>
-                          <input className={`${inputBase} mt-2`} value={t.passengers} onChange={(e) => updateTrip(t.id, { passengers: e.target.value })} placeholder="Optional" />
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odo start</label>
-                          <input
-                            className={`${inputBase} mt-2 text-right tabular-nums`}
-                            inputMode="decimal"
-                            value={t.odoStart ?? ""}
-                            onChange={(e) => updateTrip(t.id, { odoStart: e.target.value })}
-                            placeholder="0"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odo end</label>
-                          <input
-                            className={`${inputBase} mt-2 text-right tabular-nums`}
-                            inputMode="decimal"
-                            value={t.odoEnd ?? ""}
-                            onChange={(e) => updateTrip(t.id, { odoEnd: e.target.value })}
-                            placeholder="0"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Distance (auto)</label>
-                          <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{toNumber(t.distance).toFixed(1)} km</div>
-                        </div>
-
-                        <div className="md:col-span-4">
-                          <label className="text-xs text-neutral-600 font-medium">Costs</label>
-                          <div className="mt-2 grid grid-cols-2 md:grid-cols-6 gap-2">
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.fuel ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, fuel: e.target.value } })}
-                              placeholder="Fuel"
-                            />
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.tolls ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, tolls: e.target.value } })}
-                              placeholder="Tolls"
-                            />
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.parking ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, parking: e.target.value } })}
-                              placeholder="Parking"
-                            />
-                            <input
-                              className={`${inputBase} text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={t.costs?.other ?? 0}
-                              onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, other: e.target.value } })}
-                              placeholder="Other"
-                            />
-                            <select className={inputBase} value={t.costs?.currency || "EUR"} onChange={(e) => updateTrip(t.id, { costs: { ...t.costs, currency: e.target.value } })}>
-                              <option value="EUR">EUR</option>
-                              <option value="USD">USD</option>
-                              <option value="GBP">GBP</option>
-                            </select>
-                            <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-right tabular-nums">
-                              {money(
-                                toNumber(t.costs?.fuel) + toNumber(t.costs?.tolls) + toNumber(t.costs?.parking) + toNumber(t.costs?.other),
-                                t.costs?.currency || "EUR"
-                              )}
+                    {/* List of Legs in Active Trip */}
+                    {activeTrip.legs.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Legs</div>
+                        {activeTrip.legs.map((l, idx) => (
+                          <div key={l.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white text-sm">
+                            <div className="min-w-0">
+                              <div className="font-medium text-neutral-800">{l.startPlace} → {l.endPlace}</div>
+                              <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime} • {l.km.toFixed(1)} km</div>
                             </div>
+                            <button 
+                              className="text-xs text-red-600 hover:text-red-800 px-2"
+                              onClick={() => deleteLeg(l.id)}
+                            >
+                              Delete
+                            </button>
                           </div>
-                        </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-neutral-500 italic">No legs logged yet. Add one below.</div>
+                    )}
 
-                        <div className="md:col-span-4">
-                          <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                          <textarea className={`${inputBase} mt-2 min-h-[70px]`} value={t.notes} onChange={(e) => updateTrip(t.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                    <div className="border-t border-neutral-100 pt-4">
+                      <div className="text-sm font-medium text-neutral-800 mb-3">Add Leg</div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Start Place</label>
+                          <input
+                            className={`${inputBase} mt-1`}
+                            value={legForm.startPlace}
+                            onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })}
+                            placeholder="Start"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Start Time</label>
+                          <input
+                            type="time"
+                            className={`${inputBase} mt-1`}
+                            value={legForm.startTime}
+                            onChange={(e) => setLegForm({ ...legForm, startTime: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Odo Start</label>
+                          <input
+                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={legForm.odoStart}
+                            onChange={(e) => setLegForm({ ...legForm, odoStart: e.target.value })}
+                            placeholder="0"
+                          />
                         </div>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-end">
-                        <button className={btnSecondary} onClick={() => deleteTrip(t.id)}>
-                          Delete trip
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">End Place</label>
+                          <input
+                            className={`${inputBase} mt-1`}
+                            value={legForm.endPlace}
+                            onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
+                            placeholder="Destination"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">End Time</label>
+                          <input
+                            type="time"
+                            className={`${inputBase} mt-1`}
+                            value={legForm.endTime}
+                            onChange={(e) => setLegForm({ ...legForm, endTime: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Odo End</label>
+                          <input
+                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={legForm.odoEnd}
+                            onChange={(e) => setLegForm({ ...legForm, odoEnd: e.target.value })}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="text-xs text-neutral-600 font-medium">Note</label>
+                        <input
+                          className={`${inputBase} mt-1`}
+                          value={legForm.note}
+                          onChange={(e) => setLegForm({ ...legForm, note: e.target.value })}
+                          placeholder="Optional"
+                        />
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button className={btnSecondary} onClick={addLeg}>
+                          Log Leg
                         </button>
                       </div>
                     </div>
-                  ))
+
+                    <div className="pt-4 border-t border-neutral-100 flex justify-end">
+                      <button className={btnAccent} onClick={endTrip}>
+                        End Trip
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Start Trip Form
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Trip Title (Optional)</label>
+                      <input
+                        className={`${inputBase} mt-1`}
+                        value={tripStartForm.title}
+                        onChange={(e) => setTripStartForm({ ...tripStartForm, title: e.target.value })}
+                        placeholder="e.g. Client Visit"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Purpose (Optional)</label>
+                      <input
+                        className={`${inputBase} mt-1`}
+                        value={tripStartForm.purpose}
+                        onChange={(e) => setTripStartForm({ ...tripStartForm, purpose: e.target.value })}
+                        placeholder="e.g. Business"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Date</label>
+                      <input
+                        type="date"
+                        className={`${inputBase} mt-1`}
+                        value={tripStartForm.startDate}
+                        onChange={(e) => setTripStartForm({ ...tripStartForm, startDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="pt-2 flex justify-end">
+                      <button className={btnAccent} onClick={startTrip}>
+                        Start Trip
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Fuel */}
+            {/* 2. Recent Trips List */}
+            <div className={card}>
+              <div className={cardHead}>
+                <div className="font-semibold text-neutral-800">Recent Trips</div>
+              </div>
+              <div className={cardPad}>
+                {!activeVehicle ? (
+                  <div className="text-sm text-neutral-700">Select a vehicle to view trips.</div>
+                ) : tripsForMonth.length === 0 ? (
+                  <div className="text-sm text-neutral-700">No trips logged for {monthLabel(app.ui.month)}.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {tripsForMonth.map((t) => {
+                      const totalKm = t.legs.reduce((sum, l) => sum + toNumber(l.km), 0);
+                      const isExpanded = expandedTripId === t.id;
+                      
+                      return (
+                        <div key={t.id} className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+                          <div 
+                            className="p-3 flex items-center justify-between cursor-pointer hover:bg-neutral-50 transition"
+                            onClick={() => toggleTrip(t.id)}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold text-neutral-800 truncate">{t.title || "Untitled Trip"}</div>
+                              <div className="text-xs text-neutral-500 mt-0.5">{t.startDate} • {t.legs.length} legs</div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className="font-bold text-neutral-800">{totalKm.toFixed(1)} km</div>
+                            </div>
+                          </div>
+                          
+                          {isExpanded && (
+                            <div className="border-t border-neutral-100 bg-neutral-50 p-3 space-y-2">
+                              {t.purpose && <div className="text-xs text-neutral-600 mb-2">Purpose: {t.purpose}</div>}
+                              {t.legs.map((l) => (
+                                <div key={l.id} className="text-sm border-l-2 border-neutral-300 pl-2 py-1">
+                                  <div className="flex justify-between">
+                                    <span className="font-medium text-neutral-700">{l.startPlace} → {l.endPlace}</span>
+                                    <span className="text-neutral-600">{l.km.toFixed(1)} km</span>
+                                  </div>
+                                  <div className="text-xs text-neutral-500">
+                                    {l.startTime} - {l.endTime} • Odo: {l.odoStart} - {l.odoEnd}
+                                  </div>
+                                  {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
+                                </div>
+                              ))}
+                              <div className="pt-2 flex justify-end">
+                                <button 
+                                  className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition"
+                                  onClick={(e) => { e.stopPropagation(); deleteTrip(t.id); }}
+                                >
+                                  Delete Trip
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Fuel (Existing) */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
                 <div className="font-semibold text-neutral-800">Fuel</div>
