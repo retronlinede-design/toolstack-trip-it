@@ -962,6 +962,20 @@ function TripIt() {
     note: ""
   });
 
+  // Fuel Form State
+  const [fuelForm, setFuelForm] = useState({
+    date: todayISO(),
+    odometer: "",
+    liters: "",
+    totalCost: "",
+    currency: "EUR",
+    fullTank: true,
+    station: "",
+    notes: ""
+  });
+  const [editingFuelId, setEditingFuelId] = useState(null);
+  const [fuelHistoryOpen, setFuelHistoryOpen] = useState(false);
+
   const notify = (msg) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -1261,33 +1275,65 @@ function TripIt() {
   };
 
   // ---------- Fuel CRUD ----------
-  const addFuel = () => {
-    if (!activeVehicle) return notify("Add a vehicle first");
-    const f = {
-      id: uid(),
+  const saveFuel = () => {
+    if (!activeVehicle) return notify("Select a vehicle");
+    
+    const payload = {
+      id: editingFuelId || uid(),
+      date: fuelForm.date,
+      odometer: fuelForm.odometer,
+      liters: fuelForm.liters,
+      totalCost: fuelForm.totalCost,
+      currency: fuelForm.currency,
+      fullTank: fuelForm.fullTank,
+      station: fuelForm.station,
+      notes: fuelForm.notes
+    };
+
+    setApp(a => {
+      const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
+      let nextList;
+      if (editingFuelId) {
+        nextList = list.map(f => f.id === editingFuelId ? payload : f);
+      } else {
+        nextList = [payload, ...list];
+      }
+      // Sort by date desc
+      nextList.sort((a, b) => (a.date < b.date ? 1 : -1));
+      
+      return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: nextList } };
+    });
+
+    cancelEditFuel(); // Resets form
+    notify(editingFuelId ? "Fuel updated" : "Fuel added");
+  };
+
+  const editFuel = (f) => {
+    setFuelForm({
+      date: f.date,
+      odometer: f.odometer,
+      liters: f.liters,
+      totalCost: f.totalCost,
+      currency: f.currency,
+      fullTank: f.fullTank,
+      station: f.station,
+      notes: f.notes
+    });
+    setEditingFuelId(f.id);
+  };
+
+  const cancelEditFuel = () => {
+    setFuelForm({
       date: todayISO(),
       odometer: "",
-      liters: 0,
-      totalCost: 0,
+      liters: "",
+      totalCost: "",
       currency: "EUR",
       fullTank: true,
       station: "",
-      notes: "",
-    };
-    setApp((a) => {
-      const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
-      return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: [f, ...list] } };
+      notes: ""
     });
-    notify("Fuel entry added");
-  };
-
-  const updateFuel = (fuelId, patch) => {
-    if (!activeVehicle) return;
-    setApp((a) => {
-      const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
-      const next = list.map((f) => (f.id === fuelId ? { ...f, ...patch } : f));
-      return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: next } };
-    });
+    setEditingFuelId(null);
   };
 
   const deleteFuel = (fuelId) => {
@@ -1297,6 +1343,12 @@ function TripIt() {
       return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: list.filter((f) => f.id !== fuelId) } };
     });
     notify("Fuel entry deleted");
+  };
+
+  const confirmDeleteFuel = (id) => {
+    if (window.confirm("Delete this fuel entry?")) {
+      deleteFuel(id);
+    }
   };
 
   // ---------- Export / Import ----------
@@ -2190,131 +2242,166 @@ function TripIt() {
               </div>
             </div>
 
-            {/* 3. Fuel (Existing) */}
+            {/* 3. Fuel (Updated Workflow) */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
                 <div className="font-semibold text-neutral-800">Fuel</div>
-                <button
-                  className={
-                    activeVehicle
-                      ? btnAccent
-                      : "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-neutral-100 text-neutral-400 shadow-sm cursor-not-allowed"
-                  }
-                  onClick={addFuel}
-                  disabled={!activeVehicle}
-                >
-                  + Add fuel
-                </button>
               </div>
 
-              <div className={`${cardPad} space-y-3`}>
+              <div className={cardPad}>
                 {!activeVehicle ? (
                   <div className="text-sm text-neutral-700">Select a vehicle to log fuel.</div>
-                ) : fuelForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-700">No fuel entries for this month yet.</div>
                 ) : (
-                  fuelForMonth.map((f) => {
-                    const liters = toNumber(f.liters);
-                    const cost = toNumber(f.totalCost);
-                    const pricePerLiter = liters > 0 ? cost / liters : 0;
+                  <>
+                    {/* Fuel Form */}
+                    <div className="rounded-2xl border border-neutral-200 p-4 bg-neutral-50 mb-4">
+                      <div className="text-sm font-semibold text-neutral-800 mb-3">{editingFuelId ? "Edit Fuel Entry" : "Add Fuel Entry"}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Date</label>
+                          <input type="date" className={`${inputBase} mt-1`} value={fuelForm.date} onChange={(e) => setFuelForm({ ...fuelForm, date: e.target.value })} />
+                        </div>
 
-                    return (
-                      <div key={f.id} className="rounded-2xl border border-neutral-200 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-                          <div>
-                            <label className="text-xs text-neutral-600 font-medium">Date</label>
-                            <input type="date" className={`${inputBase} mt-2`} value={f.date} onChange={(e) => updateFuel(f.id, { date: e.target.value })} />
-                          </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Odometer</label>
+                          <input
+                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={fuelForm.odometer}
+                            onChange={(e) => setFuelForm({ ...fuelForm, odometer: e.target.value })}
+                            placeholder="km"
+                          />
+                        </div>
 
-                          <div>
-                            <label className="text-xs text-neutral-600 font-medium">Odometer</label>
-                            <input
-                              className={`${inputBase} mt-2 text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={f.odometer ?? ""}
-                              onChange={(e) => updateFuel(f.id, { odometer: e.target.value })}
-                              placeholder="km"
-                            />
-                          </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Liters</label>
+                          <input
+                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={fuelForm.liters}
+                            onChange={(e) => setFuelForm({ ...fuelForm, liters: e.target.value })}
+                            placeholder="0.00"
+                          />
+                        </div>
 
-                          <div>
-                            <label className="text-xs text-neutral-600 font-medium">Liters</label>
-                            <input
-                              className={`${inputBase} mt-2 text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={f.liters ?? 0}
-                              onChange={(e) => updateFuel(f.id, { liters: e.target.value })}
-                              placeholder="0.00"
-                            />
-                          </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Total cost</label>
+                          <input
+                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            inputMode="decimal"
+                            value={fuelForm.totalCost}
+                            onChange={(e) => setFuelForm({ ...fuelForm, totalCost: e.target.value })}
+                            placeholder="0.00"
+                          />
+                        </div>
 
-                          <div>
-                            <label className="text-xs text-neutral-600 font-medium">Total cost</label>
-                            <input
-                              className={`${inputBase} mt-2 text-right tabular-nums`}
-                              inputMode="decimal"
-                              value={f.totalCost ?? 0}
-                              onChange={(e) => updateFuel(f.id, { totalCost: e.target.value })}
-                              placeholder="0.00"
-                            />
-                          </div>
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">Currency</label>
+                          <select className={`${inputBase} mt-1`} value={fuelForm.currency} onChange={(e) => setFuelForm({ ...fuelForm, currency: e.target.value })}>
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                            <option value="GBP">GBP</option>
+                          </select>
+                        </div>
 
-                          <div>
-                            <label className="text-xs text-neutral-600 font-medium">Currency</label>
-                            <select className={`${inputBase} mt-2`} value={f.currency || "EUR"} onChange={(e) => updateFuel(f.id, { currency: e.target.value })}>
-                              <option value="EUR">EUR</option>
-                              <option value="USD">USD</option>
-                              <option value="GBP">GBP</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
-                            <div className={`${inputBase} mt-2 text-right tabular-nums bg-neutral-50 border-neutral-200`}>{pricePerLiter ? pricePerLiter.toFixed(3) : "0.000"}</div>
-                          </div>
-
-                          <div className="md:col-span-3">
-                            <label className="text-xs text-neutral-600 font-medium">Station</label>
-                            <input className={`${inputBase} mt-2`} value={f.station || ""} onChange={(e) => updateFuel(f.id, { station: e.target.value })} placeholder="Optional (e.g., Aral, Shell)" />
-                          </div>
-
-                          <div className="md:col-span-3 flex items-end gap-3">
-                            <label className="inline-flex items-center gap-2 text-sm text-neutral-700 select-none">
-                              <input type="checkbox" className="h-4 w-4" checked={!!f.fullTank} onChange={(e) => updateFuel(f.id, { fullTank: e.target.checked })} />
-                              Full tank
-                            </label>
-                            <div className="text-sm text-neutral-700">
-                              Entry total: <span className="font-semibold text-neutral-800">{money(cost, f.currency || "EUR")}</span>
-                            </div>
-                          </div>
-
-                          <div className="md:col-span-6">
-                            <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                            <textarea className={`${inputBase} mt-2 min-h-[60px]`} value={f.notes || ""} onChange={(e) => updateFuel(f.id, { notes: e.target.value })} placeholder="Optional notes..." />
+                        <div>
+                          <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
+                          <div className={`${inputBase} mt-1 text-right tabular-nums bg-white border-neutral-200 text-neutral-500`}>
+                            {(toNumber(fuelForm.liters) > 0 ? (toNumber(fuelForm.totalCost) / toNumber(fuelForm.liters)).toFixed(3) : "0.000")}
                           </div>
                         </div>
 
-                        <div className="mt-3 flex items-center justify-end">
-                          <button className={btnSecondary} onClick={() => deleteFuel(f.id)}>
-                            Delete fuel
-                          </button>
+                        <div className="md:col-span-3">
+                          <label className="text-xs text-neutral-600 font-medium">Station</label>
+                          <input className={`${inputBase} mt-1`} value={fuelForm.station} onChange={(e) => setFuelForm({ ...fuelForm, station: e.target.value })} placeholder="Optional (e.g., Aral)" />
+                        </div>
+
+                        <div className="md:col-span-3 flex items-end gap-3 pb-2">
+                          <label className="inline-flex items-center gap-2 text-sm text-neutral-700 select-none">
+                            <input type="checkbox" className="h-4 w-4" checked={fuelForm.fullTank} onChange={(e) => setFuelForm({ ...fuelForm, fullTank: e.target.checked })} />
+                            Full tank
+                          </label>
+                        </div>
+
+                        <div className="md:col-span-6">
+                          <label className="text-xs text-neutral-600 font-medium">Notes</label>
+                          <input className={`${inputBase} mt-1`} value={fuelForm.notes} onChange={(e) => setFuelForm({ ...fuelForm, notes: e.target.value })} placeholder="Optional notes..." />
                         </div>
                       </div>
-                    );
-                  })
-                )}
 
-                {activeVehicle ? (
-                  <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-700">Month fuel totals</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Pill>{fuelTotals.count} fill(s)</Pill>
-                      <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
-                      <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
-                      <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        {editingFuelId && (
+                          <button className={btnSecondary} onClick={cancelEditFuel}>
+                            Cancel
+                          </button>
+                        )}
+                        <button className={btnAccent} onClick={saveFuel}>
+                          {editingFuelId ? "Update Entry" : "Add Entry"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
+
+                    {/* Collapsible History Table */}
+                    <div className="border-t border-neutral-100 pt-2">
+                      <button 
+                        className="flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-800 transition w-full py-2"
+                        onClick={() => setFuelHistoryOpen(!fuelHistoryOpen)}
+                      >
+                        <span className={`transform transition-transform ${fuelHistoryOpen ? "rotate-90" : ""}`}>▶</span>
+                        Fuel log history ({fuelLogs.length})
+                      </button>
+                      
+                      {fuelHistoryOpen && (
+                        <div className="mt-2 overflow-x-auto rounded-xl border border-neutral-200">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-neutral-500 bg-neutral-50 uppercase font-semibold">
+                              <tr>
+                                <th className="px-3 py-2 whitespace-nowrap">Date</th>
+                                <th className="px-3 py-2 text-right">Odo</th>
+                                <th className="px-3 py-2 text-right">Liters</th>
+                                <th className="px-3 py-2 text-right">Cost</th>
+                                <th className="px-3 py-2">Station</th>
+                                <th className="px-3 py-2 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-neutral-100 bg-white">
+                              {fuelLogs.length === 0 ? (
+                                <tr>
+                                  <td colSpan="6" className="px-3 py-4 text-center text-neutral-500 italic">No fuel logs yet.</td>
+                                </tr>
+                              ) : (
+                                fuelLogs.map(f => (
+                                  <tr key={f.id} className="hover:bg-neutral-50 transition">
+                                    <td className="px-3 py-2 whitespace-nowrap text-neutral-800">{f.date}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums text-neutral-600">{f.odometer}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums text-neutral-600">{toNumber(f.liters).toFixed(2)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums font-medium text-neutral-800">{money(f.totalCost, f.currency)}</td>
+                                    <td className="px-3 py-2 text-neutral-600 truncate max-w-[120px]">{f.station || "-"}</td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                                      <button className="text-xs font-medium text-neutral-600 hover:text-neutral-900 mr-3" onClick={() => editFuel(f)}>Edit</button>
+                                      <button className="text-xs font-medium text-red-600 hover:text-red-800" onClick={() => confirmDeleteFuel(f.id)}>Delete</button>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Month Totals Summary */}
+                    <div className="mt-4 rounded-2xl border border-neutral-200 p-4 bg-white">
+                      <div className="text-sm text-neutral-700">Month fuel totals ({monthLabel(app.ui.month)})</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Pill>{fuelTotals.count} fill(s)</Pill>
+                        <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
+                        <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
+                        <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -2336,13 +2423,5 @@ function TripIt() {
         ) : null}
       </div>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <TripIt />
-    </ErrorBoundary>
   );
 }
