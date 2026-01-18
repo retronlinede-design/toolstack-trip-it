@@ -15,6 +15,89 @@ const PROFILE_KEY = "toolstack.profile.v1";
 // Legacy key (older Trip-It)
 const LEGACY_LS_KEY = "toolstack_tripit_v1";
 
+const TRANSLATIONS = {
+  EN: {
+    hub: "Hub", preview: "Preview", export: "Export", help: "Help",
+    vehicle: "Vehicle", addVehicle: "+ Add vehicle", activeVehicle: "Active vehicle",
+    noVehicles: "No vehicles yet. Click", edit: "Edit", delete: "Delete",
+    month: "Month", monthSummary: "Month summary", trips: "trips",
+    activeTrip: "Active Trip", startTrip: "Start Trip", cancelTrip: "Cancel Trip",
+    addVehicleToStart: "Add a vehicle to start logging trips.", started: "Started:",
+    purpose: "Purpose:", legs: "Legs", noLegs: "No legs logged yet. Add one below.",
+    updateLeg: "Update Leg", quickLeg: "Quick Leg", duplicateLast: "Duplicate last",
+    return: "Return", from: "From", to: "To", start: "Start", end: "End",
+    odoS: "Odo S", odoE: "Odo E", note: "Note", cancel: "Cancel", update: "Update",
+    add: "Add", endTrip: "End Trip", tripTitle: "Trip Title (Optional)",
+    purposeOpt: "Purpose (Optional)", date: "Date", recentTrips: "Recent Trips",
+    selectVehicleView: "Select a vehicle to view trips.", noTrips: "No trips logged for",
+    fuel: "Fuel", last: "Last:", selectVehicleFuel: "Select a vehicle to log fuel.",
+    editFuel: "Edit Fuel Entry", addFuel: "Add Fuel Entry", odometer: "Odometer",
+    station: "Station", liters: "Liters", totalCost: "Total cost", currency: "Currency",
+    fullTank: "Full tank", notes: "Notes", fuelHistory: "Fuel log history",
+    wash: "Wash", selectVehicleWash: "Select a vehicle.", type: "Type",
+    location: "Location", cost: "Cost", upd: "Upd", del: "Del",
+    recordTrips: "Record your daily vehicle trips", returnHub: "Return to ToolStack hub",
+    saveVehicle: "Save vehicle", vehicleName: "Vehicle name *", make: "Make", model: "Model",
+    plate: "Plate", vin: "VIN", optional: "optional",
+    rangeSelection: "Range Selection", reports: "Reports", previewPack: "Preview Pack",
+    printSavePdf: "Print / Save PDF", csvShare: "CSV / Share", exportCsv: "Export CSV",
+    copySummary: "Copy Summary", emailSummary: "Email Summary", dataBackup: "Data Backup",
+    exportJson: "Export JSON (Full)", importJson: "Import JSON",
+    fullBackupDesc: "Full backup of all vehicles and settings.",
+    selectMonth: "Select month", year: "Year", thisMonth: "This month", selected: "Selected:",
+    deleteVehicleQ: "Delete vehicle?", deleteVehicleMsg: "This will delete the vehicle and all trips + fuel logs saved under it.",
+    cancelTripQ: "Cancel trip?", cancelTripMsg: "This will discard the current active trip and all its legs.",
+    importBackupQ: "Import backup?", importBackupMsg: "Import replaces your current saved data with the file contents. Tip: Export first if you want a backup of what’s currently here.",
+    import: "Import", sendReport: "Send report via email", subject: "Subject",
+    message: "Message", copy: "Copy", openEmail: "Open email", editLeg: "Edit Leg",
+    startTime: "Start Time", endTime: "End Time", odoStart: "Odo Start", odoEnd: "Odo End",
+    tripItReport: "Trip-It Report", generated: "Generated:", storageKey: "Storage key:", 
+    templates: "Templates", saveTemplate: "Save as Template", templateName: "Template Name", 
+    load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.",
+    close: "Close", save: "Save"
+  },
+  DE: {
+    hub: "Hub", preview: "Vorschau", export: "Export", help: "Hilfe",
+    vehicle: "Fahrzeug", addVehicle: "+ Fahrzeug hinzufügen", activeVehicle: "Aktives Fahrzeug",
+    noVehicles: "Noch keine Fahrzeuge. Klicke", edit: "Bearbeiten", delete: "Löschen",
+    month: "Monat", monthSummary: "Monatsübersicht", trips: "Fahrten",
+    activeTrip: "Aktive Fahrt", startTrip: "Fahrt starten", cancelTrip: "Fahrt abbrechen",
+    addVehicleToStart: "Füge ein Fahrzeug hinzu, um Fahrten zu protokollieren.", started: "Gestartet:",
+    purpose: "Zweck:", legs: "Etappen", noLegs: "Noch keine Etappen. Füge unten eine hinzu.",
+    updateLeg: "Etappe aktualisieren", quickLeg: "Schnelle Etappe", duplicateLast: "Letzte duplizieren",
+    return: "Umkehren", from: "Von", to: "Nach", start: "Start", end: "Ende",
+    odoS: "Km Start", odoE: "Km Ende", note: "Notiz", cancel: "Abbrechen", update: "Aktualisieren",
+    add: "Hinzufügen", endTrip: "Fahrt beenden", tripTitle: "Titel (Optional)",
+    purposeOpt: "Zweck (Optional)", date: "Datum", recentTrips: "Letzte Fahrten",
+    selectVehicleView: "Wähle ein Fahrzeug, um Fahrten zu sehen.", noTrips: "Keine Fahrten für",
+    fuel: "Tanken", last: "Zuletzt:", selectVehicleFuel: "Wähle ein Fahrzeug, um Tanken zu protokollieren.",
+    editFuel: "Tankvorgang bearbeiten", addFuel: "Tankvorgang hinzufügen", odometer: "Kilometerstand",
+    station: "Tankstelle", liters: "Liter", totalCost: "Gesamtkosten", currency: "Währung",
+    fullTank: "Volltank", notes: "Notizen", fuelHistory: "Tankverlauf",
+    wash: "Wäsche", selectVehicleWash: "Wähle ein Fahrzeug.", type: "Typ",
+    location: "Ort", cost: "Kosten", upd: "Akt.", del: "Löschen",
+    recordTrips: "Protokolliere deine täglichen Fahrten", returnHub: "Zurück zum ToolStack Hub",
+    saveVehicle: "Fahrzeug speichern", vehicleName: "Fahrzeugname *", make: "Marke", model: "Modell",
+    plate: "Kennzeichen", vin: "FIN", optional: "optional",
+    rangeSelection: "Zeitraum", reports: "Berichte", previewPack: "Vorschau-Paket",
+    printSavePdf: "Drucken / PDF speichern", csvShare: "CSV / Teilen", exportCsv: "CSV exportieren",
+    copySummary: "Zusammenfassung kopieren", emailSummary: "Zusammenfassung mailen", dataBackup: "Datensicherung",
+    exportJson: "JSON exportieren (Voll)", importJson: "JSON importieren",
+    fullBackupDesc: "Vollständiges Backup aller Fahrzeuge und Einstellungen.",
+    selectMonth: "Monat wählen", year: "Jahr", thisMonth: "Dieser Monat", selected: "Ausgewählt:",
+    deleteVehicleQ: "Fahrzeug löschen?", deleteVehicleMsg: "Dies löscht das Fahrzeug und alle gespeicherten Fahrten + Tankvorgänge.",
+    cancelTripQ: "Fahrt abbrechen?", cancelTripMsg: "Dies verwirft die aktuelle aktive Fahrt und alle Etappen.",
+    importBackupQ: "Backup importieren?", importBackupMsg: "Import ersetzt die aktuellen Daten durch den Dateiinhalt. Tipp: Exportiere zuerst, wenn du ein Backup der aktuellen Daten möchtest.",
+    import: "Importieren", sendReport: "Bericht per E-Mail senden", subject: "Betreff",
+    message: "Nachricht", copy: "Kopieren", openEmail: "E-Mail öffnen", editLeg: "Etappe bearbeiten",
+    startTime: "Startzeit", endTime: "Endzeit", odoStart: "Km Start", odoEnd: "Km Ende",
+    tripItReport: "Trip-It Bericht", generated: "Erstellt:", storageKey: "Speicherschlüssel:", 
+    templates: "Vorlagen", saveTemplate: "Als Vorlage speichern", templateName: "Vorlagenname", 
+    load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.",
+    close: "Schließen", save: "Speichern"
+  }
+};
+
 // Optional: set later
 const HUB_URL = "https://YOUR-WIX-HUB-URL-HERE";
 
@@ -99,11 +182,11 @@ const monthKey = (isoDate) => {
   return `${y}-${m}`; // YYYY-MM
 };
 
-const monthLabel = (ym) => {
+const monthLabel = (ym, lang = "EN") => {
   const [y, m] = String(ym || "").split("-");
   if (!y || !m) return String(ym || "");
   const d = new Date(Number(y), Number(m) - 1, 1);
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+  return d.toLocaleDateString(lang === "DE" ? "de-DE" : "en-US", { year: "numeric", month: "long" });
 };
 
 // ---------- Date Range Helpers ----------
@@ -359,7 +442,9 @@ const btnAccent =
 
 const inputBase =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
-const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm";
+const inputCompact =
+  "w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
+const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm overflow-hidden";
 const cardHead = "px-4 py-3 border-b border-neutral-100";
 const cardPad = "p-4";
 
@@ -485,8 +570,69 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
   );
 }
 
+// ---------- Template Modal ----------
+function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSaveCurrent, t }) {
+  if (!open) return null;
+  
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const filtered = templates.filter(tpl => tpl.type === type);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+          <div className="font-semibold text-neutral-800">{t("manageTemplates")} ({type === 'trip' ? t("trips") : t("legs")})</div>
+          <button className={btnSecondary} onClick={onClose}>{t("close")}</button>
+        </div>
+        
+        <div className="p-4 overflow-y-auto space-y-4 flex-1">
+          {/* Save Current Section */}
+          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 space-y-2">
+            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("saveTemplate")}</div>
+            <div className="flex gap-2">
+              <input 
+                className={inputBase} 
+                placeholder={t("templateName")} 
+                value={newTemplateName}
+                onChange={e => setNewTemplateName(e.target.value)}
+              />
+              <button 
+                className={btnAccent} 
+                disabled={!newTemplateName.trim()}
+                onClick={() => { onSaveCurrent(newTemplateName); setNewTemplateName(""); }}
+              >
+                {t("save")}
+              </button>
+            </div>
+            <div className="text-xs text-neutral-500">Saves current form values as a new template.</div>
+          </div>
+
+          {/* List */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("load")}</div>
+            {filtered.length === 0 ? (
+              <div className="text-sm text-neutral-500 italic">{t("noTemplates")}</div>
+            ) : (
+              filtered.map(tpl => (
+                <div key={tpl.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white hover:border-neutral-300 transition">
+                  <div className="font-medium text-neutral-800 truncate pr-2">{tpl.name}</div>
+                  <div className="flex gap-2 shrink-0">
+                    <button className="text-xs font-medium text-neutral-600 hover:text-neutral-900 px-2 py-1 bg-neutral-50 rounded border border-neutral-200" onClick={() => onLoad(tpl)}>{t("load")}</button>
+                    <button className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 bg-red-50 rounded border border-red-100" onClick={() => onDelete(tpl.id)}>{t("delete")}</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Leg Modal (for saved legs) ----------
-function LegModal({ open, leg, onClose, onSave }) {
+function LegModal({ open, leg, onClose, onSave, t }) {
   const [draft, setDraft] = useState(leg || {});
   useEffect(() => { setDraft(leg || {}); }, [leg]);
   if (!open) return null;
@@ -498,44 +644,44 @@ function LegModal({ open, leg, onClose, onSave }) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-lg rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
         <div className="p-4 border-b border-neutral-100">
-          <div className="text-lg font-semibold text-neutral-800">Edit Leg</div>
+          <div className="text-lg font-semibold text-neutral-800">{t("editLeg")}</div>
           <div className="mt-3"><AccentUnderline className="w-32" /></div>
         </div>
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-neutral-600">From</label>
+              <label className="text-xs font-medium text-neutral-600">{t("from")}</label>
               <input className={`${inputBase} mt-1`} value={draft.startPlace || ""} onChange={e => handleChange("startPlace", e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-600">To</label>
+              <label className="text-xs font-medium text-neutral-600">{t("to")}</label>
               <input className={`${inputBase} mt-1`} value={draft.endPlace || ""} onChange={e => handleChange("endPlace", e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-600">Start Time</label>
+              <label className="text-xs font-medium text-neutral-600">{t("startTime")}</label>
               <input type="time" className={`${inputBase} mt-1`} value={draft.startTime || ""} onChange={e => handleChange("startTime", e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-600">End Time</label>
+              <label className="text-xs font-medium text-neutral-600">{t("endTime")}</label>
               <input type="time" className={`${inputBase} mt-1`} value={draft.endTime || ""} onChange={e => handleChange("endTime", e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-600">Odo Start</label>
+              <label className="text-xs font-medium text-neutral-600">{t("odoStart")}</label>
               <input className={`${inputBase} mt-1 text-right tabular-nums`} inputMode="decimal" value={draft.odoStart || ""} onChange={e => handleChange("odoStart", e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-600">Odo End</label>
+              <label className="text-xs font-medium text-neutral-600">{t("odoEnd")}</label>
               <input className={`${inputBase} mt-1 text-right tabular-nums`} inputMode="decimal" value={draft.odoEnd || ""} onChange={e => handleChange("odoEnd", e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-neutral-600">Note</label>
+            <label className="text-xs font-medium text-neutral-600">{t("note")}</label>
             <input className={`${inputBase} mt-1`} value={draft.note || ""} onChange={e => handleChange("note", e.target.value)} />
           </div>
         </div>
         <div className="p-4 border-t border-neutral-100 flex justify-end gap-2">
-          <button className={btnSecondary} onClick={onClose}>Cancel</button>
-          <button className={btnAccent} onClick={() => onSave(draft)}>Save</button>
+          <button className={btnSecondary} onClick={onClose}>{t("cancel")}</button>
+          <button className={btnAccent} onClick={() => onSave(draft)}>{t("save")}</button>
         </div>
       </div>
     </div>
@@ -543,7 +689,7 @@ function LegModal({ open, leg, onClose, onSave }) {
 }
 
 // ---------- Month Picker (Trip-It style) ----------
-function MonthPicker({ value, onChange, disabled }) {
+function MonthPicker({ value, onChange, disabled, lang, t }) {
   const [open, setOpen] = useState(false);
 
   const now = new Date();
@@ -605,7 +751,7 @@ function MonthPicker({ value, onChange, disabled }) {
           }
           title="Choose month"
         >
-          <span className="truncate">{monthLabel(value)}</span>
+          <span className="truncate">{monthLabel(value, lang)}</span>
           <span
             className={
               "h-8 w-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center shrink-0 " +
@@ -639,7 +785,7 @@ function MonthPicker({ value, onChange, disabled }) {
               <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm text-neutral-500">ToolStack • Month picker</div>
-                  <div className="text-lg font-semibold text-neutral-800">Select month</div>
+                  <div className="text-lg font-semibold text-neutral-800">{t("selectMonth")}</div>
                   <div className="mt-3">
                     <AccentUnderline className="w-44" />
                   </div>
@@ -649,13 +795,13 @@ function MonthPicker({ value, onChange, disabled }) {
                   className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
                   onClick={() => setOpen(false)}
                 >
-                  Close
+                  {t("close")}
                 </button>
               </div>
 
               <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-neutral-700">Year</div>
+                  <div className="text-sm font-medium text-neutral-700">{t("year")}</div>
                   <select
                     className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-700"
                     value={year}
@@ -696,10 +842,10 @@ function MonthPicker({ value, onChange, disabled }) {
                     className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
                     onClick={setThisMonth}
                   >
-                    This month
+                    {t("thisMonth")}
                   </button>
                   <div className="text-sm text-neutral-600">
-                    Selected: <span className="font-medium text-neutral-800">{monthLabel(value)}</span>
+                    {t("selected")} <span className="font-medium text-neutral-800">{monthLabel(value, lang)}</span>
                   </div>
                 </div>
 
@@ -721,7 +867,9 @@ function emptyApp() {
     activeTripByVehicle: {}, // { [vid]: Trip | null }
     tripsByVehicle: {},      // { [vid]: Trip[] }
     fuelByVehicle: {},
+    washByVehicle: {},
     ui: { month: monthKey(todayISO()) },
+    templates: [],
   };
 }
 
@@ -731,7 +879,9 @@ function normalizeApp(raw) {
 
   const vehicles = Array.isArray(a.vehicles) ? a.vehicles.filter(Boolean) : [];
   const fuelByVehicle = a.fuelByVehicle && typeof a.fuelByVehicle === "object" ? a.fuelByVehicle : {};
+  const washByVehicle = a.washByVehicle && typeof a.washByVehicle === "object" ? a.washByVehicle : {};
   const ui = a.ui && typeof a.ui === "object" ? a.ui : base.ui;
+  const templates = Array.isArray(a.templates) ? a.templates : [];
 
   const normVehicles = vehicles.map((v) => ({
     id: v.id || uid(),
@@ -744,6 +894,7 @@ function normalizeApp(raw) {
   }));
 
   const normFuelByVehicle = {};
+  const normWashByVehicle = {};
   // Ensure objects
   const normActiveTripByVehicle = (a.activeTripByVehicle && typeof a.activeTripByVehicle === 'object') ? a.activeTripByVehicle : {};
   const normTripsByVehicle = (a.tripsByVehicle && typeof a.tripsByVehicle === 'object') ? a.tripsByVehicle : {};
@@ -829,7 +980,26 @@ function normalizeApp(raw) {
         station: String(f.station || ""),
         notes: String(f.notes || ""),
       }));
+
+    // Normalize Wash
+    const wlist = Array.isArray(washByVehicle[v.id]) ? washByVehicle[v.id] : [];
+    normWashByVehicle[v.id] = wlist.filter(Boolean).map((w) => ({
+      id: w.id || uid(),
+      date: typeof w.date === "string" && w.date ? w.date : todayISO(),
+      type: String(w.type || "Quick"),
+      location: String(w.location || ""),
+      cost: w.cost != null ? w.cost : "",
+      note: String(w.note || ""),
+      createdAt: w.createdAt || new Date().toISOString(),
+    }));
   }
+  
+  const normTemplates = templates.map(t => ({
+    id: t.id || uid(),
+    type: t.type || "trip",
+    name: String(t.name || "Untitled"),
+    data: t.data || {}
+  }));
 
   let activeVehicleId = a.activeVehicleId || null;
   if (activeVehicleId && !normVehicles.some((x) => x.id === activeVehicleId)) activeVehicleId = null;
@@ -843,7 +1013,9 @@ function normalizeApp(raw) {
     activeTripByVehicle: normActiveTripByVehicle,
     tripsByVehicle: normTripsByVehicle,
     fuelByVehicle: normFuelByVehicle,
+    washByVehicle: normWashByVehicle,
     ui: { month },
+    templates: normTemplates,
   };
 }
 
@@ -900,7 +1072,9 @@ function migrateLegacyIfNeeded(saved) {
     activeTripByVehicle: { [vid]: null },
     legsByVehicle: { [vid]: normLegs }, // Temporary for normalizeApp to consume
     fuelByVehicle: { [vid]: [] },
+    washByVehicle: { [vid]: [] },
     ui: { month: monthKey(todayISO()) },
+    templates: [],
   };
 }
 
@@ -999,6 +1173,7 @@ function TripIt() {
   const toastTimer = useRef(null);
 
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [previewConfig, setPreviewConfig] = useState({ mode: "thisMonth", start: "", end: "" });
 
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1007,6 +1182,7 @@ function TripIt() {
   const [vehicleModal, setVehicleModal] = useState({ open: false, mode: "new", vehicleId: null });
   const [confirm, setConfirm] = useState({ open: false, kind: null, id: null, payload: null });
   const [importConfirm, setImportConfirm] = useState({ open: false, file: null });
+  const [templateModal, setTemplateModal] = useState({ open: false, type: "trip" });
 
   // Form States
   const [tripStartForm, setTripStartForm] = useState({
@@ -1040,6 +1216,24 @@ function TripIt() {
   });
   const [editingFuelId, setEditingFuelId] = useState(null);
   const [fuelHistoryOpen, setFuelHistoryOpen] = useState(false);
+  const [fuelSectionOpen, setFuelSectionOpen] = useState(false);
+
+  // Wash Form State
+  const [washForm, setWashForm] = useState({
+    date: todayISO(),
+    type: "Quick",
+    location: "",
+    cost: "",
+    note: ""
+  });
+  const [editingWashId, setEditingWashId] = useState(null);
+  const [washSectionOpen, setWashSectionOpen] = useState(false);
+
+  const t = (k) => {
+    const l = profile.language || "EN";
+    return TRANSLATIONS[l]?.[k] || TRANSLATIONS["EN"][k] || k;
+  };
+  const toggleLang = () => setProfile(p => ({ ...p, language: p.language === "EN" ? "DE" : "EN" }));
 
   const notify = (msg) => {
     setToast(msg);
@@ -1077,6 +1271,12 @@ function TripIt() {
     return Array.isArray(app.fuelByVehicle[activeVehicle.id]) ? app.fuelByVehicle[activeVehicle.id] : [];
   }, [app.fuelByVehicle, activeVehicle]);
 
+  const washLogs = useMemo(() => {
+    if (!activeVehicle) return [];
+    if (!activeVehicle || !app.washByVehicle) return [];
+    return Array.isArray(app.washByVehicle[activeVehicle.id]) ? app.washByVehicle[activeVehicle.id] : [];
+  }, [app.washByVehicle, activeVehicle]);
+
   const tripsForMonth = useMemo(() => {
     const m = app.ui.month;
     // Sort newest first
@@ -1110,7 +1310,7 @@ function TripIt() {
 
   // Preview Data Calculation
   const previewData = useMemo(() => {
-    if (!previewOpen || !activeVehicle) return { trips: [], fuel: [], totals: {} };
+    if ((!previewOpen && !exportModalOpen) || !activeVehicle) return { trips: [], fuel: [], totals: {} };
     
     const { start, end } = previewConfig;
     const s = start || "0000-00-00";
@@ -1143,7 +1343,7 @@ function TripIt() {
       fuel: filteredFuel,
       totals: { distance, legCount, tripCount: filteredTrips.length, liters, spend, currency }
     };
-  }, [previewOpen, activeVehicle, trips, fuelLogs, previewConfig]);
+  }, [previewOpen, exportModalOpen, activeVehicle, trips, fuelLogs, previewConfig]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
@@ -1237,6 +1437,48 @@ function TripIt() {
     }
   }, [activeTrip, trips, editingActiveLegId]);
 
+  // ---------- Template Logic ----------
+  const saveTemplate = (name) => {
+    const type = templateModal.type;
+    let data = {};
+    
+    if (type === 'trip') {
+      data = { title: tripStartForm.title, purpose: tripStartForm.purpose };
+    } else {
+      data = { 
+        startPlace: legForm.startPlace, 
+        endPlace: legForm.endPlace, 
+        note: legForm.note 
+      };
+    }
+
+    setApp(a => ({
+      ...a,
+      templates: [...(a.templates || []), { id: uid(), type, name, data }]
+    }));
+    notify("Template saved");
+  };
+
+  const deleteTemplate = (id) => {
+    setApp(a => ({ ...a, templates: (a.templates || []).filter(t => t.id !== id) }));
+  };
+
+  const loadTemplate = (tpl) => {
+    if (tpl.type === 'trip') {
+      setTripStartForm(prev => ({ ...prev, title: tpl.data.title || "", purpose: tpl.data.purpose || "" }));
+    } else {
+      setLegForm(prev => ({
+        ...prev,
+        startPlace: tpl.data.startPlace || "",
+        endPlace: tpl.data.endPlace || "",
+        note: tpl.data.note || "",
+        odoEnd: ""
+      }));
+    }
+    setTemplateModal({ open: false, type: 'trip' });
+    notify("Template loaded");
+  };
+
   // ---------- Vehicle CRUD ----------
   const openNewVehicle = () => setVehicleModal({ open: true, mode: "new", vehicleId: null });
 
@@ -1247,13 +1489,16 @@ function TripIt() {
       const tripsByVehicle = { ...a.tripsByVehicle };
       const activeTripByVehicle = { ...a.activeTripByVehicle };
       const fuelByVehicle = { ...a.fuelByVehicle };
+      const washByVehicle = { ...a.washByVehicle };
+      const templates = [...(a.templates || [])];
       
       if (!tripsByVehicle[vehicle.id]) tripsByVehicle[vehicle.id] = [];
       if (!activeTripByVehicle[vehicle.id]) activeTripByVehicle[vehicle.id] = null;
       if (!fuelByVehicle[vehicle.id]) fuelByVehicle[vehicle.id] = [];
+      if (!washByVehicle[vehicle.id]) washByVehicle[vehicle.id] = [];
       
       const activeVehicleId = a.activeVehicleId || vehicle.id;
-      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeTripByVehicle, fuelByVehicle, activeVehicleId });
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeTripByVehicle, fuelByVehicle, washByVehicle, activeVehicleId, templates });
     });
     setVehicleModal({ open: false, mode: "new", vehicleId: null });
     notify("Vehicle saved");
@@ -1266,6 +1511,7 @@ function TripIt() {
       const tripsByVehicle = { ...a.tripsByVehicle };
       const activeTripByVehicle = { ...a.activeTripByVehicle };
       const fuelByVehicle = { ...a.fuelByVehicle };
+      const templates = [...(a.templates || [])];
       
       delete tripsByVehicle[id];
       delete activeTripByVehicle[id];
@@ -1274,7 +1520,7 @@ function TripIt() {
       let activeVehicleId = a.activeVehicleId;
       if (activeVehicleId === id) activeVehicleId = vehicles.length ? vehicles[0].id : null;
 
-      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeTripByVehicle, fuelByVehicle, activeVehicleId });
+      return normalizeApp({ ...a, vehicles, tripsByVehicle, activeTripByVehicle, fuelByVehicle, activeVehicleId, templates });
     });
     setConfirm({ open: false, kind: null, id: null, payload: null });
     notify("Vehicle deleted");
@@ -1459,6 +1705,61 @@ function TripIt() {
     notify("Leg updated");
   };
 
+  // ---------- Wash CRUD ----------
+  const saveWash = () => {
+    if (!activeVehicle) return notify("Select a vehicle");
+    const payload = {
+      id: editingWashId || uid(),
+      date: washForm.date,
+      type: washForm.type,
+      location: washForm.location,
+      cost: washForm.cost,
+      note: washForm.note,
+      createdAt: new Date().toISOString()
+    };
+
+    setApp(a => {
+      const list = Array.isArray(a.washByVehicle[activeVehicle.id]) ? a.washByVehicle[activeVehicle.id] : [];
+      let nextList;
+      if (editingWashId) {
+        const original = list.find(w => w.id === editingWashId);
+        nextList = list.map(w => w.id === editingWashId ? { ...payload, createdAt: original?.createdAt || payload.createdAt } : w);
+      } else {
+        nextList = [payload, ...list];
+      }
+      nextList.sort((a, b) => (a.date < b.date ? 1 : -1));
+      return { ...a, washByVehicle: { ...a.washByVehicle, [activeVehicle.id]: nextList } };
+    });
+    cancelEditWash();
+    notify(editingWashId ? "Wash updated" : "Wash logged");
+  };
+
+  const editWash = (w) => {
+    setWashForm({
+      date: w.date,
+      type: w.type,
+      location: w.location,
+      cost: w.cost,
+      note: w.note
+    });
+    setEditingWashId(w.id);
+    setWashSectionOpen(true);
+  };
+
+  const cancelEditWash = () => {
+    setWashForm({ date: todayISO(), type: "Quick", location: "", cost: "", note: "" });
+    setEditingWashId(null);
+  };
+
+  const deleteWash = (id) => {
+    if (!activeVehicle || !window.confirm("Delete this wash entry?")) return;
+    setApp(a => {
+      const list = Array.isArray(a.washByVehicle[activeVehicle.id]) ? a.washByVehicle[activeVehicle.id] : [];
+      return { ...a, washByVehicle: { ...a.washByVehicle, [activeVehicle.id]: list.filter(w => w.id !== id) } };
+    });
+    notify("Wash deleted");
+  };
+
   // ---------- Fuel CRUD ----------
   const saveFuel = () => {
     if (!activeVehicle) return notify("Select a vehicle");
@@ -1586,6 +1887,13 @@ function TripIt() {
     }
   };
 
+  const openExportModal = () => {
+    if (!activeVehicle) return notify("Select a vehicle first");
+    const { start, end } = getRangeDates("thisMonth");
+    if (!previewConfig.start) setPreviewConfig({ mode: "thisMonth", start, end });
+    setExportModalOpen(true);
+  };
+
   const openPreview = () => {
     if (!activeVehicle) return notify("Select a vehicle first");
     const { start, end } = getRangeDates("thisMonth");
@@ -1659,22 +1967,23 @@ function TripIt() {
   // ---------- Email ----------
   const buildEmail = () => {
     const vName = (activeVehicle && activeVehicle.name) || "(no vehicle)";
-    const mLabel = monthLabel(app.ui.month);
-    const subject = `Trip-It report — ${vName} — ${mLabel}`;
+    const rangeLabel = previewConfig.mode === "custom" ? `${previewConfig.start} to ${previewConfig.end}` : previewConfig.mode;
+    const subject = `Trip-It report — ${vName} — ${rangeLabel}`;
+    const t = previewData.totals;
 
     const lines = [];
     lines.push(`${profile.org || "ToolStack"}`);
     lines.push(`Trip-It report`);
     lines.push(`Vehicle: ${vName}`);
-    lines.push(`Month: ${mLabel} (${app.ui.month})`);
+    lines.push(`Range: ${rangeLabel}`);
     if (profile.user) lines.push(`Prepared by: ${profile.user}`);
     lines.push(`Generated: ${new Date().toLocaleString()}`);
     lines.push("");
     lines.push("Summary");
-    lines.push(`- Trips: ${tripTotals.tripCount}`);
-    lines.push(`- Legs: ${tripTotals.count}`);
-    lines.push(`- Distance: ${tripTotals.distance.toFixed(1)} km`);
-    lines.push(`- Fuel spend: ${money(fuelTotals.spend, fuelTotals.currency)} (${fuelTotals.liters.toFixed(2)} L)`);
+    lines.push(`- Trips: ${t.tripCount}`);
+    lines.push(`- Legs: ${t.legCount}`);
+    lines.push(`- Distance: ${t.distance.toFixed(1)} km`);
+    lines.push(`- Fuel spend: ${money(t.spend, t.currency)} (${t.liters.toFixed(2)} L)`);
     lines.push("");
 
     lines.push("For full details, use Export (JSON) or CSV.");
@@ -1683,7 +1992,7 @@ function TripIt() {
   };
 
   const openEmail = () => {
-    if (!activeVehicle) return notify("Select a vehicle first");
+    // if (!activeVehicle) return notify("Select a vehicle first"); // Checked by openExportModal
     const built = buildEmail();
     setEmailModal((m) => ({ ...m, open: true, subject: built.subject, body: built.body }));
   };
@@ -1712,6 +2021,23 @@ function TripIt() {
     const subject = encodeURIComponent(emailModal.subject || "");
     const body = encodeURIComponent(emailModal.body || "");
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
+  };
+
+  const copySummary = async () => {
+    const built = buildEmail();
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(built.body);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = built.body;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      notify("Summary copied");
+    } catch { notify("Copy failed"); }
   };
 
   // ---------- Vehicle modal state ----------
@@ -1762,18 +2088,18 @@ function TripIt() {
 
       <ConfirmModal
         open={confirm.open}
-        title={confirm.kind === "vehicle" ? "Delete vehicle?" : "Cancel trip?"}
-        message={confirm.kind === "vehicle" ? "This will delete the vehicle and all trips + fuel logs saved under it." : "This will discard the current active trip and all its legs."}
-        confirmText={confirm.kind === "vehicle" ? "Delete" : "Cancel Trip"}
+        title={confirm.kind === "vehicle" ? t("deleteVehicleQ") : t("cancelTripQ")}
+        message={confirm.kind === "vehicle" ? t("deleteVehicleMsg") : t("cancelTripMsg")}
+        confirmText={confirm.kind === "vehicle" ? t("delete") : t("cancelTrip")}
         onCancel={() => setConfirm({ open: false, kind: null, id: null, payload: null })}
         onConfirm={confirm.kind === "vehicle" ? deleteVehicleNow : cancelTrip}
       />
 
       <ConfirmModal
         open={importConfirm.open}
-        title="Import backup?"
-        message="Import replaces your current saved data with the file contents. Tip: Export first if you want a backup of what’s currently here."
-        confirmText="Import"
+        title={t("importBackupQ")}
+        message={t("importBackupMsg")}
+        confirmText={t("import")}
         onCancel={() => setImportConfirm({ open: false, file: null })}
         onConfirm={() => {
           const f = importConfirm.file;
@@ -1785,7 +2111,7 @@ function TripIt() {
       <EmailModal
         open={emailModal.open}
         to={emailModal.to}
-        subject={emailModal.subject}
+        subject={t("subject") + ": " + emailModal.subject}
         body={emailModal.body}
         onClose={() => setEmailModal((m) => ({ ...m, open: false }))}
         onChangeTo={(v) => setEmailModal((m) => ({ ...m, to: v }))}
@@ -1801,7 +2127,100 @@ function TripIt() {
         leg={savedLegModal.leg} 
         onClose={() => setSavedLegModal({ open: false, tripId: null, leg: null })} 
         onSave={saveSavedLeg} 
+        t={t}
       />
+
+      <TemplateModal 
+        open={templateModal.open}
+        type={templateModal.type}
+        templates={app.templates || []}
+        onClose={() => setTemplateModal({ ...templateModal, open: false })}
+        onLoad={loadTemplate}
+        onDelete={deleteTemplate}
+        onSaveCurrent={saveTemplate}
+        t={t}
+      />
+
+      {/* Export Menu Modal */}
+      {exportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setExportModalOpen(false)} />
+          <div className="relative w-full max-w-lg rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+              <div className="font-semibold text-neutral-800">{t("export")}</div>
+              <button className={btnSecondary} onClick={() => setExportModalOpen(false)}>{t("close")}</button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto space-y-6">
+              {/* Range Selector */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("rangeSelection")}</div>
+                <div className="flex flex-wrap gap-2">
+                  <select 
+                    className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 w-full sm:w-auto"
+                    value={previewConfig.mode}
+                    onChange={(e) => updatePreviewMode(e.target.value)}
+                  >
+                    <option value="thisWeek">This Week</option>
+                    <option value="lastWeek">Last Week</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="lastMonth">Last Month</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <input 
+                      type="date" 
+                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 grow"
+                      value={previewConfig.start}
+                      onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
+                    />
+                    <span className="text-neutral-400">-</span>
+                    <input 
+                      type="date" 
+                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 grow"
+                      value={previewConfig.end}
+                      onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Reports */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("reports")}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button className={btnSecondary} onClick={() => { setExportModalOpen(false); setPreviewOpen(true); }}>
+                    {t("previewPack")}
+                  </button>
+                  <button className={btnSecondary} onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>
+                    {t("printSavePdf")}
+                  </button>
+                </div>
+              </div>
+
+              {/* CSV / Share */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("csvShare")}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button className={btnSecondary} onClick={exportPreviewCSV}>{t("exportCsv")}</button>
+                  <button className={btnSecondary} onClick={copySummary}>{t("copySummary")}</button>
+                  <button className={btnSecondary} onClick={openEmail}>{t("emailSummary")}</button>
+                </div>
+              </div>
+
+              {/* Data Backup */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("dataBackup")}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button className={btnSecondary} onClick={exportJSON}>{t("exportJson")}</button>
+                  <button className={btnSecondary} onClick={onImportPick}>{t("importJson")}</button>
+                </div>
+                <div className="text-xs text-neutral-400">{t("fullBackupDesc")}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hidden file input for Import button */}
       <input
@@ -1826,20 +2245,20 @@ function TripIt() {
           <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
             <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-neutral-800">{vehicleModal.mode === "new" ? "Add vehicle" : "Edit vehicle"}</div>
+                <div className="text-lg font-semibold text-neutral-800">{vehicleModal.mode === "new" ? t("addVehicle") : t("edit")}</div>
                 <div className="text-sm text-neutral-700 mt-1">Trips + fuel logs are stored per vehicle.</div>
                 <div className="mt-3">
                   <AccentUnderline className="w-52" />
                 </div>
               </div>
               <button className={btnSecondary} onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}>
-                Close
+                {t("close")}
               </button>
             </div>
 
             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
-                <label className="text-sm font-medium text-neutral-700">Vehicle name *</label>
+                <label className="text-sm font-medium text-neutral-700">{t("vehicleName")}</label>
                 <input
                   className={`${inputBase} mt-2`}
                   value={(vehicleDraft && vehicleDraft.name) || ""}
@@ -1849,7 +2268,7 @@ function TripIt() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-neutral-700">Make</label>
+                <label className="text-sm font-medium text-neutral-700">{t("make")}</label>
                 <input
                   className={`${inputBase} mt-2`}
                   value={(vehicleDraft && vehicleDraft.make) || ""}
@@ -1859,7 +2278,7 @@ function TripIt() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-neutral-700">Model</label>
+                <label className="text-sm font-medium text-neutral-700">{t("model")}</label>
                 <input
                   className={`${inputBase} mt-2`}
                   value={(vehicleDraft && vehicleDraft.model) || ""}
@@ -1869,7 +2288,7 @@ function TripIt() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-neutral-700">Plate</label>
+                <label className="text-sm font-medium text-neutral-700">{t("plate")}</label>
                 <input
                   className={`${inputBase} mt-2`}
                   value={(vehicleDraft && vehicleDraft.plate) || ""}
@@ -1879,17 +2298,17 @@ function TripIt() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-neutral-700">VIN</label>
+                <label className="text-sm font-medium text-neutral-700">{t("vin")}</label>
                 <input
                   className={`${inputBase} mt-2`}
                   value={(vehicleDraft && vehicleDraft.vin) || ""}
                   onChange={(e) => setVehicleDraft((d) => ({ ...d, vin: e.target.value }))}
-                  placeholder="optional"
+                  placeholder={t("optional")}
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="text-sm font-medium text-neutral-700">Notes</label>
+                <label className="text-sm font-medium text-neutral-700">{t("notes")}</label>
                 <textarea
                   className={`${inputBase} mt-2 min-h-[90px]`}
                   value={(vehicleDraft && vehicleDraft.notes) || ""}
@@ -1901,14 +2320,14 @@ function TripIt() {
 
             <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
               <button className={btnSecondary} onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}>
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 className={`${btnPrimary} ${vehicleSaveDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 disabled={vehicleSaveDisabled}
                 onClick={() => saveVehicle({ ...vehicleDraft, name: String((vehicleDraft && vehicleDraft.name) || "").trim() })}
               >
-                Save vehicle
+                {t("saveVehicle")}
               </button>
             </div>
           </div>
@@ -1925,7 +2344,7 @@ function TripIt() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="text-sm text-neutral-500">ToolStack • Preview</div>
-                  <div className="text-lg font-semibold text-neutral-800">Trip-It Report</div>
+                  <div className="text-lg font-semibold text-neutral-800">{t("tripItReport")}</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <select 
@@ -1959,7 +2378,7 @@ function TripIt() {
                   <button className={btnSecondary} onClick={exportPreviewCSV}>CSV</button>
                   <button className={btnSecondary} onClick={exportPreviewJSON}>JSON</button>
                   <button className={btnPrimary} onClick={() => window.print()}>Print</button>
-                  <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>Close</button>
+                  <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>{t("close")}</button>
                 </div>
               </div>
             </div>
@@ -1982,18 +2401,18 @@ function TripIt() {
                     </div>
                   </div>
                   <div className="text-sm text-neutral-700 text-right">
-                    <div>Generated:</div>
+                    <div>{t("generated")}</div>
                     <div>{new Date().toLocaleString()}</div>
                   </div>
                 </div>
 
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-700">Trips</div>
+                    <div className="text-sm text-neutral-700">{t("trips")}</div>
                     <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.tripCount}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-700">Legs</div>
+                    <div className="text-sm text-neutral-700">{t("legs")}</div>
                     <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.legCount}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
@@ -2001,7 +2420,7 @@ function TripIt() {
                     <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.distance.toFixed(1)} km</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 p-4">
-                    <div className="text-sm text-neutral-700">Fuel</div>
+                    <div className="text-sm text-neutral-700">{t("fuel")}</div>
                     <div className="text-2xl font-semibold text-neutral-800 mt-1">{money(previewData.totals.spend, previewData.totals.currency)}</div>
                   </div>
                 </div>
@@ -2053,7 +2472,7 @@ function TripIt() {
                 </table>
 
                 <div className="mt-8 text-xs text-neutral-400 border-t border-neutral-100 pt-4">
-                  Storage key: <span className="font-mono">{KEY}</span>
+                  {t("storageKey")} <span className="font-mono">{KEY}</span>
                 </div>
               </div>
             </div>
@@ -2072,24 +2491,36 @@ function TripIt() {
             <div className="mt-3">
               <AccentUnderline className="w-80" />
             </div>
-            <div className="mt-2 text-sm text-neutral-700">Record your daily vehicle trips</div>
+            <div className="mt-2 text-sm text-neutral-700">{t("recordTrips")}</div>
+            <div className="mt-4 flex items-center gap-3">
+              <span className={`text-xs font-bold transition-colors ${profile.language === "EN" ? "text-neutral-900" : "text-neutral-400"}`}>EN</span>
+              <button
+                onClick={toggleLang}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 ${
+                  profile.language === "DE" ? "bg-[var(--ts-accent)]" : "bg-neutral-200"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                    profile.language === "DE" ? "translate-x-6 bg-neutral-800" : "translate-x-1 bg-white"
+                  }`}
+                />
+              </button>
+              <span className={`text-xs font-bold transition-colors ${profile.language === "DE" ? "text-neutral-900" : "text-neutral-400"}`}>DE</span>
+            </div>
           </div>
 
           {/* Normalized top actions grid (with pinned help) */}
           <div className="w-full sm:w-[820px]">
             <div className="relative">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 pr-12">
-                <ActionButton onClick={openHub} title="Return to ToolStack hub">
-                  Hub
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 pr-12">
+                <ActionButton onClick={openHub} title={t("returnHub")}>
+                  {t("hub")}
                 </ActionButton>
                 <ActionButton onClick={openPreview} disabled={!activeVehicle}>
-                  Preview
+                  {t("preview")}
                 </ActionButton>
-                <ActionButton onClick={exportJSON}>Export</ActionButton>
-                <ActionButton onClick={onImportPick} title="Import JSON backup (replaces current data)">
-                  Import
-                </ActionButton>
-                <ActionButton onClick={() => setHelpOpen(true)}>Help</ActionButton>
+                <ActionButton onClick={openExportModal} disabled={!activeVehicle}>{t("export")}</ActionButton>
               </div>
 
               <button
@@ -2115,15 +2546,15 @@ function TripIt() {
           <div className="space-y-3">
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between`}>
-                <div className="font-semibold text-neutral-800">Vehicle</div>
+                <div className="font-semibold text-neutral-800">{t("vehicle")}</div>
                 <button className={btnAccent} onClick={openNewVehicle}>
-                  + Add vehicle
+                  {t("addVehicle")}
                 </button>
               </div>
 
               <div className={`${cardPad} space-y-3`}>
                 <div>
-                  <label className="text-sm font-medium text-neutral-700">Active vehicle</label>
+                  <label className="text-sm font-medium text-neutral-700">{t("activeVehicle")}</label>
                   {app.vehicles.length ? (
                     <select className={`${inputBase} mt-2`} value={app.activeVehicleId || ""} onChange={(e) => selectVehicle(e.target.value)}>
                       {app.vehicles.map((v) => (
@@ -2134,7 +2565,7 @@ function TripIt() {
                     </select>
                   ) : (
                     <div className="mt-2 text-sm text-neutral-700">
-                      No vehicles yet. Click <span className="font-medium">Add vehicle</span>.
+                      {t("noVehicles")} <span className="font-medium">{t("addVehicle")}</span>.
                     </div>
                   )}
                 </div>
@@ -2147,20 +2578,20 @@ function TripIt() {
                       <div className="text-sm text-neutral-700">Plate: {activeVehicle.plate || "-"}</div>
                       <div className="mt-3 flex items-center gap-2">
                         <button className={btnSecondary} onClick={() => setVehicleModal({ open: true, mode: "edit", vehicleId: activeVehicle.id })}>
-                          Edit
+                          {t("edit")}
                         </button>
                         <button
                           className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
                           onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
                         >
-                          Delete
+                          {t("delete")}
                         </button>
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-sm font-medium text-neutral-700">Month</label>
-                      <MonthPicker value={app.ui.month} onChange={setMonth} disabled={!activeVehicle} />
+                      <label className="text-sm font-medium text-neutral-700">{t("month")}</label>
+                      <MonthPicker value={app.ui.month} onChange={setMonth} disabled={!activeVehicle} lang={profile.language} t={t} />
                     </div>
 
                     <div className="text-xs text-neutral-600">
@@ -2175,11 +2606,11 @@ function TripIt() {
             {activeVehicle ? (
               <div className={card}>
                 <div className={cardHead}>
-                  <div className="font-semibold text-neutral-800">Month summary</div>
+                  <div className="font-semibold text-neutral-800">{t("monthSummary")}</div>
                 </div>
                 <div className={`${cardPad} space-y-2`}>
                   <div className="flex flex-wrap gap-2">
-                    <Pill>{tripTotals.tripCount} trips</Pill>
+                    <Pill>{tripTotals.tripCount} {t("trips")}</Pill>
                     <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
                     <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
                     <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
@@ -2195,10 +2626,10 @@ function TripIt() {
             {/* 1. Active Trip Card */}
             <div className={card}>
               <div className={`${cardHead} flex items-center justify-between gap-3`}>
-                <div className="font-semibold text-neutral-800">{activeTrip ? "Active Trip" : "Start Trip"}</div>
+                <div className="font-semibold text-neutral-800">{activeTrip ? t("activeTrip") : t("startTrip")}</div>
                 {activeTrip ? (
                   <button className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition" onClick={() => setConfirm({ open: true, kind: "cancel", id: null })}>
-                    Cancel Trip
+                    {t("cancelTrip")}
                   </button>
                 ) : null}
               </div>
@@ -2209,20 +2640,20 @@ function TripIt() {
                   </div>
                 )}
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-700">Add a vehicle to start logging trips.</div>
+                  <div className="text-sm text-neutral-700">{t("addVehicleToStart")}</div>
                 ) : activeTrip ? (
                   // Active Trip View
                   <div className="space-y-4">
                     <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-3 text-sm text-neutral-700">
                       <div className="font-medium text-neutral-800">{activeTrip.title || "Untitled Trip"}</div>
-                      <div className="mt-1">Started: {new Date(activeTrip.startedAt).toLocaleString()}</div>
-                      {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">Purpose: {activeTrip.purpose}</div> : null}
+                      <div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div>
+                      {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">{t("purpose")} {activeTrip.purpose}</div> : null}
                     </div>
 
                     {/* List of Legs in Active Trip */}
                     {activeTrip.legs.length > 0 ? (
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Legs</div>
+                        <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("legs")}</div>
                         {activeTrip.legs.map((l, idx) => (
                           <div key={l.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white text-sm">
                             <div className="min-w-0">
@@ -2234,30 +2665,33 @@ function TripIt() {
                                 className="text-xs text-neutral-600 hover:text-neutral-800 px-2"
                                 onClick={() => editActiveLeg(l)}
                               >
-                                Edit
+                                {t("edit")}
                               </button>
                               <button 
                                 className="text-xs text-red-600 hover:text-red-800 px-2"
                                 onClick={() => deleteLeg(l.id)}
                               >
-                                Delete
+                                {t("delete")}
                               </button>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-sm text-neutral-500 italic">No legs logged yet. Add one below.</div>
+                      <div className="text-sm text-neutral-500 italic">{t("noLegs")}</div>
                     )}
 
                     <div className="border-t border-neutral-100 pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium text-neutral-800">{editingActiveLegId ? "Update Leg" : "Quick Leg"}</div>
-                        <div className="flex gap-3">
+                        <div className="text-sm font-medium text-neutral-800">{editingActiveLegId ? t("updateLeg") : t("quickLeg")}</div>
+                        <div className="flex gap-3 items-center">
+                          <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={() => setTemplateModal({ open: true, type: 'leg' })}>
+                            {t("templates")}
+                          </button>
                           {!editingActiveLegId && (
                             <>
-                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={duplicateLastLeg}>Duplicate last</button>
-                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={swapLegPlaces}>Return</button>
+                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={duplicateLastLeg}>{t("duplicateLast")}</button>
+                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={swapLegPlaces}>{t("return")}</button>
                             </>
                           )}
                         </div>
@@ -2265,29 +2699,29 @@ function TripIt() {
                       
                       <div className="flex flex-wrap gap-2 items-end">
                         <div className="grow min-w-[120px]">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">From</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("from")}</label>
                           <input
                             className={inputBase}
                             value={legForm.startPlace}
                             onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })}
                             onKeyDown={handleLegKeyDown}
                             onFocus={handleFocus}
-                            placeholder="Start"
+                            placeholder={t("start")}
                           />
                         </div>
                         <div className="grow min-w-[120px]">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">To</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("to")}</label>
                           <input
                             className={inputBase}
                             value={legForm.endPlace}
                             onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
                             onKeyDown={handleLegKeyDown}
                             onFocus={handleFocus}
-                            placeholder="End"
+                            placeholder={t("end")}
                           />
                         </div>
                         <div className="w-20">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">Start</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("start")}</label>
                           <input
                             type="time"
                             className={inputBase}
@@ -2298,7 +2732,7 @@ function TripIt() {
                           />
                         </div>
                         <div className="w-20">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">End</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("end")}</label>
                           <input
                             type="time"
                             className={inputBase}
@@ -2309,7 +2743,7 @@ function TripIt() {
                           />
                         </div>
                         <div className="w-20">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">Odo S</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoS")}</label>
                           <input
                             className={`${inputBase} text-right tabular-nums`}
                             inputMode="decimal"
@@ -2321,7 +2755,7 @@ function TripIt() {
                           />
                         </div>
                         <div className="w-20">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">Odo E</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoE")}</label>
                           <input
                             className={`${inputBase} text-right tabular-nums`}
                             inputMode="decimal"
@@ -2333,28 +2767,28 @@ function TripIt() {
                           />
                         </div>
                         <div className="grow min-w-[150px]">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">Note</label>
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("note")}</label>
                           <input
                             className={inputBase}
                             value={legForm.note}
                             onChange={(e) => setLegForm({ ...legForm, note: e.target.value })}
                             onKeyDown={handleLegKeyDown}
                             onFocus={handleFocus}
-                            placeholder="Optional"
+                            placeholder={t("optional")}
                           />
                         </div>
                         {editingActiveLegId ? (
                           <div className="flex gap-2">
                             <button className={`${btnSecondary} h-[38px]`} onClick={cancelEditActiveLeg}>
-                              Cancel
+                              {t("cancel")}
                             </button>
                             <button className={`${btnAccent} h-[38px]`} onClick={saveActiveLeg}>
-                              Update
+                              {t("update")}
                             </button>
                           </div>
                         ) : (
                           <button className={`${btnSecondary} h-[38px]`} onClick={saveActiveLeg}>
-                            Add
+                            {t("add")}
                           </button>
                         )}
                       </div>
@@ -2362,15 +2796,20 @@ function TripIt() {
 
                     <div className="pt-4 border-t border-neutral-100 flex justify-end">
                       <button className={btnAccent} onClick={endTrip}>
-                        End Trip
+                        {t("endTrip")}
                       </button>
                     </div>
                   </div>
                 ) : (
                   // Start Trip Form
                   <div className="space-y-3">
+                    <div className="flex justify-end">
+                      <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={() => setTemplateModal({ open: true, type: 'trip' })}>
+                        {t("templates")}
+                      </button>
+                    </div>
                     <div>
-                      <label className="text-sm font-medium text-neutral-700">Trip Title (Optional)</label>
+                      <label className="text-sm font-medium text-neutral-700 mt-[-20px]">{t("tripTitle")}</label>
                       <input
                         className={`${inputBase} mt-1`}
                         value={tripStartForm.title}
@@ -2379,7 +2818,7 @@ function TripIt() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-neutral-700">Purpose (Optional)</label>
+                      <label className="text-sm font-medium text-neutral-700">{t("purposeOpt")}</label>
                       <input
                         className={`${inputBase} mt-1`}
                         value={tripStartForm.purpose}
@@ -2388,7 +2827,7 @@ function TripIt() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-neutral-700">Date</label>
+                      <label className="text-sm font-medium text-neutral-700">{t("date")}</label>
                       <input
                         type="date"
                         className={`${inputBase} mt-1`}
@@ -2398,7 +2837,7 @@ function TripIt() {
                     </div>
                     <div className="pt-2 flex justify-end">
                       <button className={btnAccent} onClick={startTrip}>
-                        Start Trip
+                        {t("startTrip")}
                       </button>
                     </div>
                   </div>
@@ -2409,28 +2848,28 @@ function TripIt() {
             {/* 2. Recent Trips List */}
             <div className={card}>
               <div className={cardHead}>
-                <div className="font-semibold text-neutral-800">Recent Trips</div>
+                <div className="font-semibold text-neutral-800">{t("recentTrips")}</div>
               </div>
               <div className={cardPad}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-700">Select a vehicle to view trips.</div>
+                  <div className="text-sm text-neutral-700">{t("selectVehicleView")}</div>
                 ) : tripsForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-700">No trips logged for {monthLabel(app.ui.month)}.</div>
+                  <div className="text-sm text-neutral-700">{t("noTrips")} {monthLabel(app.ui.month, profile.language)}.</div>
                 ) : (
                   <div className="space-y-3">
-                    {tripsForMonth.map((t) => {
-                      const totalKm = t.legs.reduce((sum, l) => sum + toNumber(l.km), 0);
-                      const isExpanded = expandedTripId === t.id;
+                    {tripsForMonth.map((trip) => {
+                      const totalKm = trip.legs.reduce((sum, l) => sum + toNumber(l.km), 0);
+                      const isExpanded = expandedTripId === trip.id;
                       
                       return (
-                        <div key={t.id} className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+                        <div key={trip.id} className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
                           <div 
-                            className="p-3 flex items-center justify-between cursor-pointer hover:bg-neutral-50 transition"
-                            onClick={() => toggleTrip(t.id)}
+                            className="p-3 flex items-center justify-between cursor-pointer hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] transition"
+                            onClick={() => toggleTrip(trip.id)}
                           >
                             <div className="min-w-0">
-                              <div className="font-semibold text-neutral-800 truncate">{t.title || "Untitled Trip"}</div>
-                              <div className="text-xs text-neutral-500 mt-0.5">{t.startDate} • {t.legs.length} legs</div>
+                              <div className="font-semibold text-neutral-800 truncate">{trip.title || "Untitled Trip"}</div>
+                              <div className="text-xs text-neutral-500 mt-0.5">{trip.startDate} • {trip.legs.length} {t("legs")}</div>
                             </div>
                             <div className="text-right shrink-0">
                               <div className="font-bold text-neutral-800">{totalKm.toFixed(1)} km</div>
@@ -2439,8 +2878,8 @@ function TripIt() {
                           
                           {isExpanded && (
                             <div className="border-t border-neutral-100 bg-neutral-50 p-3 space-y-2">
-                              {t.purpose && <div className="text-xs text-neutral-600 mb-2">Purpose: {t.purpose}</div>}
-                              {t.legs.map((l) => (
+                              {trip.purpose && <div className="text-xs text-neutral-600 mb-2">{t("purpose")} {trip.purpose}</div>}
+                              {trip.legs.map((l) => (
                                 <div key={l.id} className="text-sm border-l-2 border-neutral-300 pl-2 py-1">
                                   <div className="flex justify-between">
                                     <span className="font-medium text-neutral-700">{l.startPlace} → {l.endPlace}</span>
@@ -2448,9 +2887,9 @@ function TripIt() {
                                       <span className="text-neutral-600">{l.km.toFixed(1)} km</span>
                                       <button 
                                         className="text-xs text-neutral-500 hover:text-neutral-800 underline"
-                                        onClick={(e) => { e.stopPropagation(); setSavedLegModal({ open: true, tripId: t.id, leg: l }); }}
+                                        onClick={(e) => { e.stopPropagation(); setSavedLegModal({ open: true, tripId: trip.id, leg: l }); }}
                                       >
-                                        Edit
+                                        {t("edit")}
                                       </button>
                                     </div>
                                   </div>
@@ -2463,9 +2902,9 @@ function TripIt() {
                               <div className="pt-2 flex justify-end">
                                 <button 
                                   className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition"
-                                  onClick={(e) => { e.stopPropagation(); deleteTrip(t.id); }}
+                                  onClick={(e) => { e.stopPropagation(); deleteTrip(trip.id); }}
                                 >
-                                  Delete Trip
+                                  {t("delete")}
                                 </button>
                               </div>
                             </div>
@@ -2480,28 +2919,44 @@ function TripIt() {
 
             {/* 3. Fuel (Updated Workflow) */}
             <div className={card}>
-              <div className={`${cardHead} flex items-center justify-between gap-3`}>
-                <div className="font-semibold text-neutral-800">Fuel</div>
+              <div 
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${fuelSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)]"}`}
+                onClick={() => setFuelSectionOpen(!fuelSectionOpen)}
+              >
+                <div className="font-semibold text-neutral-800 flex items-center gap-2">
+                  <span>{t("fuel")}</span>
+                  {!fuelSectionOpen && fuelLogs.length > 0 && (
+                    <span className="text-xs font-normal text-neutral-500">
+                      {t("last")} {fuelLogs[0].date} • {fuelLogs[0].liters}L
+                    </span>
+                  )}
+                </div>
+                <div className="text-neutral-400 text-sm transform transition-transform duration-200" style={{ transform: fuelSectionOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  ▼
+                </div>
               </div>
 
+              {fuelSectionOpen && (
               <div className={cardPad}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-700">Select a vehicle to log fuel.</div>
+                  <div className="text-sm text-neutral-700">{t("selectVehicleFuel")}</div>
                 ) : (
                   <>
                     {/* Fuel Form */}
-                    <div className="rounded-2xl border border-neutral-200 p-4 bg-neutral-50 mb-4">
-                      <div className="text-sm font-semibold text-neutral-800 mb-3">{editingFuelId ? "Edit Fuel Entry" : "Add Fuel Entry"}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-4 p-3">
+                      <div className="font-semibold text-neutral-800 mb-2 text-xs">
+                        {editingFuelId ? t("editFuel") : t("addFuel")}
+                      </div>
+                      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Date</label>
-                          <input type="date" className={`${inputBase} mt-1`} value={fuelForm.date} onChange={(e) => setFuelForm({ ...fuelForm, date: e.target.value })} />
+                          <label className="text-[10px] font-medium text-neutral-500">{t("date")}</label>
+                          <input type="date" className={inputCompact} value={fuelForm.date} onChange={(e) => setFuelForm({ ...fuelForm, date: e.target.value })} />
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odometer</label>
+                          <label className="text-[10px] font-medium text-neutral-500">{t("odometer")}</label>
                           <input
-                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            className={`${inputCompact} text-right tabular-nums`}
                             inputMode="decimal"
                             value={fuelForm.odometer}
                             onChange={(e) => setFuelForm({ ...fuelForm, odometer: e.target.value })}
@@ -2510,9 +2965,14 @@ function TripIt() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Liters</label>
+                          <label className="text-[10px] font-medium text-neutral-500">{t("station")}</label>
+                          <input className={inputCompact} value={fuelForm.station} onChange={(e) => setFuelForm({ ...fuelForm, station: e.target.value })} placeholder={t("optional")} />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-medium text-neutral-500">{t("liters")}</label>
                           <input
-                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            className={`${inputCompact} text-right tabular-nums`}
                             inputMode="decimal"
                             value={fuelForm.liters}
                             onChange={(e) => setFuelForm({ ...fuelForm, liters: e.target.value })}
@@ -2521,9 +2981,9 @@ function TripIt() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Total cost</label>
+                          <label className="text-[10px] font-medium text-neutral-500">{t("totalCost")}</label>
                           <input
-                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            className={`${inputCompact} text-right tabular-nums`}
                             inputMode="decimal"
                             value={fuelForm.totalCost}
                             onChange={(e) => setFuelForm({ ...fuelForm, totalCost: e.target.value })}
@@ -2532,47 +2992,35 @@ function TripIt() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-neutral-600 font-medium">Currency</label>
-                          <select className={`${inputBase} mt-1`} value={fuelForm.currency} onChange={(e) => setFuelForm({ ...fuelForm, currency: e.target.value })}>
+                          <label className="text-[10px] font-medium text-neutral-500">{t("currency")}</label>
+                          <select className={inputCompact} value={fuelForm.currency} onChange={(e) => setFuelForm({ ...fuelForm, currency: e.target.value })}>
                             <option value="EUR">EUR</option>
                             <option value="USD">USD</option>
                             <option value="GBP">GBP</option>
                           </select>
                         </div>
 
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">€/L (auto)</label>
-                          <div className={`${inputBase} mt-1 text-right tabular-nums bg-white border-neutral-200 text-neutral-500`}>
-                            {(toNumber(fuelForm.liters) > 0 ? (toNumber(fuelForm.totalCost) / toNumber(fuelForm.liters)).toFixed(3) : "0.000")}
-                          </div>
-                        </div>
-
-                        <div className="md:col-span-3">
-                          <label className="text-xs text-neutral-600 font-medium">Station</label>
-                          <input className={`${inputBase} mt-1`} value={fuelForm.station} onChange={(e) => setFuelForm({ ...fuelForm, station: e.target.value })} placeholder="Optional (e.g., Aral)" />
-                        </div>
-
-                        <div className="md:col-span-3 flex items-end gap-3 pb-2">
-                          <label className="inline-flex items-center gap-2 text-sm text-neutral-700 select-none">
+                        <div className="flex items-center h-7 mt-4">
+                          <label className="inline-flex items-center gap-2 text-xs text-neutral-700 select-none">
                             <input type="checkbox" className="h-4 w-4" checked={fuelForm.fullTank} onChange={(e) => setFuelForm({ ...fuelForm, fullTank: e.target.checked })} />
-                            Full tank
+                            {t("fullTank")}
                           </label>
                         </div>
 
-                        <div className="md:col-span-6">
-                          <label className="text-xs text-neutral-600 font-medium">Notes</label>
-                          <input className={`${inputBase} mt-1`} value={fuelForm.notes} onChange={(e) => setFuelForm({ ...fuelForm, notes: e.target.value })} placeholder="Optional notes..." />
+                        <div className="col-span-2 sm:col-span-3">
+                          <label className="text-[10px] font-medium text-neutral-500">{t("notes")}</label>
+                          <input className={inputCompact} value={fuelForm.notes} onChange={(e) => setFuelForm({ ...fuelForm, notes: e.target.value })} placeholder={t("optional")} />
                         </div>
                       </div>
 
                       <div className="mt-3 flex items-center justify-end gap-2">
                         {editingFuelId && (
-                          <button className={btnSecondary} onClick={cancelEditFuel}>
-                            Cancel
+                          <button className="px-2 py-1 rounded-lg text-xs font-medium border border-neutral-200 bg-white hover:bg-neutral-100" onClick={cancelEditFuel}>
+                            {t("cancel")}
                           </button>
                         )}
-                        <button className={btnAccent} onClick={saveFuel}>
-                          {editingFuelId ? "Update Entry" : "Add Entry"}
+                        <button className="px-2 py-1 rounded-lg text-xs font-medium border border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-800 hover:bg-[rgb(var(--ts-accent-rgb)/0.85)]" onClick={saveFuel}>
+                          {editingFuelId ? t("update") : t("add")}
                         </button>
                       </div>
                     </div>
@@ -2580,24 +3028,24 @@ function TripIt() {
                     {/* Collapsible History Table */}
                     <div className="border-t border-neutral-100 pt-2">
                       <button 
-                        className="flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-800 transition w-full py-2"
+                        className="flex items-center gap-2 font-medium text-neutral-600 hover:text-neutral-800 transition w-full text-xs py-1"
                         onClick={() => setFuelHistoryOpen(!fuelHistoryOpen)}
                       >
                         <span className={`transform transition-transform ${fuelHistoryOpen ? "rotate-90" : ""}`}>▶</span>
-                        Fuel log history ({fuelLogs.length})
+                        {t("fuelHistory")} ({fuelLogs.length})
                       </button>
                       
                       {fuelHistoryOpen && (
                         <div className="mt-2 overflow-x-auto rounded-xl border border-neutral-200">
-                          <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-neutral-500 bg-neutral-50 uppercase font-semibold">
+                          <table className="w-full text-left text-xs">
+                            <thead className="text-neutral-500 bg-neutral-50 uppercase font-semibold text-[10px]">
                               <tr>
-                                <th className="px-3 py-2 whitespace-nowrap">Date</th>
-                                <th className="px-3 py-2 text-right">Odo</th>
-                                <th className="px-3 py-2 text-right">Liters</th>
-                                <th className="px-3 py-2 text-right">Cost</th>
-                                <th className="px-3 py-2">Station</th>
-                                <th className="px-3 py-2 text-right">Actions</th>
+                                <th className="px-3 whitespace-nowrap py-1">{t("date")}</th>
+                                <th className="px-3 text-right py-1">{t("odometer")}</th>
+                                <th className="px-3 text-right py-1">{t("liters")}</th>
+                                <th className="px-3 text-right py-1">{t("cost")}</th>
+                                <th className="px-3 py-1">{t("station")}</th>
+                                <th className="px-3 text-right py-1"></th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-neutral-100 bg-white">
@@ -2608,14 +3056,14 @@ function TripIt() {
                               ) : (
                                 fuelLogs.map(f => (
                                   <tr key={f.id} className="hover:bg-neutral-50 transition">
-                                    <td className="px-3 py-2 whitespace-nowrap text-neutral-800">{f.date}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums text-neutral-600">{f.odometer}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums text-neutral-600">{toNumber(f.liters).toFixed(2)}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums font-medium text-neutral-800">{money(f.totalCost, f.currency)}</td>
-                                    <td className="px-3 py-2 text-neutral-600 truncate max-w-[120px]">{f.station || "-"}</td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                                      <button className="text-xs font-medium text-neutral-600 hover:text-neutral-900 mr-3" onClick={() => editFuel(f)}>Edit</button>
-                                      <button className="text-xs font-medium text-red-600 hover:text-red-800" onClick={() => confirmDeleteFuel(f.id)}>Delete</button>
+                                    <td className="px-3 whitespace-nowrap text-neutral-800 py-1">{f.date}</td>
+                                    <td className="px-3 text-right tabular-nums text-neutral-600 py-1">{f.odometer}</td>
+                                    <td className="px-3 text-right tabular-nums text-neutral-600 py-1">{toNumber(f.liters).toFixed(2)}</td>
+                                    <td className="px-3 text-right tabular-nums font-medium text-neutral-800 py-1">{money(f.totalCost, f.currency)}</td>
+                                    <td className="px-3 text-neutral-600 truncate max-w-[120px] py-1">{f.station || "-"}</td>
+                                    <td className="px-3 text-right whitespace-nowrap py-1">
+                                      <button className="font-medium text-neutral-600 hover:text-neutral-900 mr-3" onClick={() => editFuel(f)}>{t("edit")}</button>
+                                      <button className="font-medium text-red-600 hover:text-red-800" onClick={() => confirmDeleteFuel(f.id)}>{t("del")}</button>
                                     </td>
                                   </tr>
                                 ))
@@ -2628,7 +3076,7 @@ function TripIt() {
 
                     {/* Month Totals Summary */}
                     <div className="mt-4 rounded-2xl border border-neutral-200 p-4 bg-white">
-                      <div className="text-sm text-neutral-700">Month fuel totals ({monthLabel(app.ui.month)})</div>
+                      <div className="text-sm text-neutral-700">{t("monthSummary")} ({monthLabel(app.ui.month, profile.language)})</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Pill>{fuelTotals.count} fill(s)</Pill>
                         <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
@@ -2639,6 +3087,100 @@ function TripIt() {
                   </>
                 )}
               </div>
+              )}
+            </div>
+
+            {/* 4. Wash (Compact) */}
+            <div className={card}>
+              <div 
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${washSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)]"}`}
+                onClick={() => setWashSectionOpen(!washSectionOpen)}
+              >
+                <div className="font-semibold text-neutral-800 flex items-center gap-2">
+                  <span>{t("wash")}</span>
+                  {!washSectionOpen && washLogs.length > 0 && (
+                    <span className="text-xs font-normal text-neutral-500">
+                      {t("last")} {washLogs[0].date} • {washLogs[0].type}
+                    </span>
+                  )}
+                </div>
+                <div className="text-neutral-400 text-sm transform transition-transform duration-200" style={{ transform: washSectionOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  ▼
+                </div>
+              </div>
+
+              {washSectionOpen && (
+                <div className={cardPad}>
+                  {!activeVehicle ? (
+                    <div className="text-sm text-neutral-700">{t("selectVehicleWash")}</div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+                        <div>
+                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("date")}</label>
+                          <input type="date" className={`${inputBase} py-1 text-xs h-8`} value={washForm.date} onChange={e => setWashForm({...washForm, date: e.target.value})} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("type")}</label>
+                          <select className={`${inputBase} py-1 text-xs h-8`} value={washForm.type} onChange={e => setWashForm({...washForm, type: e.target.value})}>
+                            <option>Quick</option>
+                            <option>Full</option>
+                            <option>Interior</option>
+                            <option>Exterior</option>
+                            <option>Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("location")}</label>
+                          <input className={`${inputBase} py-1 text-xs h-8`} placeholder={t("optional")} value={washForm.location} onChange={e => setWashForm({...washForm, location: e.target.value})} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("note")}</label>
+                          <input className={`${inputBase} py-1 text-xs h-8`} placeholder={t("optional")} value={washForm.note} onChange={e => setWashForm({...washForm, note: e.target.value})} />
+                        </div>
+                        <div className="flex items-end gap-1">
+                          <div className="w-14">
+                            <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("cost")}</label>
+                            <input className={`${inputBase} py-1 text-xs h-8 text-right`} placeholder="0.00" inputMode="decimal" value={washForm.cost} onChange={e => setWashForm({...washForm, cost: e.target.value})} />
+                          </div>
+                          <button className={`${btnAccent} h-8 px-3 py-0 text-xs`} onClick={saveWash}>{editingWashId ? t("upd") : t("add")}</button>
+                          {editingWashId && <button className={`${btnSecondary} h-8 px-2 py-0 text-xs`} onClick={cancelEditWash}>✕</button>}
+                        </div>
+                      </div>
+
+                      {washLogs.length > 0 && (
+                        <div className="overflow-x-auto border-t border-neutral-100 pt-2">
+                          <table className="w-full text-xs text-left">
+                            <thead className="text-neutral-400 font-medium">
+                              <tr>
+                                <th className="py-1 pr-2">{t("date")}</th>
+                                <th className="py-1 pr-2">{t("type")}</th>
+                                <th className="py-1 pr-2">{t("location")}</th>
+                                <th className="py-1 pr-2 text-right">{t("cost")}</th>
+                                <th className="py-1 text-right"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-neutral-50">
+                              {washLogs.map(w => (
+                                <tr key={w.id} className="hover:bg-neutral-50">
+                                  <td className="py-1 pr-2 whitespace-nowrap text-neutral-700">{w.date}</td>
+                                  <td className="py-1 pr-2 text-neutral-600">{w.type}</td>
+                                  <td className="py-1 pr-2 text-neutral-500 truncate max-w-[100px]">{w.location}</td>
+                                  <td className="py-1 pr-2 text-right text-neutral-700">{w.cost ? Number(w.cost).toFixed(2) : "-"}</td>
+                                  <td className="py-1 text-right whitespace-nowrap">
+                                    <button className="text-neutral-500 hover:text-neutral-800 mr-2" onClick={() => editWash(w)}>{t("edit")}</button>
+                                    <button className="text-red-400 hover:text-red-600" onClick={() => deleteWash(w.id)}>{t("del")}</button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2661,4 +3203,11 @@ function TripIt() {
     </div>
   );
 }
-export default TripIt;
+
+export default function TripItSafe() {
+  return (
+    <ErrorBoundary>
+      <TripIt />
+    </ErrorBoundary>
+  );
+}
