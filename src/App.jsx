@@ -2425,3 +2425,4 @@ function TripIt() {
     </div>
   );
 }
+export default App;
