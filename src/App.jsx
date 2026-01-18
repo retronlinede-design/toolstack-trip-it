@@ -74,6 +74,12 @@ const safeStorageRemove = (key) => {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const nowTime = () => new Date().toTimeString().slice(0, 5);
+const roundTime = () => {
+  const coeff = 1000 * 60 * 5;
+  const date = new Date();
+  const rounded = new Date(Math.round(date.getTime() / coeff) * coeff);
+  return rounded.toTimeString().slice(0, 5);
+};
 
 const toNumber = (v) => {
   const n = Number(String(v ?? "").replace(",", "."));
@@ -473,6 +479,63 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
               Open email
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Leg Modal (for saved legs) ----------
+function LegModal({ open, leg, onClose, onSave }) {
+  const [draft, setDraft] = useState(leg || {});
+  useEffect(() => { setDraft(leg || {}); }, [leg]);
+  if (!open) return null;
+
+  const handleChange = (f, v) => setDraft(d => ({ ...d, [f]: v }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
+        <div className="p-4 border-b border-neutral-100">
+          <div className="text-lg font-semibold text-neutral-800">Edit Leg</div>
+          <div className="mt-3"><AccentUnderline className="w-32" /></div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-neutral-600">From</label>
+              <input className={`${inputBase} mt-1`} value={draft.startPlace || ""} onChange={e => handleChange("startPlace", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">To</label>
+              <input className={`${inputBase} mt-1`} value={draft.endPlace || ""} onChange={e => handleChange("endPlace", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">Start Time</label>
+              <input type="time" className={`${inputBase} mt-1`} value={draft.startTime || ""} onChange={e => handleChange("startTime", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">End Time</label>
+              <input type="time" className={`${inputBase} mt-1`} value={draft.endTime || ""} onChange={e => handleChange("endTime", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">Odo Start</label>
+              <input className={`${inputBase} mt-1 text-right tabular-nums`} inputMode="decimal" value={draft.odoStart || ""} onChange={e => handleChange("odoStart", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">Odo End</label>
+              <input className={`${inputBase} mt-1 text-right tabular-nums`} inputMode="decimal" value={draft.odoEnd || ""} onChange={e => handleChange("odoEnd", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-600">Note</label>
+            <input className={`${inputBase} mt-1`} value={draft.note || ""} onChange={e => handleChange("note", e.target.value)} />
+          </div>
+        </div>
+        <div className="p-4 border-t border-neutral-100 flex justify-end gap-2">
+          <button className={btnSecondary} onClick={onClose}>Cancel</button>
+          <button className={btnAccent} onClick={() => onSave(draft)}>Save</button>
         </div>
       </div>
     </div>
@@ -954,13 +1017,15 @@ function TripIt() {
 
   const [legForm, setLegForm] = useState({
     startPlace: "",
-    startTime: nowTime(),
+    startTime: roundTime(),
     odoStart: "",
     endPlace: "",
-    endTime: nowTime(),
+    endTime: roundTime(),
     odoEnd: "",
     note: ""
   });
+  const [editingActiveLegId, setEditingActiveLegId] = useState(null);
+  const [savedLegModal, setSavedLegModal] = useState({ open: false, tripId: null, leg: null });
 
   // Fuel Form State
   const [fuelForm, setFuelForm] = useState({
@@ -1082,40 +1147,95 @@ function TripIt() {
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
-  // Auto-fill leg form defaults when active trip changes or legs added
-  useEffect(() => {
-    if (activeTrip && activeTrip.legs.length > 0) {
-      const lastLeg = activeTrip.legs[activeTrip.legs.length - 1];
-      setLegForm(prev => ({
-        ...prev,
+  const handleLegKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveActiveLeg();
+    } else if (e.key === "Escape") {
+      cancelEditActiveLeg();
+    }
+  };
+
+  const handleFocus = (e) => {
+    if (e.target.type === "time") {
+      setTimeout(() => e.target.select?.(), 0);
+    } else {
+      e.target.select();
+    }
+  };
+
+  const duplicateLastLeg = () => {
+    if (!activeTrip || !activeTrip.legs.length) return;
+    const last = activeTrip.legs[activeTrip.legs.length - 1];
+    setLegForm((prev) => ({
+      ...prev,
+      startPlace: last.startPlace,
+      endPlace: last.endPlace,
+      note: last.note,
+      startTime: roundTime(),
+      endTime: "",
+    }));
+  };
+
+  const swapLegPlaces = () => {
+    setLegForm((prev) => ({
+      ...prev,
+      startPlace: prev.endPlace,
+      endPlace: prev.startPlace,
+    }));
+  };
+
+  const resetLegForm = (trip) => {
+    if (trip && trip.legs.length > 0) {
+      const lastLeg = trip.legs[trip.legs.length - 1];
+      setLegForm({
         startPlace: lastLeg.endPlace,
-        startTime: nowTime(),
+        startTime: roundTime(),
         odoStart: lastLeg.odoEnd != null ? lastLeg.odoEnd : "",
         endPlace: "",
-        endTime: nowTime(),
+        endTime: roundTime(),
         odoEnd: "",
         note: ""
-      }));
-    } else if (activeTrip) {
-      // New trip, try to find last finished trip for odo
-      const lastTrip = trips[0];
-      let lastOdo = "";
-      if (lastTrip && lastTrip.legs.length > 0) {
-        const lastLeg = lastTrip.legs[lastTrip.legs.length - 1];
-        if (lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
-      }
-      setLegForm(prev => ({
-        ...prev,
+      });
+    } else {
+      setLegForm({
         startPlace: "",
-        startTime: nowTime(),
-        odoStart: lastOdo,
+        startTime: roundTime(),
+        odoStart: legForm.odoStart, // Keep existing odoStart if possible
         endPlace: "",
-        endTime: nowTime(),
+        endTime: roundTime(),
         odoEnd: "",
         note: ""
-      }));
+      });
     }
-  }, [activeTrip, trips]);
+  };
+
+  // Auto-fill leg form defaults when active trip changes or legs added
+  useEffect(() => {
+    if (!editingActiveLegId) {
+      if (activeTrip) {
+        resetLegForm(activeTrip);
+      } else {
+        // New trip, try to find last finished trip for odo
+        const lastTrip = trips[0];
+        let lastOdo = "";
+        if (lastTrip && lastTrip.legs.length > 0) {
+          const lastLeg = lastTrip.legs[lastTrip.legs.length - 1];
+          if (lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
+        }
+        setLegForm(prev => ({
+          ...prev,
+          startPlace: "",
+          startTime: roundTime(),
+          odoStart: lastOdo,
+          endPlace: "",
+          endTime: roundTime(),
+          odoEnd: "",
+          note: ""
+        }));
+      }
+    }
+  }, [activeTrip, trips, editingActiveLegId]);
 
   // ---------- Vehicle CRUD ----------
   const openNewVehicle = () => setVehicleModal({ open: true, mode: "new", vehicleId: null });
@@ -1188,7 +1308,7 @@ function TripIt() {
     notify("Trip started");
   };
 
-  const addLeg = () => {
+  const saveActiveLeg = () => {
     if (!activeVehicle || !activeTrip) return;
 
     const odoStart = legForm.odoStart !== "" ? toNumber(legForm.odoStart) : null;
@@ -1199,8 +1319,7 @@ function TripIt() {
 
     const km = Math.max(0, odoEnd - odoStart);
 
-    const newLeg = {
-      id: uid(),
+    const legData = {
       startPlace: legForm.startPlace,
       startTime: legForm.startTime,
       odoStart: odoStart,
@@ -1209,20 +1328,54 @@ function TripIt() {
       odoEnd: odoEnd,
       km: km,
       note: legForm.note,
-      createdAt: new Date().toISOString()
     };
 
-    const updatedTrip = {
-      ...activeTrip,
-      legs: [...activeTrip.legs, newLeg]
-    };
+    if (editingActiveLegId) {
+      const updatedTrip = {
+        ...activeTrip,
+        legs: activeTrip.legs.map(l => l.id === editingActiveLegId ? { ...l, ...legData } : l)
+      };
+      setApp(a => ({
+        ...a,
+        activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
+      }));
+      setEditingActiveLegId(null);
+      resetLegForm(updatedTrip);
+      notify("Leg updated");
+    } else {
+      const newLeg = {
+        id: uid(),
+        ...legData,
+        createdAt: new Date().toISOString()
+      };
+      const updatedTrip = {
+        ...activeTrip,
+        legs: [...activeTrip.legs, newLeg]
+      };
+      setApp(a => ({
+        ...a,
+        activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
+      }));
+      notify("Leg added");
+    }
+  };
 
-    setApp(a => ({
-      ...a,
-      activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
-    }));
+  const editActiveLeg = (leg) => {
+    setLegForm({
+      startPlace: leg.startPlace,
+      startTime: leg.startTime,
+      odoStart: leg.odoStart != null ? leg.odoStart : "",
+      endPlace: leg.endPlace,
+      endTime: leg.endTime,
+      odoEnd: leg.odoEnd != null ? leg.odoEnd : "",
+      note: leg.note
+    });
+    setEditingActiveLegId(leg.id);
+  };
 
-    notify("Leg added");
+  const cancelEditActiveLeg = () => {
+    setEditingActiveLegId(null);
+    resetLegForm(activeTrip);
   };
 
   const deleteLeg = (legId) => {
@@ -1235,6 +1388,9 @@ function TripIt() {
       ...a,
       activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
     }));
+    if (editingActiveLegId === legId) {
+      cancelEditActiveLeg();
+    }
   };
 
   const endTrip = () => {
@@ -1272,6 +1428,35 @@ function TripIt() {
       tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: (a.tripsByVehicle[activeVehicle.id] || []).filter(t => t.id !== tripId) }
     }));
     notify("Trip deleted");
+  };
+
+  const saveSavedLeg = (updatedLeg) => {
+    if (!activeVehicle || !savedLegModal.tripId) return;
+    
+    const odoStart = updatedLeg.odoStart !== "" ? toNumber(updatedLeg.odoStart) : null;
+    const odoEnd = updatedLeg.odoEnd !== "" ? toNumber(updatedLeg.odoEnd) : null;
+    const km = (odoStart != null && odoEnd != null) ? Math.max(0, odoEnd - odoStart) : 0;
+
+    const finalLeg = { ...updatedLeg, odoStart, odoEnd, km };
+
+    setApp(a => {
+      const vehicleTrips = a.tripsByVehicle[activeVehicle.id] || [];
+      const updatedTrips = vehicleTrips.map(t => {
+        if (t.id === savedLegModal.tripId) {
+          return {
+            ...t,
+            legs: t.legs.map(l => l.id === finalLeg.id ? finalLeg : l)
+          };
+        }
+        return t;
+      });
+      return {
+        ...a,
+        tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: updatedTrips }
+      };
+    });
+    setSavedLegModal({ open: false, tripId: null, leg: null });
+    notify("Leg updated");
   };
 
   // ---------- Fuel CRUD ----------
@@ -1610,6 +1795,13 @@ function TripIt() {
       />
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} appName="Trip-It" storageKey={KEY} actions={["Email"]} />
+
+      <LegModal 
+        open={savedLegModal.open} 
+        leg={savedLegModal.leg} 
+        onClose={() => setSavedLegModal({ open: false, tripId: null, leg: null })} 
+        onSave={saveSavedLeg} 
+      />
 
       {/* Hidden file input for Import button */}
       <input
@@ -2037,12 +2229,20 @@ function TripIt() {
                               <div className="font-medium text-neutral-800">{l.startPlace} → {l.endPlace}</div>
                               <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime} • {l.km.toFixed(1)} km</div>
                             </div>
-                            <button 
-                              className="text-xs text-red-600 hover:text-red-800 px-2"
-                              onClick={() => deleteLeg(l.id)}
-                            >
-                              Delete
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                className="text-xs text-neutral-600 hover:text-neutral-800 px-2"
+                                onClick={() => editActiveLeg(l)}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className="text-xs text-red-600 hover:text-red-800 px-2"
+                                onClick={() => deleteLeg(l.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2051,84 +2251,112 @@ function TripIt() {
                     )}
 
                     <div className="border-t border-neutral-100 pt-4">
-                      <div className="text-sm font-medium text-neutral-800 mb-3">Add Leg</div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium text-neutral-800">{editingActiveLegId ? "Update Leg" : "Quick Leg"}</div>
+                        <div className="flex gap-3">
+                          {!editingActiveLegId && (
+                            <>
+                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={duplicateLastLeg}>Duplicate last</button>
+                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={swapLegPlaces}>Return</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Start Place</label>
+                      <div className="flex flex-wrap gap-2 items-end">
+                        <div className="grow min-w-[120px]">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">From</label>
                           <input
-                            className={`${inputBase} mt-1`}
+                            className={inputBase}
                             value={legForm.startPlace}
                             onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
                             placeholder="Start"
                           />
                         </div>
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Start Time</label>
+                        <div className="grow min-w-[120px]">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">To</label>
                           <input
-                            type="time"
-                            className={`${inputBase} mt-1`}
-                            value={legForm.startTime}
-                            onChange={(e) => setLegForm({ ...legForm, startTime: e.target.value })}
+                            className={inputBase}
+                            value={legForm.endPlace}
+                            onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
+                            placeholder="End"
                           />
                         </div>
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odo Start</label>
+                        <div className="w-20">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">Start</label>
                           <input
-                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            type="time"
+                            className={inputBase}
+                            value={legForm.startTime}
+                            onChange={(e) => setLegForm({ ...legForm, startTime: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
+                          />
+                        </div>
+                        <div className="w-20">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">End</label>
+                          <input
+                            type="time"
+                            className={inputBase}
+                            value={legForm.endTime}
+                            onChange={(e) => setLegForm({ ...legForm, endTime: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
+                          />
+                        </div>
+                        <div className="w-20">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">Odo S</label>
+                          <input
+                            className={`${inputBase} text-right tabular-nums`}
                             inputMode="decimal"
                             value={legForm.odoStart}
                             onChange={(e) => setLegForm({ ...legForm, odoStart: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
                             placeholder="0"
                           />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">End Place</label>
+                        <div className="w-20">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">Odo E</label>
                           <input
-                            className={`${inputBase} mt-1`}
-                            value={legForm.endPlace}
-                            onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
-                            placeholder="Destination"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">End Time</label>
-                          <input
-                            type="time"
-                            className={`${inputBase} mt-1`}
-                            value={legForm.endTime}
-                            onChange={(e) => setLegForm({ ...legForm, endTime: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-neutral-600 font-medium">Odo End</label>
-                          <input
-                            className={`${inputBase} mt-1 text-right tabular-nums`}
+                            className={`${inputBase} text-right tabular-nums`}
                             inputMode="decimal"
                             value={legForm.odoEnd}
                             onChange={(e) => setLegForm({ ...legForm, odoEnd: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
                             placeholder="0"
                           />
                         </div>
-                      </div>
-
-                      <div className="mb-3">
-                        <label className="text-xs text-neutral-600 font-medium">Note</label>
-                        <input
-                          className={`${inputBase} mt-1`}
-                          value={legForm.note}
-                          onChange={(e) => setLegForm({ ...legForm, note: e.target.value })}
-                          placeholder="Optional"
-                        />
-                      </div>
-
-                      <div className="flex justify-end">
-                        <button className={btnSecondary} onClick={addLeg}>
-                          Log Leg
-                        </button>
+                        <div className="grow min-w-[150px]">
+                          <label className="text-xs text-neutral-500 font-medium block mb-1">Note</label>
+                          <input
+                            className={inputBase}
+                            value={legForm.note}
+                            onChange={(e) => setLegForm({ ...legForm, note: e.target.value })}
+                            onKeyDown={handleLegKeyDown}
+                            onFocus={handleFocus}
+                            placeholder="Optional"
+                          />
+                        </div>
+                        {editingActiveLegId ? (
+                          <div className="flex gap-2">
+                            <button className={`${btnSecondary} h-[38px]`} onClick={cancelEditActiveLeg}>
+                              Cancel
+                            </button>
+                            <button className={`${btnAccent} h-[38px]`} onClick={saveActiveLeg}>
+                              Update
+                            </button>
+                          </div>
+                        ) : (
+                          <button className={`${btnSecondary} h-[38px]`} onClick={saveActiveLeg}>
+                            Add
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -2216,7 +2444,15 @@ function TripIt() {
                                 <div key={l.id} className="text-sm border-l-2 border-neutral-300 pl-2 py-1">
                                   <div className="flex justify-between">
                                     <span className="font-medium text-neutral-700">{l.startPlace} → {l.endPlace}</span>
-                                    <span className="text-neutral-600">{l.km.toFixed(1)} km</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-neutral-600">{l.km.toFixed(1)} km</span>
+                                      <button 
+                                        className="text-xs text-neutral-500 hover:text-neutral-800 underline"
+                                        onClick={(e) => { e.stopPropagation(); setSavedLegModal({ open: true, tripId: t.id, leg: l }); }}
+                                      >
+                                        Edit
+                                      </button>
+                                    </div>
                                   </div>
                                   <div className="text-xs text-neutral-500">
                                     {l.startTime} - {l.endTime} • Odo: {l.odoStart} - {l.odoEnd}
