@@ -2059,6 +2059,45 @@ function TripIt() {
   const [expandedTripId, setExpandedTripId] = useState(null);
   const toggleTrip = (id) => setExpandedTripId(prev => prev === id ? null : id);
 
+  const getCurrentLocation = (field) => {
+    if (!navigator.geolocation) return notify("Geolocation not supported");
+    notify("Locating...");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const coords = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        setLegForm((prev) => ({ ...prev, [field]: coords }));
+
+        try {
+          const lang = profile.language ? profile.language.toLowerCase() : "en";
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=${lang}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.address) {
+              const { road, house_number, city, town, village } = data.address;
+              const place = [road, house_number, city || town || village].filter(Boolean).join(", ");
+              if (place) setLegForm((prev) => ({ ...prev, [field]: place }));
+            }
+          }
+        } catch {
+          // ignore
+        }
+      },
+      () => notify("Location failed"),
+      { enableHighAccuracy: true }
+    );
+  };
+
+  const handleQuickStart = () => {
+    setLegForm((prev) => ({ ...prev, startTime: new Date().toTimeString().slice(0, 5) }));
+    getCurrentLocation("startPlace");
+  };
+
+  const handleQuickEnd = () => {
+    setLegForm((prev) => ({ ...prev, endTime: new Date().toTimeString().slice(0, 5) }));
+    getCurrentLocation("endPlace");
+  };
+
   return (
     <div
       className="min-h-screen bg-neutral-50 text-neutral-800"
@@ -2682,6 +2721,24 @@ function TripIt() {
                     )}
 
                     <div className="border-t border-neutral-100 pt-4">
+                      {!editingActiveLegId && (
+                        <div className="flex gap-3 mb-4">
+                          <button
+                            className={`${btnSecondary} flex-1 py-3 font-bold text-green-700 bg-green-50 border-green-200 hover:bg-[var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-neutral-800`}
+                            onClick={handleQuickStart}
+                            title="Auto-fill Start Time & Location"
+                          >
+                            START
+                          </button>
+                          <button
+                            className={`${btnSecondary} flex-1 py-3 font-bold text-red-700 bg-red-50 border-red-200 hover:bg-[var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-neutral-800`}
+                            onClick={handleQuickEnd}
+                            title="Auto-fill End Time & Location"
+                          >
+                            END
+                          </button>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-medium text-neutral-800">{editingActiveLegId ? t("updateLeg") : t("quickLeg")}</div>
                         <div className="flex gap-3 items-center">
@@ -2700,25 +2757,49 @@ function TripIt() {
                       <div className="flex flex-wrap gap-2 items-end">
                         <div className="grow min-w-[120px]">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("from")}</label>
-                          <input
-                            className={inputBase}
-                            value={legForm.startPlace}
-                            onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                            placeholder={t("start")}
-                          />
+                          <div className="relative">
+                            <input
+                              className={`${inputBase} pr-8`}
+                              value={legForm.startPlace}
+                              onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })}
+                              onKeyDown={handleLegKeyDown}
+                              onFocus={handleFocus}
+                              placeholder={t("start")}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => getCurrentLocation("startPlace")}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition"
+                              title="Current location"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                         <div className="grow min-w-[120px]">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("to")}</label>
-                          <input
-                            className={inputBase}
-                            value={legForm.endPlace}
-                            onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                            placeholder={t("end")}
-                          />
+                          <div className="relative">
+                            <input
+                              className={`${inputBase} pr-8`}
+                              value={legForm.endPlace}
+                              onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
+                              onKeyDown={handleLegKeyDown}
+                              onFocus={handleFocus}
+                              placeholder={t("end")}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => getCurrentLocation("endPlace")}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition"
+                              title="Current location"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                         <div className="w-20">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("start")}</label>
