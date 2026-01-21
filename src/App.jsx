@@ -27,7 +27,7 @@ const TRANSLATIONS = {
     updateLeg: "Update Leg", quickLeg: "Quick Leg", duplicateLast: "Duplicate last",
     return: "Return", from: "From", to: "To", start: "Start", end: "End",
     odoS: "Odo S", odoE: "Odo E", note: "Note", cancel: "Cancel", update: "Update",
-    add: "Add", endTrip: "End Trip", tripTitle: "Trip Title (Optional)",
+    add: "Add", endTrip: "End Trip", tripTitle: "Trip Title *",
     purposeOpt: "Purpose (Optional)", date: "Date", recentTrips: "Recent Trips",
     selectVehicleView: "Select a vehicle to view trips.", noTrips: "No trips logged for",
     fuel: "Fuel", last: "Last:", selectVehicleFuel: "Select a vehicle to log fuel.",
@@ -54,7 +54,7 @@ const TRANSLATIONS = {
     tripItReport: "Trip-It Report", generated: "Generated:", storageKey: "Storage key:", 
     templates: "Templates", saveTemplate: "Save as Template", templateName: "Template Name", 
     load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.", tag: "Tag / Location", startTag: "Start Tag", endTag: "End Tag",
-    close: "Close", save: "Save"
+    titleTag: "Title Tag", purposeTag: "Purpose Tag", close: "Close", save: "Save"
   },
   DE: {
     hub: "Hub", preview: "Vorschau", export: "Export", help: "Hilfe",
@@ -67,7 +67,7 @@ const TRANSLATIONS = {
     updateLeg: "Etappe aktualisieren", quickLeg: "Schnelle Etappe", duplicateLast: "Letzte duplizieren",
     return: "Umkehren", from: "Von", to: "Nach", start: "Start", end: "Ende",
     odoS: "Km Start", odoE: "Km Ende", note: "Notiz", cancel: "Abbrechen", update: "Aktualisieren",
-    add: "Hinzufügen", endTrip: "Fahrt beenden", tripTitle: "Titel (Optional)",
+    add: "Hinzufügen", endTrip: "Fahrt beenden", tripTitle: "Titel *",
     purposeOpt: "Zweck (Optional)", date: "Datum", recentTrips: "Letzte Fahrten",
     selectVehicleView: "Wähle ein Fahrzeug, um Fahrten zu sehen.", noTrips: "Keine Fahrten für",
     fuel: "Tanken", last: "Zuletzt:", selectVehicleFuel: "Wähle ein Fahrzeug, um Tanken zu protokollieren.",
@@ -94,7 +94,7 @@ const TRANSLATIONS = {
     tripItReport: "Trip-It Bericht", generated: "Erstellt:", storageKey: "Speicherschlüssel:", 
     templates: "Vorlagen", saveTemplate: "Als Vorlage speichern", templateName: "Vorlagenname", 
     load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.", tag: "Tag / Ort", startTag: "Start Tag", endTag: "End Tag",
-    close: "Schließen", save: "Speichern"
+    titleTag: "Titel-Tag", purposeTag: "Zweck-Tag", close: "Schließen", save: "Speichern"
   }
 };
 
@@ -441,9 +441,9 @@ const btnAccent =
   "hover:bg-[rgb(var(--ts-accent-rgb)/0.85)]";
 
 const inputBase =
-  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
+  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]";
 const inputCompact =
-  "w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300";
+  "w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]";
 const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm overflow-hidden";
 const cardHead = "px-4 py-3 border-b border-neutral-100";
 const cardPad = "p-4";
@@ -520,7 +520,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
             <div>
               <label className="text-sm font-medium text-neutral-700">To</label>
               <input
-                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 mt-2"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] mt-2"
                 value={to}
                 onChange={(e) => onChangeTo && onChangeTo(e.target.value)}
                 placeholder="email@example.com (optional)"
@@ -541,7 +541,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
             <div>
               <label className="text-sm font-medium text-neutral-700">Message</label>
               <textarea
-                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 focus:border-neutral-300 mt-2 min-h-[220px]"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] mt-2 min-h-[220px]"
                 value={body}
                 onChange={(e) => onChangeBody && onChangeBody(e.target.value)}
               />
@@ -964,6 +964,7 @@ function normalizeApp(raw) {
           vehicleId: vid,
           title: `Trip on ${date}`,
           purpose: "",
+          tags: "",
           startedAt: new Date(date).toISOString(),
           startDate: date,
           status: "finished",
@@ -989,7 +990,7 @@ function normalizeApp(raw) {
     // Ensure each trip has legs array
     normTripsByVehicle[v.id] = normTripsByVehicle[v.id].map(t => {
         if (!t) return null;
-        return { ...t, legs: Array.isArray(t.legs) ? t.legs : [] };
+        return { ...t, tags: t.tags || "", titleTag: t.titleTag || "", purposeTag: t.purposeTag || "", legs: Array.isArray(t.legs) ? t.legs : [] };
     }).filter(Boolean);
 
     if (!normActiveTripByVehicle[v.id]) {
@@ -1266,6 +1267,7 @@ function TripIt() {
   });
   const [editingWashId, setEditingWashId] = useState(null);
   const [washSectionOpen, setWashSectionOpen] = useState(false);
+  const [recentTripsOpen, setRecentTripsOpen] = useState(true);
 
   const t = (k) => {
     const l = profile.language || "EN";
@@ -1335,7 +1337,15 @@ function TripIt() {
         legCount++;
       });
     });
-    return { distance, count: legCount, tripCount: tripsForMonth.length };
+
+    let lastOdo = null;
+    if (tripsForMonth.length > 0) {
+      const latestTrip = tripsForMonth[0];
+      if (latestTrip.legs.length > 0) {
+        lastOdo = latestTrip.legs[latestTrip.legs.length - 1].odoEnd;
+      }
+    }
+    return { distance, count: legCount, tripCount: tripsForMonth.length, lastOdo };
   }, [tripsForMonth]);
 
   const fuelTotals = useMemo(() => {
@@ -1387,6 +1397,9 @@ function TripIt() {
     const set = new Set(["Home", "Office", "Work", "Client", "Site", "Supply", "Hotel", "Airport"]);
     if (activeVehicle && app.tripsByVehicle[activeVehicle.id]) {
       app.tripsByVehicle[activeVehicle.id].forEach(t => {
+        if (t.tags) set.add(t.tags);
+        if (t.titleTag) set.add(t.titleTag);
+        if (t.purposeTag) set.add(t.purposeTag);
         (t.legs || []).forEach(l => {
           if (l.startTag) set.add(l.startTag);
           if (l.endTag) set.add(l.endTag);
@@ -1455,11 +1468,20 @@ function TripIt() {
         note: ""
       });
     } else {
+      // New trip or first leg: fetch last odo from history
+      let lastOdo = "";
+      if (trips.length > 0) {
+        const lastTrip = trips[0];
+        if (lastTrip && lastTrip.legs.length > 0) {
+          const lastLeg = lastTrip.legs[lastTrip.legs.length - 1];
+          if (lastLeg && lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
+        }
+      }
       setLegForm({
         startPlace: "",
         startTag: "",
         startTime: roundTime(),
-        odoStart: legForm.odoStart, // Keep existing odoStart if possible
+        odoStart: lastOdo !== "" ? lastOdo : "",
         endPlace: "",
         endTag: "",
         endTime: roundTime(),
@@ -1592,6 +1614,7 @@ function TripIt() {
   // ---------- Trip Workflow ----------
   const startTrip = () => {
     if (!activeVehicle) return notify("Select a vehicle");
+    if (!tripStartForm.title.trim()) return notify("Trip title is required");
     
     const newTrip = {
       id: uid(),
@@ -2266,7 +2289,7 @@ function TripIt() {
                 <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("rangeSelection")}</div>
                 <div className="flex flex-wrap gap-2">
                   <select 
-                    className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 w-full sm:w-auto"
+                    className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] w-full sm:w-auto"
                     value={previewConfig.mode}
                     onChange={(e) => updatePreviewMode(e.target.value)}
                   >
@@ -2279,14 +2302,14 @@ function TripIt() {
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <input 
                       type="date" 
-                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 grow"
+                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] grow"
                       value={previewConfig.start}
                       onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
                     />
                     <span className="text-neutral-400">-</span>
                     <input 
                       type="date" 
-                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25 grow"
+                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] grow"
                       value={previewConfig.end}
                       onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
                     />
@@ -2457,7 +2480,7 @@ function TripIt() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <select 
-                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25"
+                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]"
                     value={previewConfig.mode}
                     onChange={(e) => updatePreviewMode(e.target.value)}
                   >
@@ -2470,14 +2493,14 @@ function TripIt() {
                   
                   <input 
                     type="date" 
-                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25"
+                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]"
                     value={previewConfig.start}
                     onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
                   />
                   <span className="text-neutral-400">-</span>
                   <input 
                     type="date" 
-                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400/25"
+                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]"
                     value={previewConfig.end}
                     onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
                   />
@@ -2594,20 +2617,22 @@ function TripIt() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-4xl sm:text-5xl font-black tracking-tight text-neutral-700">
-              <span>Trip</span>
-              <span style={{ color: ACCENT }}>It</span>
-            </div>
-            <div className="mt-3">
-              <AccentUnderline className="w-80" />
+            <div className="w-fit">
+              <div className="text-4xl sm:text-5xl font-black tracking-tight text-neutral-700">
+                <span>Trip</span>
+                <span style={{ color: ACCENT }}>It</span>
+              </div>
+              <div className="mt-3">
+                <AccentUnderline className="w-full" />
+              </div>
             </div>
             <div className="mt-2 text-sm text-neutral-700">{t("recordTrips")}</div>
             <div className="mt-4 flex items-center gap-3">
-              <span className={`text-xs font-bold transition-colors ${profile.language === "EN" ? "text-neutral-900" : "text-neutral-400"}`}>EN</span>
+              <span className={`text-sm font-bold transition-colors ${profile.language === "EN" ? "text-[var(--ts-accent)]" : "text-neutral-400"}`}>EN</span>
               <button
                 onClick={toggleLang}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 ${
-                  profile.language === "DE" ? "bg-[var(--ts-accent)]" : "bg-neutral-200"
+                  profile.language === "DE" ? "bg-[var(--ts-accent)]" : "bg-[rgb(var(--ts-accent-rgb)/0.3)]"
                 }`}
               >
                 <span
@@ -2616,7 +2641,7 @@ function TripIt() {
                   }`}
                 />
               </button>
-              <span className={`text-xs font-bold transition-colors ${profile.language === "DE" ? "text-neutral-900" : "text-neutral-400"}`}>DE</span>
+              <span className={`text-sm font-bold transition-colors ${profile.language === "DE" ? "text-[var(--ts-accent)]" : "text-neutral-400"}`}>DE</span>
             </div>
           </div>
 
@@ -2795,14 +2820,14 @@ function TripIt() {
                       {!editingActiveLegId && (
                         <div className="flex gap-3 mb-4">
                           <button
-                            className={`${btnSecondary} flex-1 py-3 font-bold hover:bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:border-[rgb(var(--ts-accent-rgb)/0.3)]`}
+                            className={`${btnSecondary} flex-1 py-3 font-bold border-[var(--ts-accent)] bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:bg-white active:bg-white`}
                             onClick={handleQuickStart}
                             title="Auto-fill Start Time & Location"
                           >
                             START
                           </button>
                           <button
-                            className={`${btnSecondary} flex-1 py-3 font-bold hover:bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:border-[rgb(var(--ts-accent-rgb)/0.3)]`}
+                            className={`${btnSecondary} flex-1 py-3 font-bold border-[var(--ts-accent)] bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:bg-white active:bg-white`}
                             onClick={handleQuickEnd}
                             title="Auto-fill End Time & Location"
                           >
@@ -2988,13 +3013,8 @@ function TripIt() {
                 ) : (
                   // Start Trip Form
                   <div className="space-y-3">
-                    <div className="flex justify-end">
-                      <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={() => setTemplateModal({ open: true, type: 'trip' })}>
-                        {t("templates")}
-                      </button>
-                    </div>
                     <div>
-                      <label className="text-sm font-medium text-neutral-700 mt-[-20px]">{t("tripTitle")}</label>
+                      <label className="text-sm font-medium text-neutral-700">{t("tripTitle")}</label>
                       <input
                         className={`${inputBase} mt-1`}
                         value={tripStartForm.title}
@@ -3032,9 +3052,23 @@ function TripIt() {
 
             {/* 2. Recent Trips List */}
             <div className={card}>
-              <div className={cardHead}>
-                <div className="font-semibold text-neutral-800">{t("recentTrips")}</div>
+              <div 
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${recentTripsOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)]"}`}
+                onClick={() => setRecentTripsOpen(!recentTripsOpen)}
+              >
+                <div className="font-semibold text-neutral-800 flex items-center gap-2">
+                  <span>{t("recentTrips")}</span>
+                  {!recentTripsOpen && tripsForMonth.length > 0 && (
+                    <span className="text-xs font-normal text-neutral-500">
+                      {tripsForMonth.length} {t("trips")}
+                    </span>
+                  )}
+                </div>
+                <div className="text-neutral-400 text-sm transform transition-transform duration-200" style={{ transform: recentTripsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  ▼
+                </div>
               </div>
+              {recentTripsOpen && (
               <div className={cardPad}>
                 {!activeVehicle ? (
                   <div className="text-sm text-neutral-700">{t("selectVehicleView")}</div>
@@ -3046,18 +3080,31 @@ function TripIt() {
                       const totalKm = trip.legs.reduce((sum, l) => sum + toNumber(l.km), 0);
                       const isExpanded = expandedTripId === trip.id;
                       
+                      let tripLastOdo = null;
+                      if (trip.legs.length > 0) {
+                        tripLastOdo = trip.legs[trip.legs.length - 1].odoEnd;
+                      }
+                      
                       return (
                         <div key={trip.id} className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
                           <div 
-                            className="p-3 flex items-center justify-between cursor-pointer hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] transition"
+                            className="p-3 cursor-pointer hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] transition"
                             onClick={() => toggleTrip(trip.id)}
                           >
-                            <div className="min-w-0">
-                              <div className="font-semibold text-neutral-800 truncate">{trip.title || "Untitled Trip"}</div>
-                              <div className="text-xs text-neutral-500 mt-0.5">{trip.startDate} • {trip.legs.length} {t("legs")}</div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <div className="font-bold text-neutral-800">{totalKm.toFixed(1)} km</div>
+                            <div className="font-semibold text-neutral-800 truncate">{trip.title || "Untitled Trip"}</div>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                              <span>{trip.startDate}</span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[rgb(var(--ts-accent-rgb)/0.3)] text-neutral-800">
+                                {trip.legs.length} {t("legs")}
+                              </span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[rgb(var(--ts-accent-rgb)/0.3)] text-neutral-800">
+                                {totalKm.toFixed(1)} km
+                              </span>
+                              {tripLastOdo != null && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[rgb(var(--ts-accent-rgb)/0.3)] text-neutral-800">
+                                  {t("odoE")}: {tripLastOdo}
+                                </span>
+                              )}
                             </div>
                           </div>
                           
@@ -3101,6 +3148,7 @@ function TripIt() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* 3. Fuel (Updated Workflow) */}
