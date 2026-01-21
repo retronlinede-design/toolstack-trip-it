@@ -53,7 +53,7 @@ const TRANSLATIONS = {
     startTime: "Start Time", endTime: "End Time", odoStart: "Odo Start", odoEnd: "Odo End",
     tripItReport: "Trip-It Report", generated: "Generated:", storageKey: "Storage key:", 
     templates: "Templates", saveTemplate: "Save as Template", templateName: "Template Name", 
-    load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.",
+    load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.", tag: "Tag / Location", startTag: "Start Tag", endTag: "End Tag",
     close: "Close", save: "Save"
   },
   DE: {
@@ -93,7 +93,7 @@ const TRANSLATIONS = {
     startTime: "Startzeit", endTime: "Endzeit", odoStart: "Km Start", odoEnd: "Km Ende",
     tripItReport: "Trip-It Bericht", generated: "Erstellt:", storageKey: "Speicherschlüssel:", 
     templates: "Vorlagen", saveTemplate: "Als Vorlage speichern", templateName: "Vorlagenname", 
-    load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.",
+    load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.", tag: "Tag / Ort", startTag: "Start Tag", endTag: "End Tag",
     close: "Schließen", save: "Speichern"
   }
 };
@@ -631,6 +631,24 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
   );
 }
 
+function TagSuggestions({ tags, onSelect }) {
+  if (!tags.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1.5">
+      {tags.map(t => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onSelect(t)}
+          className="px-2 py-0.5 rounded-md text-[10px] font-medium border border-lime-200 bg-lime-50 text-neutral-800 hover:bg-lime-100 transition"
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ---------- Leg Modal (for saved legs) ----------
 function LegModal({ open, leg, onClose, onSave, t }) {
   const [draft, setDraft] = useState(leg || {});
@@ -638,6 +656,7 @@ function LegModal({ open, leg, onClose, onSave, t }) {
   if (!open) return null;
 
   const handleChange = (f, v) => setDraft(d => ({ ...d, [f]: v }));
+  const uniqueId = useMemo(() => Math.random().toString(36).slice(2), []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
@@ -668,6 +687,14 @@ function LegModal({ open, leg, onClose, onSave, t }) {
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("odoStart")}</label>
               <input className={`${inputBase} mt-1 text-right tabular-nums`} inputMode="decimal" value={draft.odoStart || ""} onChange={e => handleChange("odoStart", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">{t("startTag")}</label>
+              <input className={`${inputBase} mt-1`} value={draft.startTag || ""} onChange={e => handleChange("startTag", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600">{t("endTag")}</label>
+              <input className={`${inputBase} mt-1`} value={draft.endTag || ""} onChange={e => handleChange("endTag", e.target.value)} />
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("odoEnd")}</label>
@@ -926,6 +953,9 @@ function normalizeApp(raw) {
           odoEnd: l.odoEnd != null ? toNumber(l.odoEnd) : null,
           km: toNumber(l.km),
           note: l.note || l.purpose || "", // Map purpose to note for legacy
+          startTag: l.startTag || "",
+          endTag: l.endTag || l.tag || "",
+          tag: l.tag || "",
           createdAt: l.createdAt || new Date().toISOString()
         }));
 
@@ -942,7 +972,13 @@ function normalizeApp(raw) {
           finishedAt: new Date(date).toISOString()
         });
       }
-      normTripsByVehicle[vid] = trips.sort((x, y) => (x.startDate < y.startDate ? 1 : -1));
+      normTripsByVehicle[vid] = trips.sort((a, b) => {
+        const tA = a.startedAt || a.startDate || "";
+        const tB = b.startedAt || b.startDate || "";
+        if (tA > tB) return -1;
+        if (tA < tB) return 1;
+        return 0;
+      });
     }
   }
 
@@ -1198,7 +1234,9 @@ function TripIt() {
     endPlace: "",
     endTime: roundTime(),
     odoEnd: "",
-    note: ""
+    note: "",
+    startTag: "",
+    endTag: ""
   });
   const [editingActiveLegId, setEditingActiveLegId] = useState(null);
   const [savedLegModal, setSavedLegModal] = useState({ open: false, tripId: null, leg: null });
@@ -1345,6 +1383,19 @@ function TripIt() {
     };
   }, [previewOpen, exportModalOpen, activeVehicle, trips, fuelLogs, previewConfig]);
 
+  const legTags = useMemo(() => {
+    const set = new Set(["Home", "Office", "Work", "Client", "Site", "Supply", "Hotel", "Airport"]);
+    if (activeVehicle && app.tripsByVehicle[activeVehicle.id]) {
+      app.tripsByVehicle[activeVehicle.id].forEach(t => {
+        (t.legs || []).forEach(l => {
+          if (l.startTag) set.add(l.startTag);
+          if (l.endTag) set.add(l.endTag);
+        });
+      });
+    }
+    return Array.from(set).sort();
+  }, [app.tripsByVehicle, activeVehicle]);
+
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
   const handleLegKeyDown = (e) => {
@@ -1370,7 +1421,9 @@ function TripIt() {
     setLegForm((prev) => ({
       ...prev,
       startPlace: last.startPlace,
+      startTag: last.startTag || "",
       endPlace: last.endPlace,
+      endTag: last.endTag || last.tag || "",
       note: last.note,
       startTime: roundTime(),
       endTime: "",
@@ -1381,7 +1434,9 @@ function TripIt() {
     setLegForm((prev) => ({
       ...prev,
       startPlace: prev.endPlace,
+      startTag: prev.endTag,
       endPlace: prev.startPlace,
+      endTag: prev.startTag,
     }));
   };
 
@@ -1390,9 +1445,11 @@ function TripIt() {
       const lastLeg = trip.legs[trip.legs.length - 1];
       setLegForm({
         startPlace: lastLeg.endPlace,
+        startTag: lastLeg.endTag || "",
         startTime: roundTime(),
-        odoStart: lastLeg.odoEnd != null ? lastLeg.odoEnd : "",
+        odoStart: (lastLeg && lastLeg.odoEnd != null) ? lastLeg.odoEnd : "",
         endPlace: "",
+        endTag: "",
         endTime: roundTime(),
         odoEnd: "",
         note: ""
@@ -1400,9 +1457,11 @@ function TripIt() {
     } else {
       setLegForm({
         startPlace: "",
+        startTag: "",
         startTime: roundTime(),
         odoStart: legForm.odoStart, // Keep existing odoStart if possible
         endPlace: "",
+        endTag: "",
         endTime: roundTime(),
         odoEnd: "",
         note: ""
@@ -1421,7 +1480,7 @@ function TripIt() {
         let lastOdo = "";
         if (lastTrip && lastTrip.legs.length > 0) {
           const lastLeg = lastTrip.legs[lastTrip.legs.length - 1];
-          if (lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
+          if (lastLeg && lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
         }
         setLegForm(prev => ({
           ...prev,
@@ -1470,7 +1529,9 @@ function TripIt() {
       setLegForm(prev => ({
         ...prev,
         startPlace: tpl.data.startPlace || "",
+        startTag: tpl.data.startTag || "",
         endPlace: tpl.data.endPlace || "",
+        endTag: tpl.data.endTag || "",
         note: tpl.data.note || "",
         odoEnd: ""
       }));
@@ -1572,6 +1633,8 @@ function TripIt() {
       endPlace: legForm.endPlace,
       endTime: legForm.endTime,
       odoEnd: odoEnd,
+      startTag: legForm.startTag,
+      endTag: legForm.endTag,
       km: km,
       note: legForm.note,
     };
@@ -1611,10 +1674,12 @@ function TripIt() {
       startPlace: leg.startPlace,
       startTime: leg.startTime,
       odoStart: leg.odoStart != null ? leg.odoStart : "",
+      startTag: leg.startTag || "",
       endPlace: leg.endPlace,
+      endTag: leg.endTag || leg.tag || "",
       endTime: leg.endTime,
       odoEnd: leg.odoEnd != null ? leg.odoEnd : "",
-      note: leg.note
+      note: leg.note || ""
     });
     setEditingActiveLegId(leg.id);
   };
@@ -2089,7 +2154,12 @@ function TripIt() {
   };
 
   const handleQuickStart = () => {
-    setLegForm((prev) => ({ ...prev, startTime: new Date().toTimeString().slice(0, 5) }));
+    setLegForm((prev) => ({
+      ...prev,
+      startTime: new Date().toTimeString().slice(0, 5),
+      endTime: "",
+      endPlace: ""
+    }));
     getCurrentLocation("startPlace");
   };
 
@@ -2495,6 +2565,7 @@ function TripIt() {
                               </td>
                               <td className="py-2 align-top text-neutral-800">
                                 <div>{l.startPlace} → {l.endPlace}</div>
+                                {(l.startTag || l.endTag) && <div className="text-xs font-medium text-lime-700 bg-lime-50 inline-block px-1.5 rounded mt-0.5">{l.startTag}{l.startTag && l.endTag ? " → " : ""}{l.endTag}</div>}
                                 <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime}</div>
                                 {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
                               </td>
@@ -2724,14 +2795,14 @@ function TripIt() {
                       {!editingActiveLegId && (
                         <div className="flex gap-3 mb-4">
                           <button
-                            className={`${btnSecondary} flex-1 py-3 font-bold text-green-700 bg-green-50 border-green-200 hover:bg-[var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-neutral-800`}
+                            className={`${btnSecondary} flex-1 py-3 font-bold hover:bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:border-[rgb(var(--ts-accent-rgb)/0.3)]`}
                             onClick={handleQuickStart}
                             title="Auto-fill Start Time & Location"
                           >
                             START
                           </button>
                           <button
-                            className={`${btnSecondary} flex-1 py-3 font-bold text-red-700 bg-red-50 border-red-200 hover:bg-[var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-neutral-800`}
+                            className={`${btnSecondary} flex-1 py-3 font-bold hover:bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:border-[rgb(var(--ts-accent-rgb)/0.3)]`}
                             onClick={handleQuickEnd}
                             title="Auto-fill End Time & Location"
                           >
@@ -2754,8 +2825,10 @@ function TripIt() {
                         </div>
                       </div>
                       
-                      <div className="flex flex-wrap gap-2 items-end">
-                        <div className="grow min-w-[120px]">
+                      <div className="space-y-4">
+                        {/* Row 1 & 2: Locations & Tags */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-2">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("from")}</label>
                           <div className="relative">
                             <input
@@ -2777,8 +2850,21 @@ function TripIt() {
                               </svg>
                             </button>
                           </div>
-                        </div>
-                        <div className="grow min-w-[120px]">
+                            
+                            <div>
+                              <input
+                                className={inputBase}
+                                value={legForm.startTag}
+                                onChange={(e) => setLegForm({ ...legForm, startTag: e.target.value })}
+                                onKeyDown={handleLegKeyDown}
+                                onFocus={handleFocus}
+                                placeholder={t("startTag")}
+                              />
+                              <TagSuggestions tags={legTags} onSelect={(t) => setLegForm(prev => ({ ...prev, startTag: t }))} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("to")}</label>
                           <div className="relative">
                             <input
@@ -2800,8 +2886,24 @@ function TripIt() {
                               </svg>
                             </button>
                           </div>
+
+                            <div>
+                              <input
+                                className={inputBase}
+                                value={legForm.endTag}
+                                onChange={(e) => setLegForm({ ...legForm, endTag: e.target.value })}
+                                onKeyDown={handleLegKeyDown}
+                                onFocus={handleFocus}
+                                placeholder={t("endTag")}
+                              />
+                              <TagSuggestions tags={legTags} onSelect={(t) => setLegForm(prev => ({ ...prev, endTag: t }))} />
+                            </div>
+                          </div>
                         </div>
-                        <div className="w-20">
+
+                        {/* Row 3: Details */}
+                        <div className="flex flex-wrap gap-2 items-end">
+                          <div className="w-20">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("start")}</label>
                           <input
                             type="time"
@@ -2811,8 +2913,8 @@ function TripIt() {
                             onKeyDown={handleLegKeyDown}
                             onFocus={handleFocus}
                           />
-                        </div>
-                        <div className="w-20">
+                          </div>
+                          <div className="w-20">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("end")}</label>
                           <input
                             type="time"
@@ -2822,8 +2924,8 @@ function TripIt() {
                             onKeyDown={handleLegKeyDown}
                             onFocus={handleFocus}
                           />
-                        </div>
-                        <div className="w-20">
+                          </div>
+                          <div className="w-20">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoS")}</label>
                           <input
                             className={`${inputBase} text-right tabular-nums`}
@@ -2834,8 +2936,8 @@ function TripIt() {
                             onFocus={handleFocus}
                             placeholder="0"
                           />
-                        </div>
-                        <div className="w-20">
+                          </div>
+                          <div className="w-20">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoE")}</label>
                           <input
                             className={`${inputBase} text-right tabular-nums`}
@@ -2846,8 +2948,8 @@ function TripIt() {
                             onFocus={handleFocus}
                             placeholder="0"
                           />
-                        </div>
-                        <div className="grow min-w-[150px]">
+                          </div>
+                          <div className="grow min-w-[150px]">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("note")}</label>
                           <input
                             className={inputBase}
@@ -2857,7 +2959,9 @@ function TripIt() {
                             onFocus={handleFocus}
                             placeholder={t("optional")}
                           />
+                          </div>
                         </div>
+
                         {editingActiveLegId ? (
                           <div className="flex gap-2">
                             <button className={`${btnSecondary} h-[38px]`} onClick={cancelEditActiveLeg}>
@@ -2974,6 +3078,7 @@ function TripIt() {
                                       </button>
                                     </div>
                                   </div>
+                                  {(l.startTag || l.endTag) && <div className="text-xs font-medium text-lime-700 bg-lime-50 inline-block px-1.5 rounded my-0.5">{l.startTag}{l.startTag && l.endTag ? " → " : ""}{l.endTag}</div>}
                                   <div className="text-xs text-neutral-500">
                                     {l.startTime} - {l.endTime} • Odo: {l.odoStart} - {l.odoEnd}
                                   </div>
