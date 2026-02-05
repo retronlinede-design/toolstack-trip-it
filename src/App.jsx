@@ -572,9 +572,10 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
 
 // ---------- Template Modal ----------
 function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSaveCurrent, t }) {
+  const [newTemplateName, setNewTemplateName] = useState("");
+
   if (!open) return null;
   
-  const [newTemplateName, setNewTemplateName] = useState("");
   const filtered = templates.filter(tpl => tpl.type === type);
 
   return (
@@ -653,10 +654,11 @@ function TagSuggestions({ tags, onSelect }) {
 function LegModal({ open, leg, onClose, onSave, t }) {
   const [draft, setDraft] = useState(leg || {});
   useEffect(() => { setDraft(leg || {}); }, [leg]);
+  const uniqueId = useMemo(() => Math.random().toString(36).slice(2), []);
+
   if (!open) return null;
 
   const handleChange = (f, v) => setDraft(d => ({ ...d, [f]: v }));
-  const uniqueId = useMemo(() => Math.random().toString(36).slice(2), []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
@@ -1394,19 +1396,24 @@ function TripIt() {
   }, [previewOpen, exportModalOpen, activeVehicle, trips, fuelLogs, previewConfig]);
 
   const legTags = useMemo(() => {
-    const set = new Set(["Home", "Office", "Work", "Client", "Site", "Supply", "Hotel", "Airport"]);
+    // Reduced defaults + frequency based sorting
+    const defaults = ["Home", "Work", "Client"];
+    const counts = {};
+
     if (activeVehicle && app.tripsByVehicle[activeVehicle.id]) {
       app.tripsByVehicle[activeVehicle.id].forEach(t => {
-        if (t.tags) set.add(t.tags);
-        if (t.titleTag) set.add(t.titleTag);
-        if (t.purposeTag) set.add(t.purposeTag);
         (t.legs || []).forEach(l => {
-          if (l.startTag) set.add(l.startTag);
-          if (l.endTag) set.add(l.endTag);
+          if (l.startTag) counts[l.startTag] = (counts[l.startTag] || 0) + 1;
+          if (l.endTag) counts[l.endTag] = (counts[l.endTag] || 0) + 1;
         });
       });
     }
-    return Array.from(set).sort();
+
+    const history = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    const combined = new Set(defaults);
+    history.forEach(tag => combined.add(tag));
+
+    return Array.from(combined).slice(0, 8);
   }, [app.tripsByVehicle, activeVehicle]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
@@ -1454,6 +1461,10 @@ function TripIt() {
   };
 
   const resetLegForm = (trip) => {
+    if (trip && trip.draft) {
+      setLegForm(trip.draft);
+      return;
+    }
     if (trip && trip.legs.length > 0) {
       const lastLeg = trip.legs[trip.legs.length - 1];
       setLegForm({
@@ -1516,7 +1527,27 @@ function TripIt() {
         }));
       }
     }
-  }, [activeTrip, trips, editingActiveLegId]);
+  }, [activeTrip?.id, activeTrip?.legs?.length, trips.length, editingActiveLegId]);
+
+  // Persist draft leg
+  useEffect(() => {
+    if (!activeVehicle || !activeTrip || editingActiveLegId) return;
+    const timer = setTimeout(() => {
+      setApp(a => {
+        const currentTrip = a.activeTripByVehicle[activeVehicle.id];
+        if (!currentTrip) return a;
+        if (JSON.stringify(currentTrip.draft) === JSON.stringify(legForm)) return a;
+        return {
+          ...a,
+          activeTripByVehicle: {
+            ...a.activeTripByVehicle,
+            [activeVehicle.id]: { ...currentTrip, draft: legForm }
+          }
+        };
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [legForm, activeVehicle, activeTrip?.id, editingActiveLegId]);
 
   // ---------- Template Logic ----------
   const saveTemplate = (name) => {
@@ -1683,6 +1714,7 @@ function TripIt() {
       const updatedTrip = {
         ...activeTrip,
         legs: [...activeTrip.legs, newLeg]
+        ,draft: null
       };
       setApp(a => ({
         ...a,
@@ -2180,8 +2212,6 @@ function TripIt() {
     setLegForm((prev) => ({
       ...prev,
       startTime: new Date().toTimeString().slice(0, 5),
-      endTime: "",
-      endPlace: ""
     }));
     getCurrentLocation("startPlace");
   };
