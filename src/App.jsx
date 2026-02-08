@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import tripitLogo from "./assets/tripit-logo.png";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -255,39 +256,44 @@ function loadProfile() {
 
 // ---------- Normalized top actions (Master Pack) ----------
 const ACTION_BASE =
-  "print:hidden h-10 rounded-xl border px-3 shadow-sm active:translate-y-[1px] transition flex items-center justify-center min-w-0 " +
-  "text-[13px] sm:text-sm font-medium";
+  "print:hidden group relative h-10 px-2 sm:px-3 flex items-center justify-center min-w-0 " +
+  "text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-200 " +
+  "border-2 border-neutral-700 shadow-[3px_3px_0px_rgba(0,0,0,0.2)] " +
+  "active:translate-y-0.5 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[3px_3px_0px_rgba(0,0,0,0.2)] hover:z-10";
 
 // Match the "?" Help hover (accent tint + accent border)
 const HOVER_ACCENT = "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]";
 
 function ActionButton({ children, onClick, tone = "default", disabled, title }) {
-  const cls =
-    tone === "primary"
-      ? `bg-neutral-700 text-white border-neutral-700 ${HOVER_ACCENT} hover:text-neutral-800`
-      : tone === "danger"
-      ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-      : `bg-white text-neutral-700 border-neutral-200 ${HOVER_ACCENT}`;
+  const cls = disabled
+    ? "bg-neutral-800 text-neutral-500 border-neutral-700"
+    : "bg-neutral-700 text-white hover:-translate-y-1 hover:shadow-[5px_5px_0px_var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)]";
 
   return (
     <button type="button" onClick={onClick} title={title} disabled={disabled} className={`${ACTION_BASE} ${cls}`}>
-      <span className="truncate w-full text-center">{children}</span>
+      <span className="truncate w-full text-center relative z-10">{children}</span>
     </button>
   );
 }
 
 // ---------- Help Pack v1 (Canonical) ----------
+// ---------- Help Pack v1 (Graffiti Style) ----------
 function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(unknown)", actions = [] }) {
   if (!open) return null;
 
   const Card = ({ title, children }) => (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-2">
-      <div className="text-sm font-semibold text-neutral-800">{title}</div>
-      <div className="text-sm text-neutral-700 leading-relaxed space-y-2">{children}</div>
+    <div className="group relative rounded-sm border-2 border-neutral-700 bg-neutral-800 p-4 transition-all hover:border-[var(--ts-accent)] hover:shadow-[4px_4px_0px_var(--ts-accent)] hover:-translate-y-1">
+      <div className="mb-2 text-lg font-black uppercase tracking-tight text-[var(--ts-accent)] drop-shadow-md">{title}</div>
+      <div className="text-sm font-medium text-neutral-300 leading-relaxed space-y-2">{children}</div>
     </div>
   );
 
-  const Bullet = ({ children }) => <li className="ml-4 list-disc">{children}</li>;
+  const Bullet = ({ children }) => (
+    <li className="flex items-start gap-2">
+      <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-[var(--ts-accent)]" />
+      <span>{children}</span>
+    </li>
+  );
 
   const baseActions = [
     { name: "Preview", desc: "Open a clean report sheet inside the app (print-safe)." },
@@ -309,53 +315,59 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
   });
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+    <div className="fixed inset-0 z-50 backdrop-blur-sm">
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
-          <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm text-neutral-500">ToolStack • Help Pack v1</div>
-              <h2 className="text-lg font-semibold text-neutral-800">{appName} — how your data works</h2>
-              <div className="mt-3">
-                <AccentUnderline className="w-56" />
-              </div>
+        <div className="w-full max-w-3xl transform border-4 border-[var(--ts-accent)] bg-neutral-900 shadow-[8px_8px_0px_rgba(0,0,0,0.5)] overflow-hidden">
+          
+          {/* Header */}
+          <div className="relative border-b-4 border-[var(--ts-accent)] bg-neutral-900 p-6 flex items-start justify-between gap-4">
+            <div className="relative z-10">
+              <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Help Pack v1</div>
+              <h2 className="mt-1 text-4xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
+                {appName} <span className="text-[var(--ts-accent)]">Help</span>
+              </h2>
+              <div className="mt-2 text-sm font-bold text-neutral-400 uppercase tracking-wide">How your data works</div>
             </div>
 
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+              className="group relative px-4 py-2 font-black uppercase tracking-wider text-neutral-900 bg-[var(--ts-accent)] hover:bg-white transition-colors border-2 border-[var(--ts-accent)] hover:border-[var(--ts-accent)]"
               onClick={onClose}
             >
-              Close
+              <span className="relative z-10">Close X</span>
             </button>
+            
+            {/* Graffiti splatter decoration (CSS shapes) */}
+            <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[var(--ts-accent)] opacity-20 blur-2xl pointer-events-none"></div>
           </div>
 
-          <div className="p-4 space-y-3 max-h-[70vh] overflow-auto">
+          <div className="p-6 space-y-6 max-h-[70vh] overflow-auto bg-neutral-900 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
+            
             <Card title="Quick start">
-              <ul className="space-y-1">
-                <Bullet>Start a <b>Trip</b> when you begin your day or journey.</Bullet>
-                <Bullet>Log individual <b>Legs</b> (Start → End) as you drive.</Bullet>
-                <Bullet>Click <b>End Trip</b> when you are done.</Bullet>
-                <Bullet>Use <b>Export</b> regularly to create backups.</Bullet>
+              <ul className="space-y-2">
+                <Bullet>Start a <b className="text-white">Trip</b> when you begin your day or journey.</Bullet>
+                <Bullet>Log individual <b className="text-white">Legs</b> (Start → End) as you drive.</Bullet>
+                <Bullet>Click <b className="text-white">End Trip</b> when you are done.</Bullet>
+                <Bullet>Use <b className="text-white">Export</b> regularly to create backups.</Bullet>
               </ul>
             </Card>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <Card title="Where your data lives">
                 <p>
-                  Your data is stored in your browser on <b>this device</b> (localStorage). No login required.
+                  Your data is stored in your browser on <b className="text-white">this device</b> (localStorage). No login required.
                 </p>
-                <ul className="space-y-1">
+                <ul className="mt-2 space-y-2">
                   <Bullet>Switching device/browser will not carry your data over automatically.</Bullet>
                   <Bullet>Incognito/private mode may not persist data.</Bullet>
                 </ul>
               </Card>
 
               <Card title="Backup routine">
-                <ul className="space-y-1">
+                <ul className="space-y-2">
                   <Bullet>
-                    Export after big changes, or at least <b>weekly</b>.
+                    Export after big changes, or at least <b className="text-white">weekly</b>.
                   </Bullet>
                   <Bullet>Keep 2–3 older exports as fallback.</Bullet>
                   <Bullet>Save exports to Drive/Dropbox/OneDrive (or email to yourself).</Bullet>
@@ -365,31 +377,31 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
             <Card title="Restore / move to a new device (Import)">
               <p>
-                On a new device/browser (or after clearing site data), click <b>Import</b> and choose your latest exported JSON.
+                On a new device/browser (or after clearing site data), click <b className="text-white">Import</b> and choose your latest exported JSON.
               </p>
-              <ul className="space-y-1">
+              <ul className="mt-2 space-y-2">
                 <Bullet>Import replaces the current saved data with the file contents.</Bullet>
                 <Bullet>If an import fails, try an older export (versions can differ).</Bullet>
               </ul>
             </Card>
 
-            <Card title="Buttons glossary (same meaning across ToolStack)">
-              <div className="rounded-2xl border border-neutral-200 bg-white px-3">
+            <Card title="Buttons glossary">
+              <div className="divide-y-2 divide-neutral-700 border-2 border-neutral-700 bg-neutral-800">
                 {[...baseActions, ...extra].map((a) => (
                   <div
                     key={a.name}
-                    className="flex items-start justify-between gap-4 py-2 border-b border-neutral-100 last:border-b-0"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 hover:bg-neutral-700/50 transition-colors"
                   >
-                    <div className="text-sm font-medium text-neutral-800">{a.name}</div>
-                    <div className="text-sm text-neutral-600 text-right">{a.desc}</div>
+                    <div className="font-bold text-[var(--ts-accent)] uppercase tracking-tight">{a.name}</div>
+                    <div className="text-xs font-medium text-neutral-400 sm:text-right">{a.desc}</div>
                   </div>
                 ))}
               </div>
             </Card>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <Card title="What can erase local data">
-                <ul className="space-y-1">
+                <ul className="space-y-2">
                   <Bullet>Clearing browser history / site data.</Bullet>
                   <Bullet>“Cleaner/optimizer” tools.</Bullet>
                   <Bullet>Different browser profile or reinstall.</Bullet>
@@ -397,23 +409,23 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
               </Card>
 
               <Card title="Storage key (for troubleshooting)">
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
-                  <span className="font-medium">localStorage key:</span> <span className="font-mono">{storageKey}</span>
+                <div className="rounded-sm border-2 border-dashed border-neutral-600 bg-neutral-900 px-3 py-2 text-xs font-mono text-[var(--ts-accent)] break-all">
+                  {storageKey}
                 </div>
-                <p className="text-xs text-neutral-600">
+                <p className="mt-2 text-xs text-neutral-500">
                   Tip: If data looks “missing”, it’s usually a different device/browser/profile or cleared site data.
                 </p>
               </Card>
             </div>
           </div>
 
-          <div className="p-4 border-t border-neutral-100 flex items-center justify-end gap-2">
+          <div className="border-t-4 border-[var(--ts-accent)] bg-neutral-900 p-4 flex items-center justify-end gap-2">
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+              className="px-6 py-3 font-black uppercase tracking-wider text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:scale-105 transition-all shadow-[4px_4px_0px_rgba(255,255,255,0.2)]"
               onClick={onClose}
             >
-              Close
+              Got it
             </button>
           </div>
         </div>
@@ -423,22 +435,17 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 }
 
 // ---------- UI helpers ----------
-const btnSecondary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white text-neutral-800 shadow-sm " +
-  "active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed " +
-  HOVER_ACCENT;
+const BTN_BASE = "print:hidden group relative inline-flex items-center justify-center px-4 py-2 rounded-sm text-xs font-black uppercase tracking-wider transition-all duration-200 border-2 shadow-[3px_3px_0px_rgba(0,0,0,0.2)] active:translate-y-0.5 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed";
 
-const btnPrimary =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white shadow-sm " +
-  "active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed " +
-  HOVER_ACCENT +
-  " hover:text-neutral-800";
+const btnSecondary = `${BTN_BASE} border-neutral-700 bg-neutral-700 text-white hover:bg-[var(--ts-accent)] hover:text-neutral-900 hover:border-[var(--ts-accent)] hover:-translate-y-1 hover:shadow-[5px_5px_0px_var(--ts-accent)]`;
+
+const btnPrimary = btnSecondary;
 
 // Accent (green) button (requested: green with dark-grey text)
-const btnAccent =
-  "print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-800 shadow-sm " +
-  "active:translate-y-[1px] transition disabled:opacity-50 disabled:cursor-not-allowed " +
-  "hover:bg-[rgb(var(--ts-accent-rgb)/0.85)]";
+const btnAccent = `${BTN_BASE} border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-900 hover:bg-white hover:text-neutral-900 hover:border-[var(--ts-accent)] hover:-translate-y-1 hover:shadow-[5px_5px_0px_rgba(0,0,0,0.2)]`;
+
+const btnDanger = `${BTN_BASE} border-red-500 bg-red-500 text-white hover:bg-white hover:text-red-600 hover:border-red-500 hover:-translate-y-1 hover:shadow-[5px_5px_0px_rgba(0,0,0,0.2)]`;
+
 
 const inputBase =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]";
@@ -451,11 +458,11 @@ const cardPad = "p-4";
 function Pill({ children, tone = "default" }) {
   const cls =
     tone === "accent"
-      ? "border-lime-200 bg-lime-50 text-neutral-800"
+      ? "bg-[var(--ts-accent)] text-neutral-900 border-neutral-700"
       : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-neutral-800"
-      : "border-neutral-200 bg-white text-neutral-800";
-  return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}>{children}</span>;
+      ? "bg-red-500 text-white border-neutral-700"
+      : "bg-neutral-700 text-white border-neutral-700";
+  return <span className={`inline-flex items-center px-2 py-1 rounded-sm text-[10px] sm:text-xs font-black uppercase tracking-wider border-2 shadow-[2px_2px_0px_rgba(0,0,0,0.2)] transform -rotate-1 hover:rotate-0 transition-transform ${cls}`}>{children}</span>;
 }
 
 function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm, onCancel }) {
@@ -474,14 +481,14 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
         <div className="p-4 flex items-center justify-end gap-2">
           <button
             type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+            className={btnSecondary}
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition"
+            className={btnDanger}
             onClick={onConfirm}
           >
             {confirmText}
@@ -509,7 +516,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
             </div>
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+              className={btnSecondary}
               onClick={onClose}
             >
               Close
@@ -551,14 +558,14 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
           <div className="p-4 border-t border-neutral-100 flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+              className={btnSecondary}
               onClick={onCopy}
             >
               Copy
             </button>
             <button
               type="button"
-              className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 bg-neutral-700 text-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] hover:text-neutral-800 transition"
+              className={btnAccent}
               onClick={onOpenEmail}
             >
               Open email
@@ -619,8 +626,8 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
                 <div key={tpl.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white hover:border-neutral-300 transition">
                   <div className="font-medium text-neutral-800 truncate pr-2">{tpl.name}</div>
                   <div className="flex gap-2 shrink-0">
-                    <button className="text-xs font-medium text-neutral-600 hover:text-neutral-900 px-2 py-1 bg-neutral-50 rounded border border-neutral-200" onClick={() => onLoad(tpl)}>{t("load")}</button>
-                    <button className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 bg-red-50 rounded border border-red-100" onClick={() => onDelete(tpl.id)}>{t("delete")}</button>
+                    <button className="px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-neutral-700 bg-neutral-700 text-white hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={() => onLoad(tpl)}>{t("load")}</button>
+                    <button className="px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-red-500 bg-red-500 text-white hover:bg-white hover:text-red-600 transition-all" onClick={() => onDelete(tpl.id)}>{t("delete")}</button>
                   </div>
                 </div>
               ))
@@ -641,7 +648,7 @@ function TagSuggestions({ tags, onSelect }) {
           key={t}
           type="button"
           onClick={() => onSelect(t)}
-          className="px-2 py-0.5 rounded-md text-[10px] font-medium border border-lime-200 bg-lime-50 text-neutral-800 hover:bg-lime-100 transition"
+          className="px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
         >
           {t}
         </button>
@@ -651,7 +658,7 @@ function TagSuggestions({ tags, onSelect }) {
 }
 
 // ---------- Leg Modal (for saved legs) ----------
-function LegModal({ open, leg, onClose, onSave, t }) {
+function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
   const [draft, setDraft] = useState(leg || {});
   useEffect(() => { setDraft(leg || {}); }, [leg]);
   const uniqueId = useMemo(() => Math.random().toString(36).slice(2), []);
@@ -672,11 +679,11 @@ function LegModal({ open, leg, onClose, onSave, t }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("from")}</label>
-              <input className={`${inputBase} mt-1`} value={draft.startPlace || ""} onChange={e => handleChange("startPlace", e.target.value)} />
+              <input className={`${inputBase} mt-1`} value={draft.startPlace || ""} onChange={e => handleChange("startPlace", e.target.value)} list="leg-modal-locations" />
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("to")}</label>
-              <input className={`${inputBase} mt-1`} value={draft.endPlace || ""} onChange={e => handleChange("endPlace", e.target.value)} />
+              <input className={`${inputBase} mt-1`} value={draft.endPlace || ""} onChange={e => handleChange("endPlace", e.target.value)} list="leg-modal-locations" />
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("startTime")}</label>
@@ -712,6 +719,9 @@ function LegModal({ open, leg, onClose, onSave, t }) {
           <button className={btnSecondary} onClick={onClose}>{t("cancel")}</button>
           <button className={btnAccent} onClick={() => onSave(draft)}>{t("save")}</button>
         </div>
+        <datalist id="leg-modal-locations">
+          {suggestions.map((s, i) => <option key={i} value={s} />)}
+        </datalist>
       </div>
     </div>
   );
@@ -821,7 +831,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
                 </div>
                 <button
                   type="button"
-                  className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+                  className={btnSecondary}
                   onClick={() => setOpen(false)}
                 >
                   {t("close")}
@@ -851,12 +861,11 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
                       <button
                         key={m.n}
                         type="button"
-                        className={
-                          "h-10 rounded-xl border text-sm font-medium transition " +
-                          (active
-                            ? "border-neutral-700 bg-neutral-700 text-white"
-                            : "border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-700")
-                        }
+                        className={`h-10 rounded-sm border-2 text-xs font-black uppercase tracking-wider transition-all ${
+                          active
+                            ? "border-neutral-700 bg-neutral-700 text-white shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
+                            : "border-neutral-200 bg-white text-neutral-600 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)]"
+                        }`}
                         onClick={() => pick(m.n)}
                       >
                         {m.label}
@@ -868,7 +877,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
                 <div className="flex items-center justify-between gap-2 pt-2">
                   <button
                     type="button"
-                    className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] text-neutral-800 transition"
+                    className={btnSecondary}
                     onClick={setThisMonth}
                   >
                     {t("thisMonth")}
@@ -1414,6 +1423,19 @@ function TripIt() {
     history.forEach(tag => combined.add(tag));
 
     return Array.from(combined).slice(0, 8);
+  }, [app.tripsByVehicle, activeVehicle]);
+
+  const allLocations = useMemo(() => {
+    const counts = {};
+    if (activeVehicle && app.tripsByVehicle[activeVehicle.id]) {
+      app.tripsByVehicle[activeVehicle.id].forEach(t => {
+        (t.legs || []).forEach(l => {
+          if (l.startPlace) counts[l.startPlace] = (counts[l.startPlace] || 0) + 1;
+          if (l.endPlace) counts[l.endPlace] = (counts[l.endPlace] || 0) + 1;
+        });
+      });
+    }
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   }, [app.tripsByVehicle, activeVehicle]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
@@ -2290,6 +2312,7 @@ function TripIt() {
         onClose={() => setSavedLegModal({ open: false, tripId: null, leg: null })} 
         onSave={saveSavedLeg} 
         t={t}
+        suggestions={allLocations}
       />
 
       <TemplateModal 
@@ -2305,21 +2328,35 @@ function TripIt() {
 
       {/* Export Menu Modal */}
       {exportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setExportModalOpen(false)} />
-          <div className="relative w-full max-w-lg rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-              <div className="font-semibold text-neutral-800">{t("export")}</div>
-              <button className={btnSecondary} onClick={() => setExportModalOpen(false)}>{t("close")}</button>
+        <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8">
+          <div className="absolute inset-0 bg-black/80" onClick={() => setExportModalOpen(false)} />
+          <div className="relative w-full max-w-lg transform border-4 border-[var(--ts-accent)] bg-neutral-900 shadow-[8px_8px_0px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="relative border-b-4 border-[var(--ts-accent)] bg-neutral-900 p-6 flex items-center justify-between z-10">
+              <div>
+                 <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Data</div>
+                 <h2 className="mt-1 text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
+                  {t("export")}
+                 </h2>
+              </div>
+              <button 
+                className="group relative px-4 py-2 font-black uppercase tracking-wider text-black bg-[var(--ts-accent)] hover:bg-white transition-colors border-2 border-transparent hover:border-[var(--ts-accent)]"
+                onClick={() => setExportModalOpen(false)}
+              >
+                <span className="relative z-10">Close X</span>
+              </button>
+              {/* Graffiti splatter decoration */}
+              <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[var(--ts-accent)] opacity-20 blur-2xl pointer-events-none"></div>
             </div>
             
-            <div className="p-4 overflow-y-auto space-y-6">
+            <div className="p-6 overflow-y-auto space-y-8 bg-neutral-900 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
               {/* Range Selector */}
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("rangeSelection")}</div>
+              <div className="space-y-3">
+                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("rangeSelection")}</div>
                 <div className="flex flex-wrap gap-2">
                   <select 
-                    className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] w-full sm:w-auto"
+                    className="h-12 rounded-sm border-2 border-neutral-700 bg-neutral-700 px-3 text-sm font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] w-full sm:w-auto"
                     value={previewConfig.mode}
                     onChange={(e) => updatePreviewMode(e.target.value)}
                   >
@@ -2332,14 +2369,14 @@ function TripIt() {
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <input 
                       type="date" 
-                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] grow"
+                      className="h-12 rounded-sm border-2 border-neutral-700 bg-neutral-700 px-3 text-sm font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] grow"
                       value={previewConfig.start}
                       onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
                     />
-                    <span className="text-neutral-400">-</span>
+                    <span className="text-neutral-500 font-black">-</span>
                     <input 
                       type="date" 
-                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] grow"
+                      className="h-12 rounded-sm border-2 border-neutral-700 bg-neutral-700 px-3 text-sm font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] grow"
                       value={previewConfig.end}
                       onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
                     />
@@ -2348,36 +2385,38 @@ function TripIt() {
               </div>
 
               {/* Reports */}
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("reports")}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button className={btnSecondary} onClick={() => { setExportModalOpen(false); setPreviewOpen(true); }}>
-                    {t("previewPack")}
+              <div className="space-y-3">
+                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("reports")}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button className="group relative p-4 text-left border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:-translate-y-1 transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); }}>
+                    <div className="font-black text-white uppercase tracking-tight group-hover:text-[var(--ts-accent)]">{t("previewPack")}</div>
+                    <div className="text-xs text-neutral-400 mt-1">View report on screen</div>
                   </button>
-                  <button className={btnSecondary} onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>
-                    {t("printSavePdf")}
+                  <button className="group relative p-4 text-left border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:-translate-y-1 transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>
+                    <div className="font-black text-white uppercase tracking-tight group-hover:text-[var(--ts-accent)]">{t("printSavePdf")}</div>
+                    <div className="text-xs text-neutral-400 mt-1">Print or Save as PDF</div>
                   </button>
                 </div>
               </div>
 
               {/* CSV / Share */}
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("csvShare")}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button className={btnSecondary} onClick={exportPreviewCSV}>{t("exportCsv")}</button>
-                  <button className={btnSecondary} onClick={copySummary}>{t("copySummary")}</button>
-                  <button className={btnSecondary} onClick={openEmail}>{t("emailSummary")}</button>
+              <div className="space-y-3">
+                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("csvShare")}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={exportPreviewCSV}>{t("exportCsv")}</button>
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={copySummary}>{t("copySummary")}</button>
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={openEmail}>{t("emailSummary")}</button>
                 </div>
               </div>
 
               {/* Data Backup */}
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("dataBackup")}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button className={btnSecondary} onClick={exportJSON}>{t("exportJson")}</button>
-                  <button className={btnSecondary} onClick={onImportPick}>{t("importJson")}</button>
+              <div className="space-y-3">
+                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("dataBackup")}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button className="h-12 font-bold text-sm text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:text-neutral-900 transition-all" onClick={exportJSON}>{t("exportJson")}</button>
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={onImportPick}>{t("importJson")}</button>
                 </div>
-                <div className="text-xs text-neutral-400">{t("fullBackupDesc")}</div>
+                <div className="text-xs text-neutral-500 font-mono">{t("fullBackupDesc")}</div>
               </div>
             </div>
           </div>
@@ -2498,19 +2537,23 @@ function TripIt() {
 
       {/* Print Preview Modal */}
       {previewOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewOpen(false)} />
-          <div className="relative w-full max-w-5xl flex flex-col max-h-[90vh]">
-            {/* Controls Header (Non-printable) */}
-            <div className="mb-3 rounded-2xl bg-white border border-neutral-200 shadow-sm p-3 print:hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8">
+          <div className="absolute inset-0 bg-black/80" onClick={() => setPreviewOpen(false)} />
+          <div className="relative w-full max-w-5xl transform border-4 border-[var(--ts-accent)] bg-neutral-900 shadow-[8px_8px_0px_rgba(0,0,0,0.5)] flex flex-col max-h-[90vh]">
+            
+            {/* Header (Controls) */}
+            <div className="relative border-b-4 border-[var(--ts-accent)] bg-neutral-900 p-4 sm:p-6 z-10 print:hidden">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 relative z-20">
                 <div>
-                  <div className="text-sm text-neutral-500">ToolStack • Preview</div>
-                  <div className="text-lg font-semibold text-neutral-800">{t("tripItReport")}</div>
+                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Preview</div>
+                  <h2 className="mt-1 text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
+                    {t("tripItReport")}
+                  </h2>
                 </div>
+                
                 <div className="flex flex-wrap items-center gap-2">
                   <select 
-                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]"
+                    className="h-10 rounded-sm border-2 border-neutral-700 bg-neutral-800 px-2 text-xs font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] uppercase tracking-wider"
                     value={previewConfig.mode}
                     onChange={(e) => updatePreviewMode(e.target.value)}
                   >
@@ -2521,33 +2564,43 @@ function TripIt() {
                     <option value="custom">Custom</option>
                   </select>
                   
-                  <input 
-                    type="date" 
-                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]"
-                    value={previewConfig.start}
-                    onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
-                  />
-                  <span className="text-neutral-400">-</span>
-                  <input 
-                    type="date" 
-                    className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]"
-                    value={previewConfig.end}
-                    onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
-                  />
+                  <div className="flex items-center gap-1 bg-neutral-800 border-2 border-neutral-700 rounded-sm px-1">
+                    <input 
+                      type="date" 
+                      className="h-9 bg-transparent text-xs font-bold text-white focus:outline-none uppercase tracking-wider w-24 sm:w-auto"
+                      value={previewConfig.start}
+                      onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
+                    />
+                    <span className="text-neutral-500 font-black">-</span>
+                    <input 
+                      type="date" 
+                      className="h-9 bg-transparent text-xs font-bold text-white focus:outline-none uppercase tracking-wider w-24 sm:w-auto"
+                      value={previewConfig.end}
+                      onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
+                    />
+                  </div>
                   
-                  <div className="w-px h-6 bg-neutral-200 mx-1 hidden sm:block"></div>
+                  <div className="w-px h-8 bg-neutral-700 mx-1 hidden xl:block"></div>
 
                   <button className={btnSecondary} onClick={exportPreviewCSV}>CSV</button>
                   <button className={btnSecondary} onClick={exportPreviewJSON}>JSON</button>
-                  <button className={btnPrimary} onClick={() => window.print()}>Print</button>
-                  <button className={btnSecondary} onClick={() => setPreviewOpen(false)}>{t("close")}</button>
+                  <button className={btnAccent} onClick={() => window.print()}>Print</button>
+                  <button 
+                    className="group relative px-3 py-2 font-black uppercase tracking-wider text-white border-2 border-neutral-700 bg-neutral-800 hover:border-red-500 hover:text-red-500 transition-all"
+                    onClick={() => setPreviewOpen(false)}
+                  >
+                    X
+                  </button>
                 </div>
               </div>
+              
+              {/* Graffiti splatter decoration */}
+              <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[var(--ts-accent)] opacity-20 blur-2xl pointer-events-none"></div>
             </div>
 
-            {/* Printable Content */}
-            <div className="rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-auto flex-1">
-              <div id="tripit-print" className="p-6 sm:p-10">
+            {/* Printable Content Area */}
+            <div className="overflow-auto flex-1 bg-neutral-900 p-4 sm:p-8 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
+              <div id="tripit-print" className="bg-white text-neutral-900 p-8 sm:p-12 shadow-[0_0_50px_rgba(0,0,0,0.5)] mx-auto max-w-4xl min-h-[800px]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-2xl font-bold tracking-tight text-neutral-800">{profile.org || "ToolStack"}</div>
@@ -2648,37 +2701,27 @@ function TripIt() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="w-fit">
-              <div className="text-4xl sm:text-5xl font-black tracking-tight text-neutral-700">
-                <span>Trip</span>
-                <span style={{ color: ACCENT }}>It</span>
-              </div>
-              <div className="mt-3">
-                <AccentUnderline className="w-full" />
-              </div>
+              <img
+                src={tripitLogo}
+                alt="TripIt"
+                className="h-28 w-auto sm:h-40 select-none mix-blend-multiply"
+                draggable="false"
+              />
             </div>
-            <div className="mt-2 text-sm text-neutral-700">{t("recordTrips")}</div>
-            <div className="mt-4 flex items-center gap-3">
-              <span className={`text-sm font-bold transition-colors ${profile.language === "EN" ? "text-[var(--ts-accent)]" : "text-neutral-400"}`}>EN</span>
-              <button
-                onClick={toggleLang}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 ${
-                  profile.language === "DE" ? "bg-[var(--ts-accent)]" : "bg-[rgb(var(--ts-accent-rgb)/0.3)]"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-                    profile.language === "DE" ? "translate-x-6 bg-neutral-800" : "translate-x-1 bg-white"
-                  }`}
-                />
-              </button>
-              <span className={`text-sm font-bold transition-colors ${profile.language === "DE" ? "text-[var(--ts-accent)]" : "text-neutral-400"}`}>DE</span>
-            </div>
+            {activeVehicle && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Pill>{tripTotals.tripCount} {t("trips")}</Pill>
+                <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
+                <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
+                <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
+              </div>
+            )}
           </div>
 
           {/* Normalized top actions grid (with pinned help) */}
-          <div className="w-full sm:w-[820px]">
+          <div className="w-full sm:flex-1 lg:flex-none lg:w-3/5">
             <div className="relative">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 pr-12">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 pr-24">
                 <ActionButton onClick={openHub} title={t("returnHub")}>
                   {t("hub")}
                 </ActionButton>
@@ -2692,15 +2735,39 @@ function TripIt() {
                 type="button"
                 title="Help"
                 onClick={() => setHelpOpen(true)}
-                className={
-                  "print:hidden absolute right-0 top-0 h-10 w-10 rounded-xl border border-neutral-200 bg-white shadow-sm " +
-                  "flex items-center justify-center font-bold text-neutral-800 transition " +
-                  "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]"
-                }
+                className="print:hidden absolute right-0 top-0 h-12 w-12 z-30 group"
                 aria-label="Help"
               >
-                ?
+                <div className="absolute inset-0 bg-neutral-700 border-2 border-[var(--ts-accent)] shadow-[4px_4px_0px_rgba(0,0,0,0.5)] flex items-center justify-center transform transition-all group-hover:-translate-y-1 group-hover:shadow-[6px_6px_0px_var(--ts-accent)]">
+                  <span className="text-2xl font-black text-[var(--ts-accent)] italic">?</span>
+                </div>
               </button>
+
+              <div className="print:hidden absolute right-0 top-20 flex items-center justify-end z-20">
+                <div className="flex bg-neutral-800 p-1 gap-1 border-2 border-neutral-800 shadow-[4px_4px_0px_rgba(0,0,0,0.1)]">
+                  <button
+                    onClick={() => setProfile(p => ({ ...p, language: "EN" }))}
+                    className={`px-2 py-1 text-xs font-black uppercase tracking-tighter transition-all border-2 ${
+                      profile.language === "EN"
+                        ? "bg-[var(--ts-accent)] border-[var(--ts-accent)] text-black shadow-[2px_2px_0px_white] -translate-y-0.5"
+                        : "bg-transparent border-transparent text-neutral-500 hover:text-white"
+                    }`}
+                  >
+                    EN
+                  </button>
+                  <button
+                    onClick={() => setProfile(p => ({ ...p, language: "DE" }))}
+                    className={`px-2 py-1 text-xs font-black uppercase tracking-tighter transition-all border-2 ${
+                      profile.language === "DE"
+                        ? "bg-[var(--ts-accent)] border-[var(--ts-accent)] text-black shadow-[2px_2px_0px_white] -translate-y-0.5"
+                        : "bg-transparent border-transparent text-neutral-500 hover:text-white"
+                    }`}
+                  >
+                    DE
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -2746,7 +2813,7 @@ function TripIt() {
                           {t("edit")}
                         </button>
                         <button
-                          className="print:hidden px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 shadow-sm hover:bg-red-100 active:translate-y-[1px] transition"
+                          className={btnDanger}
                           onClick={() => setConfirm({ open: true, kind: "vehicle", id: activeVehicle.id })}
                         >
                           {t("delete")}
@@ -2766,23 +2833,6 @@ function TripIt() {
                 ) : null}
               </div>
             </div>
-
-            {/* Hide the “0 trips / Jan 2026 / etc” summary until a vehicle exists */}
-            {activeVehicle ? (
-              <div className={card}>
-                <div className={cardHead}>
-                  <div className="font-semibold text-neutral-800">{t("monthSummary")}</div>
-                </div>
-                <div className={`${cardPad} space-y-2`}>
-                  <div className="flex flex-wrap gap-2">
-                    <Pill>{tripTotals.tripCount} {t("trips")}</Pill>
-                    <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
-                    <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
-                    <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
-                  </div>
-                </div>
-              </div>
-            ) : null}
           </div>
 
           {/* Right: Trips + Fuel */}
@@ -2790,13 +2840,16 @@ function TripIt() {
             
             {/* 1. Active Trip Card */}
             <div className={card}>
-              <div className={`${cardHead} flex items-center justify-between gap-3`}>
+              <div className={`${cardHead} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
                 <div className="font-semibold text-neutral-800">{activeTrip ? t("activeTrip") : t("startTrip")}</div>
-                {activeTrip ? (
-                  <button className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition" onClick={() => setConfirm({ open: true, kind: "cancel", id: null })}>
-                    {t("cancelTrip")}
-                  </button>
-                ) : null}
+                
+                <div className="flex flex-wrap items-center gap-3 justify-end">
+                  {activeTrip ? (
+                    <button className="text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-800 px-2 py-1 border-2 border-red-100 bg-red-50 rounded-sm transition" onClick={() => setConfirm({ open: true, kind: "cancel", id: null })}>
+                      {t("cancelTrip")}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               <div className={cardPad}>
                 {storageError && (
@@ -2827,13 +2880,13 @@ function TripIt() {
                             </div>
                             <div className="flex items-center gap-2">
                               <button 
-                                className="text-xs text-neutral-600 hover:text-neutral-800 px-2"
+                                className="text-[10px] font-black uppercase tracking-wider text-neutral-500 hover:text-neutral-800 px-2"
                                 onClick={() => editActiveLeg(l)}
                               >
                                 {t("edit")}
                               </button>
                               <button 
-                                className="text-xs text-red-600 hover:text-red-800 px-2"
+                                className="text-[10px] font-black uppercase tracking-wider text-red-500 hover:text-red-700 px-2"
                                 onClick={() => deleteLeg(l.id)}
                               >
                                 {t("delete")}
@@ -2850,14 +2903,14 @@ function TripIt() {
                       {!editingActiveLegId && (
                         <div className="flex gap-3 mb-4">
                           <button
-                            className={`${btnSecondary} flex-1 py-3 font-bold border-[var(--ts-accent)] bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:bg-white active:bg-white`}
+                            className={`${btnSecondary} flex-1 py-3 border-[var(--ts-accent)] bg-neutral-700 text-[var(--ts-accent)] hover:bg-white hover:text-neutral-900`}
                             onClick={handleQuickStart}
                             title="Auto-fill Start Time & Location"
                           >
                             START
                           </button>
                           <button
-                            className={`${btnSecondary} flex-1 py-3 font-bold border-[var(--ts-accent)] bg-[rgb(var(--ts-accent-rgb)/0.3)] hover:bg-white active:bg-white`}
+                            className={`${btnSecondary} flex-1 py-3 border-[var(--ts-accent)] bg-neutral-700 text-[var(--ts-accent)] hover:bg-white hover:text-neutral-900`}
                             onClick={handleQuickEnd}
                             title="Auto-fill End Time & Location"
                           >
@@ -2893,6 +2946,7 @@ function TripIt() {
                               onKeyDown={handleLegKeyDown}
                               onFocus={handleFocus}
                               placeholder={t("start")}
+                              list="locations-list"
                             />
                             <button
                               type="button"
@@ -2929,6 +2983,7 @@ function TripIt() {
                               onKeyDown={handleLegKeyDown}
                               onFocus={handleFocus}
                               placeholder={t("end")}
+                              list="locations-list"
                             />
                             <button
                               type="button"
@@ -2958,7 +3013,7 @@ function TripIt() {
 
                         {/* Row 3: Details */}
                         <div className="flex flex-wrap gap-2 items-end">
-                          <div className="w-20">
+                          <div className="w-28">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("start")}</label>
                           <input
                             type="time"
@@ -2969,7 +3024,7 @@ function TripIt() {
                             onFocus={handleFocus}
                           />
                           </div>
-                          <div className="w-20">
+                          <div className="w-28">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("end")}</label>
                           <input
                             type="time"
@@ -3019,20 +3074,24 @@ function TripIt() {
 
                         {editingActiveLegId ? (
                           <div className="flex gap-2">
-                            <button className={`${btnSecondary} h-[38px]`} onClick={cancelEditActiveLeg}>
+                            <button className={btnSecondary} onClick={cancelEditActiveLeg}>
                               {t("cancel")}
                             </button>
-                            <button className={`${btnAccent} h-[38px]`} onClick={saveActiveLeg}>
+                            <button className={btnAccent} onClick={saveActiveLeg}>
                               {t("update")}
                             </button>
                           </div>
                         ) : (
-                          <button className={`${btnSecondary} h-[38px]`} onClick={saveActiveLeg}>
+                          <button className={btnSecondary} onClick={saveActiveLeg}>
                             {t("add")}
                           </button>
                         )}
                       </div>
                     </div>
+
+                    <datalist id="locations-list">
+                      {allLocations.map((s, i) => <option key={i} value={s} />)}
+                    </datalist>
 
                     <div className="pt-4 border-t border-neutral-100 flex justify-end">
                       <button className={btnAccent} onClick={endTrip}>
@@ -3083,7 +3142,7 @@ function TripIt() {
             {/* 2. Recent Trips List */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${recentTripsOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${recentTripsOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[var(--ts-accent)]"}`}
                 onClick={() => setRecentTripsOpen(!recentTripsOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3148,7 +3207,7 @@ function TripIt() {
                                     <div className="flex items-center gap-2">
                                       <span className="text-neutral-600">{l.km.toFixed(1)} km</span>
                                       <button 
-                                        className="text-xs text-neutral-500 hover:text-neutral-800 underline"
+                                        className="text-[10px] font-black uppercase tracking-wider text-neutral-500 hover:text-neutral-800"
                                         onClick={(e) => { e.stopPropagation(); setSavedLegModal({ open: true, tripId: trip.id, leg: l }); }}
                                       >
                                         {t("edit")}
@@ -3164,7 +3223,7 @@ function TripIt() {
                               ))}
                               <div className="pt-2 flex justify-end">
                                 <button 
-                                  className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition"
+                                  className="text-[10px] font-black uppercase tracking-wider text-red-600 hover:text-red-800 px-2 py-1 border-2 border-red-100 bg-red-50 rounded-sm transition"
                                   onClick={(e) => { e.stopPropagation(); deleteTrip(trip.id); }}
                                 >
                                   {t("delete")}
@@ -3184,7 +3243,7 @@ function TripIt() {
             {/* 3. Fuel (Updated Workflow) */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${fuelSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${fuelSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[var(--ts-accent)]"}`}
                 onClick={() => setFuelSectionOpen(!fuelSectionOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3279,11 +3338,11 @@ function TripIt() {
 
                       <div className="mt-3 flex items-center justify-end gap-2">
                         {editingFuelId && (
-                          <button className="px-2 py-1 rounded-lg text-xs font-medium border border-neutral-200 bg-white hover:bg-neutral-100" onClick={cancelEditFuel}>
+                          <button className={btnSecondary} onClick={cancelEditFuel}>
                             {t("cancel")}
                           </button>
                         )}
-                        <button className="px-2 py-1 rounded-lg text-xs font-medium border border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-800 hover:bg-[rgb(var(--ts-accent-rgb)/0.85)]" onClick={saveFuel}>
+                        <button className={btnAccent} onClick={saveFuel}>
                           {editingFuelId ? t("update") : t("add")}
                         </button>
                       </div>
@@ -3326,8 +3385,8 @@ function TripIt() {
                                     <td className="px-3 text-right tabular-nums font-medium text-neutral-800 py-1">{money(f.totalCost, f.currency)}</td>
                                     <td className="px-3 text-neutral-600 truncate max-w-[120px] py-1">{f.station || "-"}</td>
                                     <td className="px-3 text-right whitespace-nowrap py-1">
-                                      <button className="font-medium text-neutral-600 hover:text-neutral-900 mr-3" onClick={() => editFuel(f)}>{t("edit")}</button>
-                                      <button className="font-medium text-red-600 hover:text-red-800" onClick={() => confirmDeleteFuel(f.id)}>{t("del")}</button>
+                                      <button className="text-[10px] font-black uppercase tracking-wider text-neutral-500 hover:text-neutral-800 mr-3" onClick={() => editFuel(f)}>{t("edit")}</button>
+                                      <button className="text-[10px] font-black uppercase tracking-wider text-red-500 hover:text-red-700" onClick={() => confirmDeleteFuel(f.id)}>{t("del")}</button>
                                     </td>
                                   </tr>
                                 ))
@@ -3357,7 +3416,7 @@ function TripIt() {
             {/* 4. Wash (Compact) */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${washSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${washSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[var(--ts-accent)]"}`}
                 onClick={() => setWashSectionOpen(!washSectionOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3407,8 +3466,8 @@ function TripIt() {
                             <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("cost")}</label>
                             <input className={`${inputBase} py-1 text-xs h-8 text-right`} placeholder="0.00" inputMode="decimal" value={washForm.cost} onChange={e => setWashForm({...washForm, cost: e.target.value})} />
                           </div>
-                          <button className={`${btnAccent} h-8 px-3 py-0 text-xs`} onClick={saveWash}>{editingWashId ? t("upd") : t("add")}</button>
-                          {editingWashId && <button className={`${btnSecondary} h-8 px-2 py-0 text-xs`} onClick={cancelEditWash}>✕</button>}
+                          <button className={`${btnAccent} h-8 px-3 py-0 text-[10px]`} onClick={saveWash}>{editingWashId ? t("upd") : t("add")}</button>
+                          {editingWashId && <button className={`${btnSecondary} h-8 px-2 py-0 text-[10px]`} onClick={cancelEditWash}>✕</button>}
                         </div>
                       </div>
 
@@ -3432,8 +3491,8 @@ function TripIt() {
                                   <td className="py-1 pr-2 text-neutral-500 truncate max-w-[100px]">{w.location}</td>
                                   <td className="py-1 pr-2 text-right text-neutral-700">{w.cost ? Number(w.cost).toFixed(2) : "-"}</td>
                                   <td className="py-1 text-right whitespace-nowrap">
-                                    <button className="text-neutral-500 hover:text-neutral-800 mr-2" onClick={() => editWash(w)}>{t("edit")}</button>
-                                    <button className="text-red-400 hover:text-red-600" onClick={() => deleteWash(w.id)}>{t("del")}</button>
+                                    <button className="text-[10px] font-black uppercase tracking-wider text-neutral-500 hover:text-neutral-800 mr-2" onClick={() => editWash(w)}>{t("edit")}</button>
+                                    <button className="text-[10px] font-black uppercase tracking-wider text-red-500 hover:text-red-700" onClick={() => deleteWash(w.id)}>{t("del")}</button>
                                   </td>
                                 </tr>
                               ))}
