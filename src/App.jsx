@@ -2620,8 +2620,8 @@ function TripIt() {
               <div id="tripit-print" className="bg-white text-neutral-900 p-8 sm:p-12 shadow-[0_0_50px_rgba(0,0,0,0.5)] mx-auto max-w-4xl min-h-[800px]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-2xl font-bold tracking-tight text-neutral-800">{profile.org || "ToolStack"}</div>
-                    <div className="text-sm text-neutral-700 mt-1">
+                    <img src={tripitLogo} alt="TripIt Logo" className="h-16 w-auto mb-4" />
+                    <div className="text-sm text-neutral-700">
                       Trip-It • {(activeVehicle && activeVehicle.name) || "(no vehicle)"}
                     </div>
                     <div className="text-sm text-neutral-700">
