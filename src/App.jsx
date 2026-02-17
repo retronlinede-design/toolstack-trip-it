@@ -2263,9 +2263,26 @@ function TripIt() {
       {previewOpen ? (
         <style>{`
           @media print {
-            body * { visibility: hidden !important; }
-            #tripit-print, #tripit-print * { visibility: visible !important; }
-            #tripit-print { position: absolute !important; left: 0; top: 0; width: 100%; }
+            /* 1. Hide everything on the page by default */
+            body * {
+              visibility: hidden !important;
+            }
+            /* 2. Make the printable area and its children visible */
+            #tripit-print,
+            #tripit-print * {
+              visibility: visible !important;
+            }
+            /* 3. Position the printable area to fill the page */
+            #tripit-print {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+            }
+            /* 4. Make the modal containers "disappear" for layout purposes during print */
+            .fixed.inset-0.z-50, .fixed.inset-0.z-50 > .relative, .fixed.inset-0.z-50 .overflow-auto {
+                display: contents !important;
+            }
           }
         `}</style>
       ) : null}
