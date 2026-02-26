@@ -295,25 +295,6 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
     </li>
   );
 
-  const baseActions = [
-    { name: "Preview", desc: "Open a clean report sheet inside the app (print-safe)." },
-    { name: "Print / Save PDF", desc: "Use your browser print dialog to print or save a PDF." },
-    { name: "Export", desc: "Download a JSON backup of your saved data." },
-    { name: "Import", desc: "Load a JSON backup (replaces current saved data)." },
-  ];
-
-  const extra = (actions || []).map((a) => {
-    const low = String(a).toLowerCase();
-    return {
-      name: a,
-      desc: low.includes("csv")
-        ? "Download a CSV file for Excel / Google Sheets."
-        : low.includes("email")
-        ? "Open your email app with a pre-filled report."
-        : "Extra tool for this app.",
-    };
-  });
-
   return (
     <div className="fixed inset-0 z-50 backdrop-blur-sm">
       <div className="absolute inset-0 bg-black/80" onClick={onClose} aria-hidden="true" />
@@ -344,79 +325,74 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
           <div className="p-6 space-y-6 max-h-[70vh] overflow-auto bg-neutral-900 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
             
-            <Card title="Quick start">
-              <ul className="space-y-2">
-                <Bullet>Start a <b className="text-white">Trip</b> when you begin your day or journey.</Bullet>
-                <Bullet>Log individual <b className="text-white">Legs</b> (Start → End) as you drive.</Bullet>
-                <Bullet>Click <b className="text-white">End Trip</b> when you are done.</Bullet>
-                <Bullet>Use <b className="text-white">Export</b> regularly to create backups.</Bullet>
+            <Card title="About Trip-It">
+              <p>Trip-It is a local-first trip and vehicle log tool designed to help you record trips, fuel, and key vehicle details, then generate clean print-ready summaries. It’s built for daily operational logging with no accounts, no cloud storage, and no automatic data sharing.</p>
+            </Card>
+
+            <Card title="How Trip-It Works">
+              <p>Trip-It follows a simple workflow:</p>
+              <ul className="space-y-2 mt-2">
+                <Bullet><b className="text-white">1. Add Vehicles</b><br/>Create one or more vehicles with basic identifiers (name/plate/type).</Bullet>
+                <Bullet><b className="text-white">2. Log Trips</b><br/>Add trips with dates, purpose/route notes, and distance (km).</Bullet>
+                <Bullet><b className="text-white">3. Log Fuel (optional)</b><br/>Record fuel entries to support cost tracking and usage history.</Bullet>
+                <Bullet><b className="text-white">4. Review Totals</b><br/>Trip-It calculates totals and summaries based on your entries.</Bullet>
+                <Bullet><b className="text-white">5. Preview & Print</b><br/>Use Preview to generate a print-ready report.</Bullet>
+                <Bullet><b className="text-white">6. Export a Backup</b><br/>Export a JSON backup regularly, especially after major updates.</Bullet>
               </ul>
             </Card>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <Card title="Where your data lives">
-                <p>
-                  Your data is stored in your browser on <b className="text-white">this device</b> (localStorage). No login required.
-                </p>
+              <Card title="Your Data & Privacy">
+                <p>Your data is saved locally in this browser using secure local storage.</p>
+                <p className="mt-2">This means:</p>
                 <ul className="mt-2 space-y-2">
-                  <Bullet>Switching device/browser will not carry your data over automatically.</Bullet>
-                  <Bullet>Incognito/private mode may not persist data.</Bullet>
+                  <Bullet>Your data stays on this device</Bullet>
+                  <Bullet>Clearing browser data can remove your logs</Bullet>
+                  <Bullet>Incognito/private mode will not retain data</Bullet>
+                  <Bullet>Data does not automatically sync across devices</Bullet>
                 </ul>
               </Card>
 
-              <Card title="Backup routine">
-                <ul className="space-y-2">
-                  <Bullet>
-                    Export after big changes, or at least <b className="text-white">weekly</b>.
-                  </Bullet>
-                  <Bullet>Keep 2–3 older exports as fallback.</Bullet>
-                  <Bullet>Save exports to Drive/Dropbox/OneDrive (or email to yourself).</Bullet>
+              <Card title="Backup & Restore">
+                <p>Export downloads a JSON backup of your current Trip-It data.</p>
+                <p>Import restores a previously exported JSON file and replaces current app data.</p>
+                <p className="mt-2">Recommended routine:</p>
+                <ul className="mt-2 space-y-2">
+                  <Bullet>Export weekly</Bullet>
+                  <Bullet>Export after major edits</Bullet>
+                  <Bullet>Store backups in two locations (e.g., Downloads + Drive/USB)</Bullet>
                 </ul>
               </Card>
             </div>
 
-            <Card title="Restore / move to a new device (Import)">
-              <p>
-                On a new device/browser (or after clearing site data), click <b className="text-white">Import</b> and choose your latest exported JSON.
-              </p>
-              <ul className="mt-2 space-y-2">
-                <Bullet>Import replaces the current saved data with the file contents.</Bullet>
-                <Bullet>If an import fails, try an older export (versions can differ).</Bullet>
+            <Card title="Buttons Explained">
+              <ul className="space-y-2">
+                <Bullet><b className="text-white">Preview</b> – Opens the print-ready view.</Bullet>
+                <Bullet><b className="text-white">Print / Save PDF</b> – Prints only the preview sheet. Choose “Save as PDF” to create a file.</Bullet>
+                <Bullet><b className="text-white">Export</b> – Downloads a JSON backup file.</Bullet>
+                <Bullet><b className="text-white">Import</b> – Restores data from a JSON backup file.</Bullet>
               </ul>
             </Card>
 
-            <Card title="Buttons glossary">
-              <div className="divide-y-2 divide-neutral-700 border-2 border-neutral-700 bg-neutral-800">
-                {[...baseActions, ...extra].map((a) => (
-                  <div
-                    key={a.name}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 hover:bg-neutral-700/50 transition-colors"
-                  >
-                    <div className="font-bold text-[var(--ts-accent)] uppercase tracking-tight">{a.name}</div>
-                    <div className="text-xs font-medium text-neutral-400 sm:text-right">{a.desc}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <Card title="What can erase local data">
-                <ul className="space-y-2">
-                  <Bullet>Clearing browser history / site data.</Bullet>
-                  <Bullet>“Cleaner/optimizer” tools.</Bullet>
-                  <Bullet>Different browser profile or reinstall.</Bullet>
-                </ul>
+              <Card title="Storage Keys (Advanced)">
+                <div className="rounded-sm border-2 border-dashed border-neutral-600 bg-neutral-900 px-3 py-2 text-xs font-mono text-[var(--ts-accent)] break-all">
+                  App data key: toolstack.tripit.v1<br/>
+                  Shared profile key: toolstack.profile.v1<br/>
+                  Legacy key: toolstack_tripit_v1
+                </div>
               </Card>
 
-              <Card title="Storage key (for troubleshooting)">
-                <div className="rounded-sm border-2 border-dashed border-neutral-600 bg-neutral-900 px-3 py-2 text-xs font-mono text-[var(--ts-accent)] break-all">
-                  {storageKey}
-                </div>
-                <p className="mt-2 text-xs text-neutral-500">
-                  Tip: If data looks “missing”, it’s usually a different device/browser/profile or cleared site data.
-                </p>
+              <Card title="Notes / Limitations">
+                <p>Trip-It is a logging tool. Totals and summaries depend on the accuracy of the entries you provide.</p>
+                <p className="mt-2">Use Export regularly to avoid data loss.</p>
               </Card>
             </div>
+
+            <Card title="Support / Feedback">
+              <p>If something breaks, include: device + browser + steps to reproduce + what you expected vs what happened.</p>
+            </Card>
+
           </div>
 
           <div className="border-t-4 border-[var(--ts-accent)] bg-neutral-900 p-4 flex items-center justify-end gap-2">
