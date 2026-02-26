@@ -19,7 +19,7 @@ const LEGACY_LS_KEY = "toolstack_tripit_v1";
 const TRANSLATIONS = {
   EN: {
     hub: "Hub", preview: "Preview", export: "Export", help: "Help",
-    vehicle: "Vehicle", addVehicle: "+ Add vehicle", activeVehicle: "Active vehicle",
+    vehicle: "Vehicle", addVehicle: "+ Add Vehicle", activeVehicle: "Active Vehicle",
     noVehicles: "No vehicles yet. Click", edit: "Edit", delete: "Delete",
     month: "Month", monthSummary: "Month summary", trips: "trips",
     activeTrip: "Active Trip", startTrip: "Start Trip", cancelTrip: "Cancel Trip",
@@ -51,7 +51,13 @@ const TRANSLATIONS = {
     importBackupQ: "Import backup?", importBackupMsg: "Import replaces your current saved data with the file contents. Tip: Export first if you want a backup of what’s currently here.",
     import: "Import", sendReport: "Send report via email", subject: "Subject",
     message: "Message", copy: "Copy", openEmail: "Open email", editLeg: "Edit Leg",
-    startTime: "Start Time", endTime: "End Time", odoStart: "Odo Start", odoEnd: "Odo End",
+    startTime: "Start Time", endTime: "End Time", odoStart: "Odo Start", odoEnd: "Odo End", exportPack: "Export Pack",
+    exportPackDesc: "Save, share, or back up your data.",
+    pdfPrint: "PDF & Print",
+    downloadPdf: "Download PDF",
+    createEmailDraft: "Create Email Draft",
+    downloadJson: "Download JSON",
+    importJsonWarning: "Import replaces current app data. Export first if unsure.",
     tripItReport: "Trip-It Report", generated: "Generated:", storageKey: "Storage key:", 
     templates: "Templates", saveTemplate: "Save as Template", templateName: "Template Name", 
     load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.", tag: "Tag / Location", startTag: "Start Tag", endTag: "End Tag",
@@ -91,7 +97,13 @@ const TRANSLATIONS = {
     importBackupQ: "Backup importieren?", importBackupMsg: "Import ersetzt die aktuellen Daten durch den Dateiinhalt. Tipp: Exportiere zuerst, wenn du ein Backup der aktuellen Daten möchtest.",
     import: "Importieren", sendReport: "Bericht per E-Mail senden", subject: "Betreff",
     message: "Nachricht", copy: "Kopieren", openEmail: "E-Mail öffnen", editLeg: "Etappe bearbeiten",
-    startTime: "Startzeit", endTime: "Endzeit", odoStart: "Km Start", odoEnd: "Km Ende",
+    startTime: "Startzeit", endTime: "Endzeit", odoStart: "Km Start", odoEnd: "Km Ende", exportPack: "Export-Paket",
+    exportPackDesc: "Speichere, teile oder sichere deine Daten.",
+    pdfPrint: "PDF & Drucken",
+    downloadPdf: "PDF herunterladen",
+    createEmailDraft: "E-Mail-Entwurf erstellen",
+    downloadJson: "JSON herunterladen",
+    importJsonWarning: "Der Import ersetzt die aktuellen App-Daten. Exportiere zuerst, wenn du unsicher bist.",
     tripItReport: "Trip-It Bericht", generated: "Erstellt:", storageKey: "Speicherschlüssel:", 
     templates: "Vorlagen", saveTemplate: "Als Vorlage speichern", templateName: "Vorlagenname", 
     load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.", tag: "Tag / Ort", startTag: "Start Tag", endTag: "End Tag",
@@ -2141,6 +2153,12 @@ function TripIt() {
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
   };
 
+  const handleEmailDraft = () => {
+    const subject = `Trip-It Export Pack – ${todayISO()}`;
+    const body = `Attached: PDF export from Trip-It (please attach the downloaded PDF file).\n\nExports are generated locally on your device. No data is uploaded automatically.`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   const copySummary = async () => {
     const built = buildEmail();
     try {
@@ -2330,8 +2348,9 @@ function TripIt() {
               <div>
                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Data</div>
                  <h2 className="mt-1 text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
-                  {t("export")}
+                  {t("exportPack")}
                  </h2>
+                 <p className="text-sm text-neutral-400 mt-1">{t("exportPackDesc")}</p>
               </div>
               <button 
                 className="group relative px-4 py-2 font-black uppercase tracking-wider text-black bg-[var(--ts-accent)] hover:bg-white transition-colors border-2 border-transparent hover:border-[var(--ts-accent)]"
@@ -2377,28 +2396,13 @@ function TripIt() {
                 </div>
               </div>
 
-              {/* Reports */}
+              {/* PDF & Print */}
               <div className="space-y-3">
-                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("reports")}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button className="group relative p-4 text-left border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:-translate-y-1 transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); }}>
-                    <div className="font-black text-white uppercase tracking-tight group-hover:text-[var(--ts-accent)]">{t("previewPack")}</div>
-                    <div className="text-xs text-neutral-400 mt-1">View report on screen</div>
-                  </button>
-                  <button className="group relative p-4 text-left border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:-translate-y-1 transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>
-                    <div className="font-black text-white uppercase tracking-tight group-hover:text-[var(--ts-accent)]">{t("printSavePdf")}</div>
-                    <div className="text-xs text-neutral-400 mt-1">Print or Save as PDF</div>
-                  </button>
-                </div>
-              </div>
-
-              {/* CSV / Share */}
-              <div className="space-y-3">
-                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("csvShare")}</div>
+                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("pdfPrint")}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={exportPreviewCSV}>{t("exportCsv")}</button>
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={copySummary}>{t("copySummary")}</button>
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={openEmail}>{t("emailSummary")}</button>
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>{t("downloadPdf")}</button>
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>{t("printSavePdf")}</button>
+                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={handleEmailDraft}>{t("createEmailDraft")}</button>
                 </div>
               </div>
 
@@ -2406,10 +2410,10 @@ function TripIt() {
               <div className="space-y-3">
                 <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("dataBackup")}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button className="h-12 font-bold text-sm text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:text-neutral-900 transition-all" onClick={exportJSON}>{t("exportJson")}</button>
+                  <button className="h-12 font-bold text-sm text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:text-neutral-900 transition-all" onClick={exportJSON}>{t("downloadJson")}</button>
                   <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={onImportPick}>{t("importJson")}</button>
                 </div>
-                <div className="text-xs text-neutral-500 font-mono">{t("fullBackupDesc")}</div>
+                <div className="text-xs text-neutral-500 font-mono">{t("importJsonWarning")}</div>
               </div>
             </div>
           </div>
