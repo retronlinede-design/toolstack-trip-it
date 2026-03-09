@@ -1267,6 +1267,7 @@ function TripIt() {
   const [editingWashId, setEditingWashId] = useState(null);
   const [washSectionOpen, setWashSectionOpen] = useState(false);
   const [recentTripsOpen, setRecentTripsOpen] = useState(true);
+  const [addingLegToTripId, setAddingLegToTripId] = useState(null);
 
   const t = (k) => {
     const l = profile.language || "EN";
@@ -1833,6 +1834,75 @@ function TripIt() {
     });
     setSavedLegModal({ open: false, tripId: null, leg: null });
     notify("Leg updated");
+  };
+
+  const openAddLegToTrip = (trip) => {
+    setAddingLegToTripId(trip.id);
+    setExpandedTripId(trip.id); // Ensure it's expanded
+    
+    const sortedLegs = [...trip.legs].sort((a,b) => (a.startTime || "").localeCompare(b.startTime || ""));
+
+    if (sortedLegs.length > 0) {
+      const lastLeg = sortedLegs[sortedLegs.length - 1];
+      setLegForm({
+        startPlace: lastLeg.endPlace,
+        startTag: lastLeg.endTag || "",
+        startTime: roundTime(),
+        odoStart: (lastLeg && lastLeg.odoEnd != null) ? lastLeg.odoEnd : "",
+        endPlace: "",
+        endTag: "",
+        endTime: roundTime(),
+        odoEnd: "",
+        note: ""
+      });
+    } else {
+      setLegForm({
+        startPlace: "",
+        startTag: "",
+        startTime: roundTime(),
+        odoStart: "",
+        endPlace: "",
+        endTag: "",
+        endTime: roundTime(),
+        odoEnd: "",
+        note: ""
+      });
+    }
+  };
+
+  const addLegToSavedTrip = (tripId) => {
+    if (!activeVehicle) return;
+
+    const odoStart = legForm.odoStart !== "" ? toNumber(legForm.odoStart) : null;
+    const odoEnd = legForm.odoEnd !== "" ? toNumber(legForm.odoEnd) : null;
+
+    if (odoStart == null || odoEnd == null) return notify("Odometer readings required");
+    if (odoEnd < odoStart) return notify("End Odo cannot be less than Start Odo");
+
+    const km = Math.max(0, odoEnd - odoStart);
+
+    const newLeg = {
+      id: uid(),
+      startPlace: legForm.startPlace, startTime: legForm.startTime, odoStart,
+      endPlace: legForm.endPlace, endTime: legForm.endTime, odoEnd,
+      startTag: legForm.startTag, endTag: legForm.endTag,
+      km, note: legForm.note, createdAt: new Date().toISOString()
+    };
+
+    setApp(a => {
+      const vehicleTrips = a.tripsByVehicle[activeVehicle.id] || [];
+      const updatedTrips = vehicleTrips.map(t => {
+        if (t.id === tripId) {
+          const updatedLegs = [...t.legs, newLeg].sort((l1, l2) => (l1.startTime || "").localeCompare(l2.startTime || ""));
+          return { ...t, legs: updatedLegs };
+        }
+        return t;
+      });
+      return { ...a, tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: updatedTrips } };
+    });
+
+    setAddingLegToTripId(null);
+    notify("Leg added to trip");
   };
 
   // ---------- Wash CRUD ----------
@@ -3218,7 +3288,13 @@ function TripIt() {
                                   {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
                                 </div>
                               ))}
-                              <div className="pt-2 flex justify-end">
+                              <div className="pt-2 flex justify-end gap-2">
+                                <button 
+                                  className="text-[10px] font-black uppercase tracking-wider text-neutral-600 hover:text-neutral-900 px-2 py-1 border-2 border-neutral-200 bg-neutral-100 rounded-sm transition"
+                                  onClick={(e) => { e.stopPropagation(); openAddLegToTrip(trip); }}
+                                >
+                                  + {t("add")} {t("legs")}
+                                </button>
                                 <button 
                                   className="text-[10px] font-black uppercase tracking-wider text-red-600 hover:text-red-800 px-2 py-1 border-2 border-red-100 bg-red-50 rounded-sm transition"
                                   onClick={(e) => { e.stopPropagation(); deleteTrip(trip.id); }}
@@ -3226,6 +3302,38 @@ function TripIt() {
                                   {t("delete")}
                                 </button>
                               </div>
+
+                              {addingLegToTripId === trip.id && (
+                                <div className="p-3 mt-2 border-t border-dashed border-neutral-300 bg-neutral-100">
+                                    <div className="text-xs font-semibold text-neutral-600 mb-2">Add New Leg</div>
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-[10px] font-medium text-neutral-500">{t("from")}</label>
+                                                <input className={inputCompact} value={legForm.startPlace} onChange={e => setLegForm({...legForm, startPlace: e.target.value})} list="locations-list" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-medium text-neutral-500">{t("to")}</label>
+                                                <input className={inputCompact} value={legForm.endPlace} onChange={e => setLegForm({...legForm, endPlace: e.target.value})} list="locations-list" />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("startTime")}</label><input type="time" className={inputCompact} value={legForm.startTime} onChange={e => setLegForm({...legForm, startTime: e.target.value})} /></div>
+                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("endTime")}</label><input type="time" className={inputCompact} value={legForm.endTime} onChange={e => setLegForm({...legForm, endTime: e.target.value})} /></div>
+                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("odoS")}</label><input className={`${inputCompact} text-right`} value={legForm.odoStart} onChange={e => setLegForm({...legForm, odoStart: e.target.value})} /></div>
+                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("odoE")}</label><input className={`${inputCompact} text-right`} value={legForm.odoEnd} onChange={e => setLegForm({...legForm, odoEnd: e.target.value})} /></div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-medium text-neutral-500">{t("note")}</label>
+                                            <input className={inputCompact} value={legForm.note} onChange={e => setLegForm({...legForm, note: e.target.value})} />
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-1">
+                                            <button className={`${btnSecondary} px-3 py-1 text-[10px]`} onClick={() => setAddingLegToTripId(null)}>{t("cancel")}</button>
+                                            <button className={`${btnAccent} px-3 py-1 text-[10px]`} onClick={() => addLegToSavedTrip(trip.id)}>{t("add")}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
