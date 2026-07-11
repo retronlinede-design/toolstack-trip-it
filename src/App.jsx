@@ -3078,25 +3078,11 @@ function TripIt() {
 
       <div className="ts-shell">
         {/* Header */}
-        <header className="mb-6 overflow-hidden rounded-2xl border border-[var(--ts-border)] bg-white shadow-[0_6px_24px_rgba(31,41,51,0.07)]">
+        <header className="mb-4 overflow-hidden rounded-2xl border border-[var(--ts-border)] bg-white shadow-[0_6px_24px_rgba(31,41,51,0.07)]">
           <div className="h-1.5 bg-[var(--ts-accent)]" aria-hidden="true" />
-          <div className="flex flex-col gap-5 p-4 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-              <img
-                src={tripitLogo}
-                alt="TripIt"
-                className="h-28 w-28 shrink-0 object-contain select-none sm:h-36 sm:w-36"
-                draggable="false"
-              />
-              <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ts-text-muted)]">ToolStack</div>
-                <h1 className="text-3xl font-bold tracking-[-0.03em] text-[var(--ts-text)] sm:text-4xl">Trip-It</h1>
-                <p className="mt-1 text-sm text-[var(--ts-text-muted)] sm:text-base">Vehicle &amp; Duty Trip Log</p>
-                <div className="mt-3 h-1 w-16 rounded-full bg-[var(--ts-accent)]" aria-hidden="true" />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 lg:items-end">
+          <div className="flex flex-col items-center gap-3 px-3 py-3 sm:px-5 sm:py-4">
+            <img src={tripitLogo} alt="Trip-It" className="h-[8.1rem] w-auto max-w-full shrink-0 object-contain select-none sm:h-[10.4rem]" draggable="false" />
+            <div className="flex w-full flex-col items-center gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 {activeVehicle && <Badge variant="accent">Active vehicle: {activeVehicle.name}</Badge>}
                 <div className="ts-segmented" role="group" aria-label="Language">
@@ -3104,7 +3090,7 @@ function TripIt() {
                   <button onClick={() => setProfile(p => ({ ...p, language: "DE" }))} className={`${buttonClass(profile.language === "DE" ? "primary" : "ghost")} min-h-9 px-3`}>DE</button>
                 </div>
               </div>
-              <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end" aria-label="Application actions">
+              <nav className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-center" aria-label="Application actions">
                 <ActionButton onClick={openHub} title={t("returnHub")}>
                   {t("hub")}
                 </ActionButton>
@@ -3120,7 +3106,7 @@ function TripIt() {
         </header>
 
         {/* CONTENT */}
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
           {/* Left: Vehicle + Month */}
           <div className="space-y-3">
             <div className={card}>
