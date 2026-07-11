@@ -17,6 +17,7 @@
   --ts-accent: #d5ff00;
   --ts-accent-rgb: 213 255 0;
   --ts-accent-soft: #f3ffc2;
+  --ts-accent-hover: color-mix(in srgb, var(--ts-accent) 30%, transparent);
   --ts-danger: #dc2626;
   --ts-warning: #d97706;
   --ts-success: #16a34a;
@@ -32,23 +33,25 @@ button { touch-action: manipulation; }
 .tripit-app { min-height: 100vh; overflow-x: clip; background: linear-gradient(180deg, #fafbfc 0, var(--ts-bg) 24rem); color: var(--ts-text); }
 .ts-shell { width: min(100%, 1200px); margin-inline: auto; padding: 20px 24px 48px; }
 
-.ts-button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 12px; padding: 0 16px; font-size: .875rem; font-weight: 650; line-height: 1.2; transition: background-color .16s, border-color .16s, color .16s, transform .16s; cursor: pointer; }
-.ts-button:hover:not(:disabled) { transform: translateY(-1px); }
+.ts-button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 12px; padding: 0 16px; font-size: .875rem; font-weight: 650; line-height: 1.2; transition: background-color .14s ease-out, border-color .14s ease-out, color .14s ease-out; cursor: pointer; }
+.ts-button:hover:not(:disabled) { background: var(--ts-accent-hover); }
 .ts-button:focus-visible, .ts-icon-button:focus-visible, .ts-control:focus-visible { outline: 3px solid color-mix(in srgb, var(--ts-accent) 40%, transparent); outline-offset: 2px; }
 .ts-button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .ts-button--primary { background: var(--ts-accent); border-color: #c3e900; color: #1b2300; box-shadow: 0 1px 2px rgba(31,41,51,.08); }
-.ts-button--primary:hover:not(:disabled) { background: #e1ff55; }
+.ts-button--primary:hover:not(:disabled) { background: var(--ts-accent-hover); }
 .ts-button--secondary { background: #fff; border-color: var(--ts-border-strong); color: var(--ts-text); box-shadow: 0 1px 2px rgba(31,41,51,.05); }
-.ts-button--secondary:hover:not(:disabled) { background: var(--ts-surface-muted); border-color: #aeb7c1; }
+.ts-button--secondary:hover:not(:disabled) { background: var(--ts-accent-hover); border-color: #aeb7c1; }
 .ts-button--ghost { background: transparent; border-color: transparent; color: var(--ts-text-muted); }
-.ts-button--ghost:hover:not(:disabled) { background: var(--ts-bg-soft); color: var(--ts-text); }
+.ts-button--ghost:hover:not(:disabled) { background: var(--ts-accent-hover); color: var(--ts-text); }
 .ts-button--danger { background: #fff5f5; border-color: #f3b4b4; color: #b91c1c; }
-.ts-button--danger:hover:not(:disabled) { background: #fee2e2; border-color: #ef8f8f; }
+.ts-button--danger:hover:not(:disabled) { background: var(--ts-accent-hover); border-color: #ef8f8f; }
 .ts-icon-button { width: 44px; height: 44px; border: 1px solid var(--ts-border); border-radius: 12px; background: #fff; color: var(--ts-text-muted); display: inline-grid; place-items: center; cursor: pointer; }
-.ts-icon-button:hover { color: var(--ts-text); border-color: var(--ts-border-strong); }
+.ts-icon-button { transition: background-color .14s ease-out, border-color .14s ease-out, color .14s ease-out; }
+.ts-icon-button:hover { background: var(--ts-accent-hover); color: var(--ts-text); border-color: var(--ts-border-strong); }
 
 .ts-card { overflow: hidden; border: 1px solid var(--ts-border); border-radius: 16px; background: #fff; box-shadow: 0 4px 16px rgba(31,41,51,.055); }
-.ts-card--interactive:hover { border-color: var(--ts-border-strong); }
+.ts-card--interactive { transition: background-color .14s ease-out, border-color .14s ease-out; }
+.ts-card--interactive:hover { background: var(--ts-accent-hover); border-color: var(--ts-border-strong); }
 .ts-card--selected { border-color: #c7e63d; box-shadow: inset 3px 0 0 var(--ts-accent), 0 4px 16px rgba(31,41,51,.055); }
 .ts-card--warning { border-color: color-mix(in srgb, var(--ts-warning) 50%, var(--ts-border)); }
 .ts-card--danger { border-color: color-mix(in srgb, var(--ts-danger) 50%, var(--ts-border)); }
@@ -97,16 +100,22 @@ label { color: var(--ts-text-muted); }
 .ts-stat span, .ts-stat small { color: var(--ts-text-muted); }
 .ts-stat strong { display: block; margin-top: 3px; color: var(--ts-text); font-size: 1.45rem; }
 .ts-divider { height: 1px; background: var(--ts-border); }
-.ts-suggestion-chip { height: 29px; max-width: 100%; display: inline-flex; align-items: center; border: 1px solid var(--ts-border); border-radius: 999px; background: #fff; color: var(--ts-text-muted); padding: 0 9px; font-size: 11px; font-weight: 550; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .14s, border-color .14s, background-color .14s, box-shadow .14s; }
-.ts-suggestion-chip:hover { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
+.ts-suggestion-chip { height: 29px; max-width: 100%; display: inline-flex; align-items: center; border: 1px solid var(--ts-border); border-radius: 999px; background: #fff; color: var(--ts-text-muted); padding: 0 9px; font-size: 11px; font-weight: 550; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .14s ease-out, border-color .14s ease-out, background-color .14s ease-out; }
+.ts-suggestion-chip:hover { border-color: #c4df45; background: var(--ts-accent-hover); color: var(--ts-text); }
 .ts-suggestion-chip:focus-visible { outline: none; border-color: #b5d51c; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 28%, transparent); color: #526300; }
 .ts-suggestion-chip--more { border-style: dashed; color: var(--ts-text-subtle); }
-.ts-time-now { height: 44px; flex: 0 0 auto; border: 1px solid var(--ts-border-strong); border-radius: 10px; background: var(--ts-surface-muted); color: var(--ts-text-muted); padding: 0 10px; font-size: 12px; font-weight: 600; transition: border-color .14s, background-color .14s, color .14s; }
-.ts-time-now:hover, .ts-time-now:focus-visible { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
+.ts-time-now { height: 44px; flex: 0 0 auto; border: 1px solid var(--ts-border-strong); border-radius: 10px; background: var(--ts-surface-muted); color: var(--ts-text-muted); padding: 0 10px; font-size: 12px; font-weight: 600; transition: border-color .14s ease-out, background-color .14s ease-out, color .14s ease-out; }
+.ts-time-now:hover { border-color: #c4df45; background: var(--ts-accent-hover); color: var(--ts-text); }
+.ts-time-now:focus-visible { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
 .ts-time-now:focus-visible, .ts-time-adjust:focus-visible { outline: 3px solid color-mix(in srgb, var(--ts-accent) 28%, transparent); outline-offset: 1px; }
-.ts-time-adjust { min-width: 38px; height: 30px; border: 1px solid var(--ts-border); border-radius: 8px; background: #fff; color: var(--ts-text-muted); padding: 0 7px; font-size: 11px; font-weight: 600; transition: border-color .14s, background-color .14s, color .14s; }
-.ts-time-adjust:hover:not(:disabled) { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
+.ts-time-adjust { min-width: 38px; height: 30px; border: 1px solid var(--ts-border); border-radius: 8px; background: #fff; color: var(--ts-text-muted); padding: 0 7px; font-size: 11px; font-weight: 600; transition: border-color .14s ease-out, background-color .14s ease-out, color .14s ease-out; }
+.ts-time-adjust:hover:not(:disabled) { border-color: #c4df45; background: var(--ts-accent-hover); color: var(--ts-text); }
 .ts-time-adjust:disabled { opacity: .38; cursor: not-allowed; }
+.ts-hover-accent { transition: background-color .14s ease-out; }
+.ts-hover-accent:hover { background: var(--ts-accent-hover); }
+.ts-is-selected:hover { background: var(--ts-accent) !important; }
+.tripit-app :where(button, a, tr, [role="button"]):not(.ts-is-selected)[class*="hover:bg-"]:hover,
+.tripit-app :where([class*="cursor-pointer"]):not(.ts-is-selected)[class*="hover:bg-"]:hover { background: var(--ts-accent-hover) !important; transition: background-color .14s ease-out; }
 
 /* Compatibility bridge for existing workflow markup; print output is reset below. */
 .tripit-app .bg-white { background-color: var(--ts-surface-raised); }

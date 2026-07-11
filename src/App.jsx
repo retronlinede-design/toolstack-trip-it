@@ -612,7 +612,7 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
                   <div className="font-medium text-neutral-800 truncate pr-2">{tpl.name}</div>
                   <div className="flex gap-2 shrink-0">
                     <button className="px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-neutral-700 bg-neutral-700 text-white hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={() => onLoad(tpl)}>{t("load")}</button>
-                    <button className="px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-red-500 bg-red-500 text-white hover:bg-white hover:text-red-600 transition-all" onClick={() => onDelete(tpl.id)}>{t("delete")}</button>
+                    <button className="ts-hover-accent px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-red-500 bg-red-500 text-white hover:text-red-600" onClick={() => onDelete(tpl.id)}>{t("delete")}</button>
                   </div>
                 </div>
               ))
@@ -769,7 +769,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
           <span
             className={
               "h-8 w-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center shrink-0 " +
-              "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]"
+              "hover:bg-[rgb(var(--ts-accent-rgb)/0.30)] hover:border-[var(--ts-accent)]"
             }
             aria-hidden="true"
           >
@@ -2926,7 +2926,7 @@ function TripIt() {
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 relative z-20">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Preview</div>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
+                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-800">
                     {t("tripItReport")}
                   </h2>
                 </div>
@@ -2947,20 +2947,20 @@ function TripIt() {
                   <div className="flex items-center gap-1 rounded-xl border border-neutral-200 bg-white px-1">
                     <input 
                       type="date" 
-                      className="h-9 bg-transparent text-xs font-bold text-white focus:outline-none uppercase tracking-wider w-24 sm:w-auto"
+                      className="h-9 w-28 bg-transparent px-2 text-xs text-neutral-800 focus:outline-none sm:w-auto"
                       value={previewConfig.start}
                       onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
                     />
                     <span className="text-neutral-500 font-black">-</span>
                     <input 
                       type="date" 
-                      className="h-9 bg-transparent text-xs font-bold text-white focus:outline-none uppercase tracking-wider w-24 sm:w-auto"
+                      className="h-9 w-28 bg-transparent px-2 text-xs text-neutral-800 focus:outline-none sm:w-auto"
                       value={previewConfig.end}
                       onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
                     />
                   </div>
                   
-                  <div className="w-px h-8 bg-neutral-700 mx-1 hidden xl:block"></div>
+                  <div className="mx-1 hidden h-8 w-px bg-neutral-200 xl:block"></div>
 
                   <button className={btnSecondary} onClick={exportPreviewCSV}>CSV</button>
                   <button className={btnSecondary} onClick={exportPreviewJSON}>Report JSON — not restorable</button>
@@ -3267,7 +3267,7 @@ function TripIt() {
             {/* 2. Recent Trips List */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${recentTripsOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "hover:bg-[var(--ts-surface-soft)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer select-none ${recentTripsOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "ts-hover-accent"}`}
                 onClick={() => setRecentTripsOpen(!recentTripsOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3300,7 +3300,7 @@ function TripIt() {
             {/* 3. Fuel (Updated Workflow) */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${fuelSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "hover:bg-[var(--ts-surface-soft)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer select-none ${fuelSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "ts-hover-accent"}`}
                 onClick={() => setFuelSectionOpen(!fuelSectionOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3438,7 +3438,7 @@ function TripIt() {
                                 </tr>
                               ) : (
                                 fuelLogs.map(f => (
-                                  <tr key={f.id} className="hover:bg-neutral-50 transition">
+                                  <tr key={f.id} className="ts-hover-accent">
                                     <td className="px-3 whitespace-nowrap text-neutral-800 py-1">{f.date}</td>
                                     <td className="px-3 text-right tabular-nums text-neutral-600 py-1">{f.odometer}</td>
                                     <td className="px-3 text-right tabular-nums text-neutral-600 py-1">{toNumber(f.liters).toFixed(2)}</td>
@@ -3473,7 +3473,7 @@ function TripIt() {
             {/* 4. Wash (Compact) */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${washSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "hover:bg-[var(--ts-surface-soft)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer select-none ${washSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "ts-hover-accent"}`}
                 onClick={() => setWashSectionOpen(!washSectionOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3545,7 +3545,7 @@ function TripIt() {
                             </thead>
                             <tbody className="divide-y divide-neutral-50">
                               {washLogs.map(w => (
-                                <tr key={w.id} className="hover:bg-neutral-50">
+                                <tr key={w.id} className="ts-hover-accent">
                                   <td className="py-1 pr-2 whitespace-nowrap text-neutral-700">{w.date}</td>
                                   <td className="py-1 pr-2 text-neutral-600">{w.type}</td>
                                   <td className="py-1 pr-2 text-neutral-500 truncate max-w-[100px]">{w.location}</td>
