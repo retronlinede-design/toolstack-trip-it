@@ -1,4 +1,5 @@
 import { blank, deepEquivalent, deterministicUniqueId, probableFuelMatch, probableLegMatch, probableTemplateMatch, probableTripMatch, probableVehicleMatch, probableWashMatch } from "./mergeIdentity.js";
+import { mergePassengerSets, normalizeDriver, normalizePassengers } from "../components/trips/tripPeople.js";
 
 const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 const TYPES = ["vehicles", "trips", "legs", "fuel", "wash", "templates", "activeTrips"];
@@ -27,6 +28,22 @@ export function compatibleMerge(current, imported, ignored = new Set(["id"])) {
   }
   mergeMetadata(result, current, imported);
   return { compatible: conflicts.length === 0, enriched, value: result, differences: conflicts };
+}
+
+function compatibleTripMerge(current, imported, ignored = new Set(["id", "legs"])) {
+  const left = { ...current }; const right = { ...imported };
+  delete left.driver; delete right.driver; delete left.passengers; delete right.passengers;
+  const base = compatibleMerge(left, right, ignored);
+  const currentDriver = normalizeDriver(current.driver); const importedDriver = normalizeDriver(imported.driver);
+  if (currentDriver && importedDriver && currentDriver.toLocaleLowerCase() !== importedDriver.toLocaleLowerCase()) base.differences.push({ field: "driver", current: currentDriver, imported: importedDriver });
+  const passengerMerge = mergePassengerSets(current.passengers, imported.passengers);
+  if (!passengerMerge.compatible) base.differences.push({ field: "passengers", current: normalizePassengers(current.passengers), imported: normalizePassengers(imported.passengers) });
+  base.compatible = base.differences.length === 0;
+  if (!base.compatible) return base;
+  if (Object.hasOwn(current, "driver") || Object.hasOwn(imported, "driver") || currentDriver || importedDriver) base.value.driver = currentDriver || importedDriver;
+  if (Object.hasOwn(current, "passengers") || Object.hasOwn(imported, "passengers") || passengerMerge.values.length) base.value.passengers = passengerMerge.values;
+  base.enriched = base.enriched || (!currentDriver && !!importedDriver) || passengerMerge.enriched;
+  return base;
 }
 
 function conflictKey(type, scope, id) { return `${type}:${scope || "root"}:${id}`; }
@@ -138,7 +155,7 @@ function mergeTrips(currentList, importedList, plan, vehicleId, importedAt) {
     if (existing) {
       if (previouslyKeptBoth(result, imported)) { plan.stats.trips.skipped += 1; plan.stats.legs.skipped += imported.legs?.length || 0; continue; }
       const importedWithoutLegs = { ...imported, legs: undefined }; const existingWithoutLegs = { ...existing, legs: undefined };
-      const base = compatibleMerge(existingWithoutLegs, importedWithoutLegs, new Set(["id", "legs"]));
+      const base = compatibleTripMerge(existingWithoutLegs, importedWithoutLegs, new Set(["id", "legs"]));
       if (!base.compatible) {
         const resolution = addConflict(plan, "trips", vehicleId, existing, imported, `Same trip ID has conflicting fields: ${base.differences.map((item) => item.field).join(", ")}`, ["current", "imported", "both"]);
         if (resolution === "imported") Object.assign(existing, imported);
@@ -155,7 +172,7 @@ function mergeTrips(currentList, importedList, plan, vehicleId, importedAt) {
     if (probable) {
       const decision = addProbable(plan, "trips", vehicleId, probable, imported, "Date, title, purpose, route, legs, and available odometers substantially match");
       if (decision === "both") { result.push(newRecord(imported, importedAt)); used.add(imported.id); plan.globalTripIds.add(imported.id); plan.stats.trips.added += 1; }
-      else if (decision === "same") { const merged = compatibleMerge(probable, imported, new Set(["id", "legs"])); if (merged.compatible) Object.assign(probable, merged.value); markSourceAlias(probable, imported.id); plan.stats.trips.skipped += 1; }
+      else if (decision === "same") { const merged = compatibleTripMerge(probable, imported, new Set(["id", "legs"])); if (merged.compatible) Object.assign(probable, merged.value); markSourceAlias(probable, imported.id); plan.stats.trips.skipped += 1; }
       else if (decision === "skip") plan.stats.trips.skipped += 1;
       continue;
     }
@@ -169,6 +186,10 @@ function resolveActive(current, imported, plan, vehicleId, importedAt) {
   const remapped = { ...clone(imported), vehicleId };
   if (!current) { plan.stats.activeTrips.added += 1; return newRecord(remapped, importedAt); }
   if (deepEquivalent(current, remapped)) { plan.stats.activeTrips.skipped += 1; return clone(current); }
+  if (current.id === remapped.id) {
+    const merged = compatibleTripMerge(current, remapped, new Set(["id"]));
+    if (merged.compatible) { if (merged.enriched) plan.stats.activeTrips.updated += 1; else plan.stats.activeTrips.skipped += 1; return merged.value; }
+  }
   const key = conflictKey("activeTrips", vehicleId, current.id);
   plan.conflicts.push({ key, type: "activeTrips", scope: vehicleId, identity: `${current.id} / ${remapped.id}`, reason: "Current and imported active trips differ", current, imported: remapped, options: ["current", "imported", "complete", "discard"] });
   plan.stats.activeTrips.conflicts += 1;

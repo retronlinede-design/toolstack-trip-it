@@ -14,6 +14,9 @@ import { buttonClass, cardBodyClass, cardClass, cardHeaderClass, compactInputCla
 import { SuggestionChips } from "./components/ui/SuggestionChips.jsx";
 import { TimeInput } from "./components/trips/TimeInput.jsx";
 import { freshLegTimes, isValidTime, roundTimeToFiveMinutes, updateLegTime, validateLegTimes } from "./components/trips/timeUtils.js";
+import { PassengerInput } from "./components/trips/PassengerInput.jsx";
+import { buildPeopleSuggestionItems, MAX_DRIVER_LENGTH, normalizeDriver, normalizePassengers, normalizeTripPeople } from "./components/trips/tripPeople.js";
+import { createTripsCsv } from "./components/trips/tripExport.js";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -82,7 +85,8 @@ const TRANSLATIONS = {
     tripItReport: "Trip-It Report", generated: "Generated:", storageKey: "Storage key:", 
     templates: "Templates", saveTemplate: "Save as Template", templateName: "Template Name", 
     load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.", tag: "Tag / Location", startTag: "Start Tag", endTag: "End Tag",
-    titleTag: "Title Tag", purposeTag: "Purpose Tag", close: "Close", save: "Save"
+    titleTag: "Title Tag", purposeTag: "Purpose Tag", close: "Close", save: "Save",
+    driver: "Driver", driverPlaceholder: "Enter driver name", passengers: "Passengers", passengerPlaceholder: "Add passenger name", noPassengers: "No passengers", passengerCount: "Passenger count", driverSuggestions: "Driver suggestions", passengerSuggestions: "Passenger suggestions", passengerInstructions: "Press Enter or comma to add a name.", removePassenger: "Remove passenger", showAll: "Show all", showLess: "Show less", more: "more"
   },
   DE: {
     hub: "Hub", preview: "Vorschau", export: "Export", help: "Hilfe",
@@ -128,7 +132,8 @@ const TRANSLATIONS = {
     tripItReport: "Trip-It Bericht", generated: "Erstellt:", storageKey: "Speicherschlüssel:", 
     templates: "Vorlagen", saveTemplate: "Als Vorlage speichern", templateName: "Vorlagenname", 
     load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.", tag: "Tag / Ort", startTag: "Start Tag", endTag: "End Tag",
-    titleTag: "Titel-Tag", purposeTag: "Zweck-Tag", close: "Schließen", save: "Speichern"
+    titleTag: "Titel-Tag", purposeTag: "Zweck-Tag", close: "Schließen", save: "Speichern",
+    driver: "Fahrer", driverPlaceholder: "Fahrernamen eingeben", passengers: "Fahrgäste", passengerPlaceholder: "Fahrgast hinzufügen", noPassengers: "Keine Fahrgäste", passengerCount: "Anzahl Fahrgäste", driverSuggestions: "Fahrervorschläge", passengerSuggestions: "Fahrgastvorschläge", passengerInstructions: "Mit Eingabetaste oder Komma hinzufügen.", removePassenger: "Fahrgast entfernen", showAll: "Alle anzeigen", showLess: "Weniger anzeigen", more: "weitere"
   }
 };
 
@@ -603,6 +608,17 @@ function TagSuggestions({ tags, onSelect, query = "" }) {
   return <SuggestionChips suggestions={tags} query={query} onSelect={onSelect} label="Tag suggestions" />;
 }
 
+function TripPeopleSummary({ trip, t, compact = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const passengers = normalizePassengers(trip?.passengers);
+  const visible = expanded ? passengers : passengers.slice(0, 3);
+  if (!trip?.driver && !passengers.length) return null;
+  return <div className={`${compact ? "mt-2" : "mt-3 border-t border-neutral-200 pt-3"} text-xs text-neutral-600`}>
+    {trip.driver && <div><span className="font-semibold text-neutral-700">{t("driver")}:</span> {trip.driver}</div>}
+    {!!passengers.length && <div className="mt-1"><span className="font-semibold text-neutral-700">{t("passengers")} ({passengers.length}):</span> {visible.join(" · ")}{!expanded && passengers.length > visible.length && <button type="button" className="ml-1 font-semibold text-neutral-600 underline decoration-neutral-300 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400" onClick={(event) => { event.stopPropagation(); setExpanded(true); }}>+{passengers.length - visible.length} {t("more")}</button>}{expanded && passengers.length > 3 && <button type="button" className="ml-1 text-neutral-500 underline" onClick={(event) => { event.stopPropagation(); setExpanded(false); }}>{t("showLess")}</button>}</div>}
+  </div>;
+}
+
 // ---------- Leg Modal (for saved legs) ----------
 function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
   const [draft, setDraft] = useState(leg || {});
@@ -928,6 +944,8 @@ function normalizeApp(raw) {
           vehicleId: vid,
           title: `Trip on ${date}`,
           purpose: "",
+          driver: "",
+          passengers: [],
           tags: "",
           startedAt: new Date(date).toISOString(),
           startDate: date,
@@ -954,16 +972,17 @@ function normalizeApp(raw) {
     // Ensure each trip has legs array
     normTripsByVehicle[v.id] = normTripsByVehicle[v.id].map(t => {
         if (!t) return null;
-        return { ...t, tags: t.tags || "", titleTag: t.titleTag || "", purposeTag: t.purposeTag || "", legs: Array.isArray(t.legs) ? t.legs : [] };
+        return normalizeTripPeople({ ...t, tags: t.tags || "", titleTag: t.titleTag || "", purposeTag: t.purposeTag || "", legs: Array.isArray(t.legs) ? t.legs : [] });
     }).filter(Boolean);
 
     if (!normActiveTripByVehicle[v.id]) {
         normActiveTripByVehicle[v.id] = null;
     } else {
         // Ensure active trip has legs array
-        if (!Array.isArray(normActiveTripByVehicle[v.id].legs)) {
-            normActiveTripByVehicle[v.id] = { ...normActiveTripByVehicle[v.id], legs: [] };
-        }
+        normActiveTripByVehicle[v.id] = normalizeTripPeople({
+          ...normActiveTripByVehicle[v.id],
+          legs: Array.isArray(normActiveTripByVehicle[v.id].legs) ? normActiveTripByVehicle[v.id].legs : []
+        });
     }
 
     // Normalize Fuel
@@ -999,7 +1018,11 @@ function normalizeApp(raw) {
     id: t.id || uid(),
     type: t.type || "trip",
     name: String(t.name || "Untitled"),
-    data: t.data || {}
+    data: t.type === "trip" ? {
+      ...(t.data || {}),
+      driver: normalizeDriver(t.data?.driver),
+      passengers: normalizePassengers(t.data?.passengers)
+    } : (t.data || {})
   }));
 
   let activeVehicleId = a.activeVehicleId || null;
@@ -1338,6 +1361,8 @@ function TripIt() {
   const [tripStartForm, setTripStartForm] = useState({
     title: "",
     purpose: "",
+    driver: "",
+    passengers: [],
     startDate: todayISO()
   });
 
@@ -1599,6 +1624,7 @@ function TripIt() {
   }, [app.tripsByVehicle, activeVehicle]);
 
   const allLocations = useMemo(() => locationSuggestions.map((item) => item.value), [locationSuggestions]);
+  const peopleSuggestions = useMemo(() => buildPeopleSuggestionItems(Object.values(app.tripsByVehicle).flat()), [app.tripsByVehicle]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
@@ -1739,7 +1765,7 @@ function TripIt() {
     let data = {};
     
     if (type === 'trip') {
-      data = { title: tripStartForm.title, purpose: tripStartForm.purpose };
+      data = { title: tripStartForm.title, purpose: tripStartForm.purpose, driver: normalizeDriver(tripStartForm.driver), passengers: normalizePassengers(tripStartForm.passengers) };
     } else {
       data = { 
         startPlace: legForm.startPlace, 
@@ -1762,7 +1788,7 @@ function TripIt() {
 
   const loadTemplate = (tpl) => {
     if (tpl.type === 'trip') {
-      setTripStartForm(prev => ({ ...prev, title: tpl.data.title || "", purpose: tpl.data.purpose || "" }));
+      setTripStartForm(prev => ({ ...prev, title: tpl.data.title || "", purpose: tpl.data.purpose || "", driver: normalizeDriver(tpl.data.driver), passengers: normalizePassengers(tpl.data.passengers) }));
     } else {
       setLegForm(prev => ({
         ...prev,
@@ -1838,6 +1864,8 @@ function TripIt() {
       vehicleId: activeVehicle.id,
       title: tripStartForm.title,
       purpose: tripStartForm.purpose,
+      driver: normalizeDriver(tripStartForm.driver),
+      passengers: normalizePassengers(tripStartForm.passengers),
       startedAt: new Date().toISOString(),
       startDate: tripStartForm.startDate,
       status: "active",
@@ -1851,7 +1879,7 @@ function TripIt() {
     }));
     
     // Reset start form
-    setTripStartForm({ title: "", purpose: "", startDate: todayISO() });
+    setTripStartForm({ title: "", purpose: "", driver: "", passengers: [], startDate: todayISO() });
     notify("Trip started");
   };
 
@@ -2307,26 +2335,7 @@ function TripIt() {
     const { trips } = previewData;
     if (!trips.length) return notify("No trips in range");
     
-    const rows = [["Date", "Trip Title", "Start Place", "End Place", "Start Time", "End Time", "Distance (km)", "Odo Start", "Odo End", "Notes"]];
-    
-    trips.forEach(t => {
-      (t.legs || []).forEach(l => {
-        rows.push([
-          t.startDate,
-          `"${(t.title || t.purpose || "").replace(/"/g, '""')}"`,
-          `"${l.startPlace.replace(/"/g, '""')}"`,
-          `"${l.endPlace.replace(/"/g, '""')}"`,
-          l.startTime,
-          l.endTime,
-          l.km,
-          l.odoStart,
-          l.odoEnd,
-          `"${(l.note || "").replace(/"/g, '""')}"`
-        ]);
-      });
-    });
-
-    const csvContent = rows.map(r => r.join(",")).join("\n");
+    const csvContent = createTripsCsv(trips);
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2368,6 +2377,14 @@ function TripIt() {
     lines.push(`- Legs: ${t.legCount}`);
     lines.push(`- Distance: ${t.distance.toFixed(1)} km`);
     lines.push(`- Fuel spend: ${money(t.spend, t.currency)} (${t.liters.toFixed(2)} L)`);
+    lines.push("");
+
+    lines.push("Trips");
+    previewData.trips.forEach((trip) => {
+      lines.push(`- ${trip.startDate}: ${trip.title || trip.purpose || "Untitled Trip"}`);
+      if (trip.driver) lines.push(`  Driver: ${trip.driver}`);
+      if (trip.passengers?.length) lines.push(`  Passengers (${trip.passengers.length}): ${normalizePassengers(trip.passengers).join("; ")}`);
+    });
     lines.push("");
 
     lines.push("For full details, use Export (JSON) or CSV.");
@@ -3021,16 +3038,18 @@ function TripIt() {
                         <td colSpan="5" className="py-8 text-center text-neutral-500 italic">No trips found in this date range.</td>
                       </tr>
                     ) : (
-                      previewData.trips.map(t => (
-                        <React.Fragment key={t.id}>
-                          {t.legs.map((l, i) => (
-                            <tr key={l.id} className="border-b border-neutral-100 last:border-0">
-                              <td className="py-2 align-top text-neutral-800 whitespace-nowrap">{i === 0 ? t.startDate : ""}</td>
+                      previewData.trips.map(trip => (
+                        <React.Fragment key={trip.id}>
+                          {(trip.legs.length ? trip.legs : [{}]).map((l, i) => (
+                            <tr key={l.id || `empty-${trip.id}`} className="border-b border-neutral-100 last:border-0">
+                              <td className="py-2 align-top text-neutral-800 whitespace-nowrap">{i === 0 ? trip.startDate : ""}</td>
                               <td className="py-2 align-top text-neutral-800">
-                                {i === 0 && (t.title || t.purpose) ? (
+                                {i === 0 && (trip.title || trip.purpose) ? (
                                   <div>
-                                    <div className="font-medium">{t.title}</div>
-                                    {t.purpose && <div className="text-xs text-neutral-500">{t.purpose}</div>}
+                                    <div className="font-medium">{trip.title}</div>
+                                    {trip.purpose && <div className="text-xs text-neutral-500">{trip.purpose}</div>}
+                                    {trip.driver && <div className="text-xs text-neutral-500">{t("driver")}: {trip.driver}</div>}
+                                    {!!trip.passengers?.length && <div className="text-xs text-neutral-500">{t("passengers")} ({trip.passengers.length}): {normalizePassengers(trip.passengers).join(" · ")}</div>}
                                   </div>
                                 ) : null}
                               </td>
@@ -3040,7 +3059,7 @@ function TripIt() {
                                 <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime}</div>
                                 {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
                               </td>
-                              <td className="py-2 align-top text-neutral-800 text-right">{l.km.toFixed(1)}</td>
+                              <td className="py-2 align-top text-neutral-800 text-right">{l.km != null ? toNumber(l.km).toFixed(1) : ""}</td>
                               <td className="py-2 align-top text-neutral-800 text-xs text-neutral-500 text-right tabular-nums">
                                 {l.odoStart} - {l.odoEnd}
                               </td>
@@ -3190,6 +3209,7 @@ function TripIt() {
                     <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-neutral-700">
                       <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-base text-neutral-800">{activeTrip.title || "Untitled Trip"}</div><div className="mt-1">{activeVehicle.name} · {activeTrip.startDate}</div><div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div></div><div className="flex gap-2"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant="accent">{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</Badge></div></div>
                       {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">{t("purpose")} {activeTrip.purpose}</div> : null}
+                      <TripPeopleSummary trip={activeTrip} t={t} />
                     </div>
 
                     {/* List of Legs in Active Trip */}
@@ -3414,6 +3434,12 @@ function TripIt() {
                       />
                     </div>
                     <div>
+                      <label htmlFor="trip-driver" className="text-sm font-medium text-neutral-700">{t("driver")}</label>
+                      <input id="trip-driver" className={`${inputBase} mt-1`} value={tripStartForm.driver} maxLength={MAX_DRIVER_LENGTH} onChange={(e) => setTripStartForm({ ...tripStartForm, driver: e.target.value })} onBlur={(e) => setTripStartForm((current) => ({ ...current, driver: normalizeDriver(e.target.value) }))} placeholder={t("driverPlaceholder")} />
+                      <SuggestionChips suggestions={peopleSuggestions.drivers} query={tripStartForm.driver} onSelect={(value) => setTripStartForm((current) => ({ ...current, driver: value }))} label={t("driverSuggestions")} />
+                    </div>
+                    <PassengerInput id="trip-passengers" label={t("passengers")} placeholder={t("passengerPlaceholder")} values={tripStartForm.passengers} onChange={(passengers) => setTripStartForm((current) => ({ ...current, passengers }))} suggestions={peopleSuggestions.passengers} suggestionsLabel={t("passengerSuggestions")} instructions={t("passengerInstructions")} removeLabel={t("removePassenger")} showAllLabel={t("showAll")} showLessLabel={t("showLess")} renderSuggestions={(suggestions, onSelect, label) => <SuggestionChips suggestions={suggestions} onSelect={onSelect} label={label} />} />
+                    <div>
                       <label className="text-sm font-medium text-neutral-700">{t("date")}</label>
                       <input
                         type="date"
@@ -3488,6 +3514,7 @@ function TripIt() {
                                 </span>
                               )}
                             </div>
+                            <TripPeopleSummary trip={trip} t={t} compact />
                           </div>
                           
                           {isExpanded && (

@@ -22,6 +22,8 @@ describe("backup identification", () => {
 
 describe("backup schema validation", () => {
   it("accepts a valid current backup", () => expect(prepare(createFullBackup({ data: validApp(), profile: {} })).ok).toBe(true));
+  it("accepts legacy trips without people fields", () => { const data = validApp(); delete data.tripsByVehicle.v1[0].driver; delete data.tripsByVehicle.v1[0].passengers; expect(validateApplicationPayload(data).ok).toBe(true); });
+  it("rejects malformed or excessive trip people fields", () => { const data = validApp(); data.tripsByVehicle.v1[0].passengers = "Passenger"; expect(validateApplicationPayload(data).ok).toBe(false); const long = validApp(); long.tripsByVehicle.v1[0].driver = "x".repeat(151); expect(validateApplicationPayload(long).ok).toBe(false); const many = validApp(); many.tripsByVehicle.v1[0].passengers = Array.from({ length: 51 }, (_, i) => `P${i}`); expect(validateApplicationPayload(many).ok).toBe(false); });
   it("normalizes a valid legacy backup and reports migration", () => {
     const result = prepare({ exportedAt: "2025-01-01T00:00:00.000Z", profile: {}, data: validApp() }, { normalize: (data) => ({ ...clone(data), migrated: true }) });
     expect(result.ok).toBe(true);
