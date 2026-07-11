@@ -15,6 +15,10 @@ import { SuggestionChips } from "./components/ui/SuggestionChips.jsx";
 import { TimeInput } from "./components/trips/TimeInput.jsx";
 import { freshLegTimes, isValidTime, roundTimeToFiveMinutes, updateLegTime, validateLegTimes } from "./components/trips/timeUtils.js";
 import { LegPeopleInput } from "./components/trips/LegPeopleInput.jsx";
+import { LegComposer } from "./components/trips/LegComposer.jsx";
+import { LegTimeline } from "./components/trips/LegTimeline.jsx";
+import { CompletedTripCard } from "./components/trips/CompletedTripCard.jsx";
+import { deleteLegConfirmation, deleteTripConfirmation } from "./components/trips/legDisplayUtils.js";
 import { buildPeopleSuggestionItems, freshLegPeople, migrateTripPeopleToLegs, normalizeDriver, normalizeLegPeople, normalizePassengers } from "./components/trips/tripPeople.js";
 import { createTripsCsv } from "./components/trips/tripExport.js";
 
@@ -35,7 +39,7 @@ const LEGACY_LS_KEY = "toolstack_tripit_v1";
 
 const SUCCESS_MESSAGES = new Set([
   "Vehicle saved", "Vehicle deleted", "Trip started", "Leg updated", "Leg added",
-  "Trip finished", "Trip cancelled", "Trip deleted", "Leg added to trip", "Wash updated",
+  "Trip finished", "Trip cancelled", "Trip deleted", "Leg deleted", "Leg added to trip", "Wash updated",
   "Wash logged", "Wash deleted", "Fuel updated", "Fuel added", "Fuel entry deleted",
   "Template saved", "Template loaded", "Imported",
 ]);
@@ -435,6 +439,14 @@ function Pill({ children, tone = "default" }) {
 }
 
 function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm, onCancel }) {
+  const cancelRef = useRef(null);
+  const returnFocusRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    returnFocusRef.current = document.activeElement;
+    cancelRef.current?.focus();
+    return () => returnFocusRef.current?.focus?.();
+  }, [open]);
   if (!open) return null;
   return (
     <div className="ts-modal-backdrop">
@@ -446,6 +458,7 @@ function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm,
         <div className="ts-modal__footer">
           <button
             type="button"
+            ref={cancelRef}
             className={btnSecondary}
             onClick={onCancel}
           >
@@ -602,21 +615,6 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
       </div>
     </div>
   );
-}
-
-function TagSuggestions({ tags, onSelect, query = "" }) {
-  return <SuggestionChips suggestions={tags} query={query} onSelect={onSelect} label="Tag suggestions" />;
-}
-
-function LegPeopleSummary({ leg, t, compact = false }) {
-  const [expanded, setExpanded] = useState(false);
-  const passengers = normalizePassengers(leg?.passengers);
-  const visible = expanded ? passengers : passengers.slice(0, 3);
-  if (!leg?.driver && !passengers.length) return null;
-  return <div className={`${compact ? "mt-2" : "mt-3 border-t border-neutral-200 pt-3"} text-xs text-neutral-600`}>
-    {leg.driver && <div><span className="font-semibold text-neutral-700">{t("driver")}:</span> {leg.driver}</div>}
-    {!!passengers.length && <div className="mt-1"><span className="font-semibold text-neutral-700">{t("passengers")} ({passengers.length}):</span> {visible.join(" · ")}{!expanded && passengers.length > visible.length && <button type="button" aria-expanded={false} className="ml-1 font-semibold text-neutral-600 underline decoration-neutral-300 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400" onClick={(event) => { event.stopPropagation(); setExpanded(true); }}>+{passengers.length - visible.length} {t("more")}</button>}{expanded && passengers.length > 3 && <button type="button" aria-expanded={true} className="ml-1 text-neutral-500 underline" onClick={(event) => { event.stopPropagation(); setExpanded(false); }}>{t("showLess")}</button>}</div>}
-  </div>;
 }
 
 // ---------- Leg Modal (for saved legs) ----------
@@ -2001,6 +1999,7 @@ function TripIt() {
     if (editingActiveLegId === legId) {
       cancelEditActiveLeg();
     }
+    setConfirm({ open: false, kind: null, id: null, payload: null });
   };
 
   const endTrip = () => {
@@ -2039,7 +2038,15 @@ function TripIt() {
       ...a,
       tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: (a.tripsByVehicle[activeVehicle.id] || []).filter(t => t.id !== tripId) }
     }));
+    setConfirm({ open: false, kind: null, id: null, payload: null });
     notify("Trip deleted");
+  };
+
+  const deleteHistoricalLeg = (tripId, legId) => {
+    if (!activeVehicle || !allowDestructiveAction("Deleting this historical leg")) return;
+    setApp((current) => ({ ...current, tripsByVehicle: { ...current.tripsByVehicle, [activeVehicle.id]: (current.tripsByVehicle[activeVehicle.id] || []).map((trip) => trip.id === tripId ? { ...trip, legs: trip.legs.filter((leg) => leg.id !== legId) } : trip) } }));
+    setConfirm({ open: false, kind: null, id: null, payload: null });
+    notify("Leg deleted");
   };
 
   const saveSavedLeg = (updatedLeg) => {
@@ -2706,11 +2713,11 @@ function TripIt() {
 
       <ConfirmModal
         open={confirm.open}
-        title={confirm.kind === "vehicle" ? t("deleteVehicleQ") : t("cancelTripQ")}
-        message={confirm.kind === "vehicle" ? t("deleteVehicleMsg") : t("cancelTripMsg")}
-        confirmText={confirm.kind === "vehicle" ? t("delete") : t("cancelTrip")}
+        title={confirm.payload?.title || (confirm.kind === "vehicle" ? t("deleteVehicleQ") : t("cancelTripQ"))}
+        message={confirm.payload?.message || (confirm.kind === "vehicle" ? t("deleteVehicleMsg") : t("cancelTripMsg"))}
+        confirmText={["active-leg", "history-leg", "trip", "vehicle"].includes(confirm.kind) ? t("delete") : t("cancelTrip")}
         onCancel={() => setConfirm({ open: false, kind: null, id: null, payload: null })}
-        onConfirm={confirm.kind === "vehicle" ? deleteVehicleNow : cancelTrip}
+        onConfirm={() => { if (confirm.kind === "vehicle") deleteVehicleNow(); else if (confirm.kind === "active-leg") deleteLeg(confirm.id); else if (confirm.kind === "history-leg") deleteHistoricalLeg(confirm.payload.tripId, confirm.id); else if (confirm.kind === "trip") deleteTrip(confirm.id); else cancelTrip(); }}
       />
 
       <ImportWorkflowModal
@@ -3241,195 +3248,15 @@ function TripIt() {
                   // Active Trip View
                   <div className="space-y-4">
                     <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-neutral-700">
-                      <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-base text-neutral-800">{activeTrip.title || "Untitled Trip"}</div><div className="mt-1">{activeVehicle.name} · {activeTrip.startDate}</div><div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div></div><div className="flex gap-2"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant="accent">{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</Badge></div></div>
+                      <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-base text-neutral-800">{activeTrip.title || "Untitled Trip"}</div><div className="mt-1">{activeVehicle.name} · {activeTrip.startDate}</div><div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div></div><div className="flex flex-wrap gap-2"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant="accent">{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</Badge><Badge variant={persistence.status === "saved" ? "success" : persistence.status === "saving" ? "warning" : "danger"}>{persistence.status}</Badge></div></div>
                       {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">{t("purpose")} {activeTrip.purpose}</div> : null}
                     </div>
 
                     {/* List of Legs in Active Trip */}
-                    {activeTrip.legs.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("legs")}</div>
-                        {activeTrip.legs.map((l) => (
-                          <div key={l.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white text-sm">
-                            <div className="min-w-0">
-                              <div className="font-medium text-neutral-800">{l.startPlace} → {l.endPlace}</div>
-                              <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime} • {l.km.toFixed(1)} km</div>
-                              <LegPeopleSummary leg={l} t={t} compact />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button 
-                                className="text-[10px] font-black uppercase tracking-wider text-neutral-500 hover:text-neutral-800 px-2"
-                                onClick={() => editActiveLeg(l)}
-                              >
-                                {t("edit")}
-                              </button>
-                              <button 
-                                className="text-[10px] font-black uppercase tracking-wider text-red-500 hover:text-red-700 px-2"
-                                onClick={() => deleteLeg(l.id)}
-                              >
-                                {t("delete")}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-neutral-500 italic">{t("noLegs")}</div>
-                    )}
+                    <LegTimeline legs={activeTrip.legs} context="active" editingLegId={editingActiveLegId} onEdit={editActiveLeg} onDelete={(leg) => setConfirm({ open: true, kind: "active-leg", id: leg.id, payload: { title: "Delete leg?", message: deleteLegConfirmation(leg) } })} emptyMessage="No legs recorded yet. Enter the first route above." />
 
                     <div className="border-t border-neutral-100 pt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium text-neutral-800">{editingActiveLegId ? t("updateLeg") : t("quickLeg")}</div>
-                        <div className="flex gap-3 items-center">
-                          <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={() => setTemplateModal({ open: true, type: 'leg' })}>
-                            {t("templates")}
-                          </button>
-                          {!editingActiveLegId && (
-                            <>
-                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={duplicateLastLeg}>{t("duplicateLast")}</button>
-                              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-800 underline" onClick={swapLegPlaces}>{t("return")}</button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        {/* Row 1 & 2: Locations & Tags */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("from")}</label>
-                          <div className="relative">
-                            <input
-                              className={`${inputBase} pr-8`}
-                              value={legForm.startPlace}
-                              onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })}
-                              onKeyDown={handleLegKeyDown}
-                              onFocus={handleFocus}
-                              placeholder={t("start")}
-                              list="locations-list"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => getCurrentLocation("startPlace")}
-                              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition"
-                              title="Current location"
-                            >
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          </div>
-                          <SuggestionChips suggestions={locationSuggestions} query={legForm.startPlace} onSelect={(value) => setLegForm(prev => ({ ...prev, startPlace: value }))} />
-                            
-                            <div>
-                              <input
-                                className={inputBase}
-                                value={legForm.startTag}
-                                onChange={(e) => setLegForm({ ...legForm, startTag: e.target.value })}
-                                onKeyDown={handleLegKeyDown}
-                                onFocus={handleFocus}
-                                placeholder={t("startTag")}
-                              />
-                              <TagSuggestions tags={legTags} query={legForm.startTag} onSelect={(t) => setLegForm(prev => ({ ...prev, startTag: t }))} />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("to")}</label>
-                          <div className="relative">
-                            <input
-                              className={`${inputBase} pr-8`}
-                              value={legForm.endPlace}
-                              onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })}
-                              onKeyDown={handleLegKeyDown}
-                              onFocus={handleFocus}
-                              placeholder={t("end")}
-                              list="locations-list"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => getCurrentLocation("endPlace")}
-                              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition"
-                              title="Current location"
-                            >
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          </div>
-                          <SuggestionChips suggestions={locationSuggestions} query={legForm.endPlace} onSelect={(value) => setLegForm(prev => ({ ...prev, endPlace: value }))} />
-
-                            <div>
-                              <input
-                                className={inputBase}
-                                value={legForm.endTag}
-                                onChange={(e) => setLegForm({ ...legForm, endTag: e.target.value })}
-                                onKeyDown={handleLegKeyDown}
-                                onFocus={handleFocus}
-                                placeholder={t("endTag")}
-                              />
-                              <TagSuggestions tags={legTags} query={legForm.endTag} onSelect={(t) => setLegForm(prev => ({ ...prev, endTag: t }))} />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                          <div className="mb-2 text-xs font-semibold text-neutral-700">Time</div>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <TimeInput id="active-leg-start-time" label={t("startTime")} value={legForm.startTime} onChange={(value) => changeLegTime("startTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.startTime : ""} onKeyDown={handleLegKeyDown} onFocus={handleFocus} />
-                            <TimeInput id="active-leg-end-time" label={t("endTime")} value={legForm.endTime} onChange={(value) => changeLegTime("endTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.endTime : ""} onKeyDown={handleLegKeyDown} onFocus={handleFocus} />
-                          </div>
-                        </div>
-
-                        {/* Row 3: Details */}
-                        <div className="flex flex-wrap gap-2 items-end">
-                          <div className="w-20">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoS")}</label>
-                          <input
-                            className={`${inputBase} text-right tabular-nums`}
-                            inputMode="decimal"
-                            value={legForm.odoStart}
-                            onChange={(e) => setLegForm({ ...legForm, odoStart: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                            placeholder="0"
-                          />
-                          </div>
-                          <div className="w-20">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoE")}</label>
-                          <input
-                            className={`${inputBase} text-right tabular-nums`}
-                            inputMode="decimal"
-                            value={legForm.odoEnd}
-                            onChange={(e) => setLegForm({ ...legForm, odoEnd: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                            placeholder="0"
-                          />
-                          </div>
-                        </div>
-
-                        <LegPeopleInput idPrefix="active-leg" driver={legForm.driver} passengers={legForm.passengers} onDriverChange={(driver) => setLegForm((current) => ({ ...current, driver }))} onPassengersChange={(passengers) => setLegForm((current) => ({ ...current, passengers }))} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} previousLeg={!editingActiveLegId ? activeTrip.legs.at(-1) : null} t={t} />
-
-                        <div>
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("note")}</label>
-                          <input className={inputBase} value={legForm.note} onChange={(e) => setLegForm({ ...legForm, note: e.target.value })} onKeyDown={handleLegKeyDown} onFocus={handleFocus} placeholder={t("optional")} />
-                        </div>
-
-                        {editingActiveLegId ? (
-                          <div className="flex gap-2">
-                            <button className={btnSecondary} onClick={cancelEditActiveLeg}>
-                              {t("cancel")}
-                            </button>
-                            <button className={btnAccent} onClick={saveActiveLeg}>
-                              {t("update")}
-                            </button>
-                          </div>
-                        ) : (
-                          <button className={btnSecondary} onClick={saveActiveLeg}>
-                            {t("add")}
-                          </button>
-                        )}
-                      </div>
+                      <LegComposer key={`${editingActiveLegId || "new"}-${activeTrip.legs.length}`} form={legForm} setField={(field, value) => field === "startTime" || field === "endTime" ? changeLegTime(field, value) : setLegForm((current) => ({ ...current, [field]: value }))} setPassengers={(passengers) => setLegForm((current) => ({ ...current, passengers }))} locationSuggestions={locationSuggestions} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} tagSuggestions={legTags} previousLeg={activeTrip.legs.at(-1)} editingIndex={editingActiveLegId ? activeTrip.legs.findIndex((leg) => leg.id === editingActiveLegId) : null} timeErrors={showLegTimeErrors ? legTimeValidation.errors : {}} onSave={saveActiveLeg} onCancelEdit={cancelEditActiveLeg} onDuplicate={duplicateLastLeg} onReverse={swapLegPlaces} onCurrentLocation={getCurrentLocation} onTemplate={() => setTemplateModal({ open: true, type: "leg" })} onKeyDown={handleLegKeyDown} onFocus={handleFocus} t={t} />
                     </div>
 
                     <datalist id="locations-list">
@@ -3508,120 +3335,7 @@ function TripIt() {
                   <EmptyState title="No trips this month" description={`${t("noTrips")} ${monthLabel(app.ui.month, profile.language)}.`} />
                 ) : (
                   <div className="space-y-3">
-                    {tripsForMonth.map((trip) => {
-                      const totalKm = trip.legs.reduce((sum, l) => sum + toNumber(l.km), 0);
-                      const isExpanded = expandedTripId === trip.id;
-                      
-                      let tripLastOdo = null;
-                      if (trip.legs.length > 0) {
-                        tripLastOdo = trip.legs[trip.legs.length - 1].odoEnd;
-                      }
-                      
-                      return (
-                        <div key={trip.id} className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
-                          <div 
-                            className="p-3 cursor-pointer hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] transition"
-                            onClick={() => toggleTrip(trip.id)}
-                          >
-                            <div className="font-semibold text-neutral-800 truncate">{trip.title || "Untitled Trip"}</div>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-                              <span>{trip.startDate}</span>
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[rgb(var(--ts-accent-rgb)/0.3)] text-neutral-800">
-                                {trip.legs.length} {t("legs")}
-                              </span>
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[rgb(var(--ts-accent-rgb)/0.3)] text-neutral-800">
-                                {totalKm.toFixed(1)} km
-                              </span>
-                              {tripLastOdo != null && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[rgb(var(--ts-accent-rgb)/0.3)] text-neutral-800">
-                                  {t("odoE")}: {tripLastOdo}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {isExpanded && (
-                            <div className="border-t border-neutral-100 bg-neutral-50 p-3 space-y-2">
-                              {trip.purpose && <div className="text-xs text-neutral-600 mb-2">{t("purpose")} {trip.purpose}</div>}
-                              {trip.legs.map((l) => (
-                                <div key={l.id} className="text-sm border-l-2 border-neutral-300 pl-2 py-1">
-                                  <div className="flex justify-between">
-                                    <span className="font-medium text-neutral-700">{l.startPlace} → {l.endPlace}</span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-neutral-600">{l.km.toFixed(1)} km</span>
-                                      <button 
-                                        className="text-[10px] font-black uppercase tracking-wider text-neutral-500 hover:text-neutral-800"
-                                        onClick={(e) => { e.stopPropagation(); setSavedLegModal({ open: true, tripId: trip.id, leg: l }); }}
-                                      >
-                                        {t("edit")}
-                                      </button>
-                                    </div>
-                                  </div>
-                                  {(l.startTag || l.endTag) && <div className="text-xs font-medium text-lime-700 bg-lime-50 inline-block px-1.5 rounded my-0.5">{l.startTag}{l.startTag && l.endTag ? " → " : ""}{l.endTag}</div>}
-                                  <div className="text-xs text-neutral-500">
-                                    {l.startTime} - {l.endTime} • Odo: {l.odoStart} - {l.odoEnd}
-                                  </div>
-                                  <LegPeopleSummary leg={l} t={t} compact />
-                                  {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
-                                </div>
-                              ))}
-                              <div className="pt-2 flex justify-end gap-2">
-                                <button 
-                                  className="text-[10px] font-black uppercase tracking-wider text-neutral-600 hover:text-neutral-900 px-2 py-1 border-2 border-neutral-200 bg-neutral-100 rounded-sm transition"
-                                  onClick={(e) => { e.stopPropagation(); openAddLegToTrip(trip); }}
-                                >
-                                  + {t("add")} {t("legs")}
-                                </button>
-                                <button 
-                                  className="text-[10px] font-black uppercase tracking-wider text-red-600 hover:text-red-800 px-2 py-1 border-2 border-red-100 bg-red-50 rounded-sm transition"
-                                  onClick={(e) => { e.stopPropagation(); deleteTrip(trip.id); }}
-                                >
-                                  {t("delete")}
-                                </button>
-                              </div>
-
-                              {addingLegToTripId === trip.id && (
-                                <div className="p-3 mt-2 border-t border-dashed border-neutral-300 bg-neutral-100">
-                                    <div className="text-xs font-semibold text-neutral-600 mb-2">Add New Leg</div>
-                                    <div className="space-y-2">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <div>
-                                                <label className="text-[10px] font-medium text-neutral-500">{t("from")}</label>
-                                                <input className={inputCompact} value={legForm.startPlace} onChange={e => setLegForm({...legForm, startPlace: e.target.value})} list="locations-list" />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-medium text-neutral-500">{t("to")}</label>
-                                                <input className={inputCompact} value={legForm.endPlace} onChange={e => setLegForm({...legForm, endPlace: e.target.value})} list="locations-list" />
-                                            </div>
-                                        </div>
-                                        <div className="rounded-xl border border-neutral-200 bg-white p-3">
-                                          <div className="mb-2 text-xs font-semibold text-neutral-700">Time</div>
-                                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                            <TimeInput compact id={`historical-${trip.id}-start-time`} label={t("startTime")} value={legForm.startTime} onChange={(value) => changeLegTime("startTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.startTime : ""} />
-                                            <TimeInput compact id={`historical-${trip.id}-end-time`} label={t("endTime")} value={legForm.endTime} onChange={(value) => changeLegTime("endTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.endTime : ""} />
-                                          </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("odoS")}</label><input className={`${inputCompact} text-right`} value={legForm.odoStart} onChange={e => setLegForm({...legForm, odoStart: e.target.value})} /></div>
-                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("odoE")}</label><input className={`${inputCompact} text-right`} value={legForm.odoEnd} onChange={e => setLegForm({...legForm, odoEnd: e.target.value})} /></div>
-                                        </div>
-                                        <LegPeopleInput idPrefix={`historical-${trip.id}`} driver={legForm.driver} passengers={legForm.passengers} onDriverChange={(driver) => setLegForm((current) => ({ ...current, driver }))} onPassengersChange={(passengers) => setLegForm((current) => ({ ...current, passengers }))} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} previousLeg={trip.legs.at(-1)} t={t} />
-                                        <div>
-                                            <label className="text-[10px] font-medium text-neutral-500">{t("note")}</label>
-                                            <input className={inputCompact} value={legForm.note} onChange={e => setLegForm({...legForm, note: e.target.value})} />
-                                        </div>
-                                        <div className="flex justify-end gap-2 pt-1">
-                                            <button className={`${btnSecondary} px-3 py-1 text-[10px]`} onClick={() => setAddingLegToTripId(null)}>{t("cancel")}</button>
-                                            <button className={`${btnAccent} px-3 py-1 text-[10px]`} onClick={() => addLegToSavedTrip(trip.id)}>{t("add")}</button>
-                                        </div>
-                                    </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {tripsForMonth.map((trip) => <CompletedTripCard key={trip.id} trip={trip} vehicleName={activeVehicle.name} expanded={expandedTripId === trip.id} onToggle={() => toggleTrip(trip.id)} onEditLeg={(leg) => setSavedLegModal({ open: true, tripId: trip.id, leg })} onDeleteLeg={(leg) => setConfirm({ open: true, kind: "history-leg", id: leg.id, payload: { tripId: trip.id, title: "Delete leg?", message: deleteLegConfirmation(leg) } })} onAddLeg={() => openAddLegToTrip(trip)} onDeleteTrip={() => setConfirm({ open: true, kind: "trip", id: trip.id, payload: { title: "Delete trip?", message: deleteTripConfirmation(trip) } })} addingForm={addingLegToTripId === trip.id ? <div className="rounded-xl border border-neutral-200 bg-white p-3"><div className="mb-2 text-sm font-semibold text-neutral-700">Add New Leg</div><div className="space-y-2"><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><div><label className="text-xs font-medium text-neutral-500">{t("from")}</label><input className={inputCompact} value={legForm.startPlace} onChange={(e) => setLegForm({ ...legForm, startPlace: e.target.value })} /></div><div><label className="text-xs font-medium text-neutral-500">{t("to")}</label><input className={inputCompact} value={legForm.endPlace} onChange={(e) => setLegForm({ ...legForm, endPlace: e.target.value })} /></div></div><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><TimeInput compact id={`historical-${trip.id}-start-time`} label={t("startTime")} value={legForm.startTime} onChange={(value) => changeLegTime("startTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.startTime : ""} /><TimeInput compact id={`historical-${trip.id}-end-time`} label={t("endTime")} value={legForm.endTime} onChange={(value) => changeLegTime("endTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.endTime : ""} /></div><div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-medium text-neutral-500">{t("odoS")}</label><input className={`${inputCompact} text-right`} value={legForm.odoStart} onChange={(e) => setLegForm({ ...legForm, odoStart: e.target.value })} /></div><div><label className="text-xs font-medium text-neutral-500">{t("odoE")}</label><input className={`${inputCompact} text-right`} value={legForm.odoEnd} onChange={(e) => setLegForm({ ...legForm, odoEnd: e.target.value })} /></div></div><LegPeopleInput idPrefix={`historical-${trip.id}`} driver={legForm.driver} passengers={legForm.passengers} onDriverChange={(driver) => setLegForm((current) => ({ ...current, driver }))} onPassengersChange={(passengers) => setLegForm((current) => ({ ...current, passengers }))} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} previousLeg={trip.legs.at(-1)} t={t} /><div><label className="text-xs font-medium text-neutral-500">{t("note")}</label><input className={inputCompact} value={legForm.note} onChange={(e) => setLegForm({ ...legForm, note: e.target.value })} /></div><div className="flex justify-end gap-2"><button className={btnSecondary} onClick={() => setAddingLegToTripId(null)}>{t("cancel")}</button><button className={btnAccent} onClick={() => addLegToSavedTrip(trip.id)}>{t("add")}</button></div></div></div> : null} />)}
                   </div>
                 )}
               </div>
