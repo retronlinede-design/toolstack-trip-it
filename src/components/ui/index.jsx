@@ -37,7 +37,7 @@ export function SegmentedControl({ children, label }) {
 }
 
 export function ModalShell({ title, description, onClose, children, footer, maxWidth = "42rem" }) {
-  return <div className="ts-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="ts-modal-title"><div className="ts-modal" style={{ maxWidth }}><header className="ts-modal__header"><div><h2 id="ts-modal-title">{title}</h2>{description && <p>{description}</p>}</div><IconButton label="Close" onClick={onClose}>×</IconButton></header><div className="ts-modal__body">{children}</div>{footer && <footer className="ts-modal__footer">{footer}</footer>}</div></div>;
+  return <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="ts-modal-title"><button type="button" className="modal-backdrop border-0 bg-transparent" onClick={onClose} aria-label="Close modal" /><div className="modal-positioner"><div className="ts-modal modal-panel" style={{ maxWidth }}><header className="ts-modal__header"><div><h2 id="ts-modal-title">{title}</h2>{description && <p>{description}</p>}</div><IconButton label="Close" onClick={onClose}>×</IconButton></header><div className="ts-modal__body">{children}</div>{footer && <footer className="ts-modal__footer">{footer}</footer>}</div></div></div>;
 }
 
 export function EmptyState({ title, description, action }) {

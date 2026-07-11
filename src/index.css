@@ -77,8 +77,18 @@ label { color: var(--ts-text-muted); }
 .ts-badge--success { background: #ecfdf3; border-color: #bbf7d0; color: #15803d; }
 .ts-segmented { display: inline-flex; gap: 3px; border: 1px solid var(--ts-border); border-radius: 12px; background: var(--ts-bg-soft); padding: 3px; }
 
-.ts-modal-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(71,85,105,.28); backdrop-filter: blur(5px); }
-.ts-modal { width: 100%; max-height: min(90vh, 900px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--ts-border-strong); border-radius: 16px; background: #fff; color: var(--ts-text); box-shadow: 0 24px 70px rgba(31,41,51,.22); }
+.ts-modal-backdrop, .modal-root { position: fixed; inset: 0; z-index: 1000; isolation: isolate; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(71,85,105,.28); backdrop-filter: blur(5px); }
+.modal-backdrop, .ts-modal-backdrop > .absolute.inset-0 { position: absolute; inset: 0; z-index: 0; pointer-events: auto; }
+.modal-positioner { position: relative; z-index: 1; width: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.ts-modal, .modal-panel { position: relative; z-index: 1; pointer-events: auto; width: 100%; max-height: min(90vh, 900px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--ts-border-strong); border-radius: 16px; background: #fff; color: var(--ts-text); box-shadow: 0 24px 70px rgba(31,41,51,.22); }
+.ts-modal-backdrop > .ts-modal { z-index: 1; pointer-events: auto; }
+.ts-modal-backdrop > :not(.absolute):not(.ts-modal) { position: relative; z-index: 1; pointer-events: none; }
+.ts-modal-backdrop > :not(.absolute):not(.ts-modal) .ts-modal { pointer-events: auto; }
+.tripit-app .fixed.inset-0.z-50 { z-index: 1000; isolation: isolate; }
+.tripit-app .fixed.inset-0.z-50 > .absolute.inset-0:not(.flex) { z-index: 0; pointer-events: auto; }
+.tripit-app .fixed.inset-0.z-50 > .absolute.inset-0.flex { z-index: 1; pointer-events: none; }
+.tripit-app .fixed.inset-0.z-50 > .absolute.inset-0.flex > * { pointer-events: auto; }
+.tripit-app .fixed.inset-0.z-50 > .relative { z-index: 1; pointer-events: auto; }
 .ts-modal__header, .ts-modal__footer { padding: 16px 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-color: var(--ts-border); }
 .ts-modal__header { border-bottom: 1px solid var(--ts-border); }
 .ts-modal__footer { border-top: 1px solid var(--ts-border); justify-content: flex-end; }
