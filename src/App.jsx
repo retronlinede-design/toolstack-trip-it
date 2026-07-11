@@ -3080,17 +3080,17 @@ function TripIt() {
         {/* Header */}
         <header className="mb-4 overflow-hidden rounded-2xl border border-[var(--ts-border)] bg-white shadow-[0_6px_24px_rgba(31,41,51,0.07)]">
           <div className="h-1.5 bg-[var(--ts-accent)]" aria-hidden="true" />
-          <div className="flex flex-col items-center gap-3 px-3 py-3 sm:px-5 sm:py-4">
+          <div className="flex flex-col items-start gap-3 px-3 py-3 sm:py-4 lg:flex-row lg:items-center lg:justify-between">
             <img src={tripitLogo} alt="Trip-It" className="h-[8.1rem] w-auto max-w-full shrink-0 object-contain select-none sm:h-[10.4rem]" draggable="false" />
-            <div className="flex w-full flex-col items-center gap-3">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col items-start gap-3 lg:w-auto lg:items-end">
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 {activeVehicle && <Badge variant="accent">Active vehicle: {activeVehicle.name}</Badge>}
                 <div className="ts-segmented" role="group" aria-label="Language">
                   <button onClick={() => setProfile(p => ({ ...p, language: "EN" }))} className={`${buttonClass(profile.language === "EN" ? "primary" : "ghost")} min-h-9 px-3`}>EN</button>
                   <button onClick={() => setProfile(p => ({ ...p, language: "DE" }))} className={`${buttonClass(profile.language === "DE" ? "primary" : "ghost")} min-h-9 px-3`}>DE</button>
                 </div>
               </div>
-              <nav className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-center" aria-label="Application actions">
+              <nav className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-start lg:justify-end" aria-label="Application actions">
                 <ActionButton onClick={openHub} title={t("returnHub")}>
                   {t("hub")}
                 </ActionButton>
