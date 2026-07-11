@@ -1,0 +1,21 @@
+import { describe, expect, it, vi } from "vitest";
+import { applyTransactionResult } from "./importTransaction.js";
+import { mergeDatasetTransactional, rollbackMergeTransactional } from "./mergeTransaction.js";
+import { validateApplicationPayload } from "./backupValidator.js";
+import { clone, validApp } from "./testFixtures.js";
+
+function storageMock(initial = {}) {
+  const values = new Map(Object.entries(initial)); const calls = [];
+  return { values, calls, getItem(key) { calls.push(["get", key]); return values.get(key) ?? null; }, setItem(key, value) { calls.push(["set", key, value]); values.set(key, value); }, removeItem(key) { values.delete(key); } };
+}
+const run = (storage, current, candidate) => mergeDatasetTransactional({ primaryKey: "primary", currentData: current, candidate, validate: validateApplicationPayload, storage, now: new Date("2026-07-11T12:00:00.000Z") });
+
+describe("merge transaction", () => {
+  it("creates the pre-merge snapshot before primary write", () => { const current = validApp(); const candidate = clone(current); candidate.vehicles[0].notes = "merged"; const storage = storageMock({ primary: JSON.stringify(current) }); const result = run(storage, current, candidate); expect(result.ok).toBe(true); expect(result.snapshotKey).toContain("pre-merge"); expect(storage.calls.findIndex(([type, key]) => type === "set" && key.includes("pre-merge"))).toBeLessThan(storage.calls.findIndex(([type, key]) => type === "set" && key === "primary")); });
+  it("snapshot failure aborts", () => { const current = validApp(); const storage = storageMock({ primary: JSON.stringify(current) }); storage.setItem = (key) => { if (key.includes("pre-merge")) throw new Error("full"); }; const result = run(storage, current, current); expect(result.code).toBe("SNAPSHOT_FAILED"); expect(storage.values.get("primary")).toBe(JSON.stringify(current)); });
+  it("candidate failure preserves current", () => { const current = validApp(); const candidate = clone(current); candidate.vehicles[0].notes = "merged"; const storage = storageMock({ primary: JSON.stringify(current) }); let writes = 0; const original = storage.setItem.bind(storage); storage.setItem = (key, value) => { if (key === "primary" && ++writes === 1) throw new Error("blocked"); original(key, value); }; const result = run(storage, current, candidate); expect(result.ok).toBe(false); expect(JSON.parse(storage.values.get("primary"))).toEqual(current); });
+  it("read-back mismatch aborts", () => { const current = validApp(); const storage = storageMock({ primary: JSON.stringify(current) }); let mismatch = true; const original = storage.getItem.bind(storage); storage.getItem = (key) => key === "primary" && mismatch ? (mismatch = false, "bad") : original(key); expect(run(storage, current, current).code).toBe("CANDIDATE_VERIFY_FAILED"); });
+  it("post-write validation failure aborts", () => { const current = validApp(); const storage = storageMock({ primary: JSON.stringify(current) }); let reads = 0; const original = storage.getItem.bind(storage); storage.getItem = (key) => key === "primary" && ++reads === 2 ? "{}" : original(key); expect(run(storage, current, current).phase).toBe("post_write_validation"); });
+  it("successful merge updates storage and state only after success", () => { const current = validApp(); const candidate = clone(current); candidate.vehicles[0].notes = "merged"; const storage = storageMock({ primary: JSON.stringify(current) }); const result = run(storage, current, candidate); const setter = vi.fn(); expect(applyTransactionResult(result, setter)).toBe(true); expect(setter).toHaveBeenCalledWith(candidate); });
+  it("rollback restores pre-merge data transactionally", () => { const oldData = validApp(); const merged = clone(oldData); merged.vehicles[0].notes = "merged"; const storage = storageMock({ primary: JSON.stringify(merged), rollback: JSON.stringify(oldData) }); const result = rollbackMergeTransactional({ primaryKey: "primary", rollbackKey: "rollback", currentData: merged, validate: validateApplicationPayload, storage, now: new Date("2026-07-11T12:00:00.000Z") }); expect(result.ok).toBe(true); expect(JSON.parse(storage.values.get("primary"))).toEqual(oldData); expect(storage.values.has(result.snapshotKey)).toBe(true); });
+});

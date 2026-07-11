@@ -7,6 +7,8 @@ import { canShowSavedFeedback, persistenceFromResult, requiresDestructiveConfirm
 import { createFullBackup, createReportExport, IMPORT_LIMITS } from "./import/backupSchema.js";
 import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateApplicationPayload } from "./import/backupValidator.js";
 import { applyTransactionResult, replaceDatasetTransactional, rollbackTransactional } from "./import/importTransaction.js";
+import { createMergePlan } from "./import/mergePlanner.js";
+import { mergeDatasetTransactional, rollbackMergeTransactional } from "./import/mergeTransaction.js";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -382,6 +384,13 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
                   <HelpBullet>Export after major edits</HelpBullet>
                   <HelpBullet>Store backups in two locations (e.g., Downloads + Drive/USB)</HelpBullet>
                 </ul>
+              </HelpCard>
+
+              <HelpCard title="Transfer Phone to PC">
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Export Full Backup on the phone.</li><li>Send or save the JSON file.</li><li>Open Trip-It on the PC.</li><li>Import the Full Backup.</li><li>Choose Merge Into Current Data.</li><li>Review additions and conflicts.</li><li>Confirm the merge.</li>
+                </ol>
+                <p className="mt-2">Report JSON cannot be merged. Merge combines compatible data; Replace substitutes the operational dataset after creating a verified rollback snapshot.</p>
               </HelpCard>
             </div>
 
@@ -1275,13 +1284,14 @@ function BlockingStorageScreen({ gate, onRetry, onStartNew, onContinueLegacy }) 
   );
 }
 
-function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onRetry, onRollback, onDownloadCurrent, onDownloadCandidate }) {
+function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onMerge, onResolution, onResolveConflicts, onRetry, onRollback, onDownloadCurrent, onDownloadCandidate, onDownloadMerge }) {
   if (!state.open) return null;
   const candidateCounts = state.prepared?.counts;
   const rows = [
     ["Vehicles", "vehicles"], ["Completed trips", "completedTrips"], ["Active trips", "activeTrips"],
     ["Legs", "legs"], ["Fuel entries", "fuelEntries"], ["Wash entries", "washEntries"], ["Templates", "templates"],
   ];
+  const recordSummary = (record) => Object.entries(record || {}).filter(([, value]) => ["string", "number", "boolean"].includes(typeof value)).slice(0, 7);
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="import-title">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border-2 border-neutral-300 shadow-2xl">
@@ -1298,11 +1308,26 @@ function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onRetry
                 <div><b>Schema:</b> {state.prepared.classification.schemaVersion}</div>
                 <div><b>Exported:</b> {state.prepared.classification.exportedAt || "Not recorded"}</div>
                 <div><b>Migration:</b> {state.prepared.classification.migrationRequired ? "Yes" : "No"}</div>
-                <div className="font-semibold text-red-700">This will replace the current operational dataset.</div>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="text-left py-2">Records</th><th className="text-right">Current</th><th className="text-right">Imported</th></tr></thead><tbody>{rows.map(([label, key]) => <tr className="border-b" key={key}><td className="py-2">{label}</td><td className="text-right">{currentCounts[key] || 0}</td><td className="text-right font-semibold">{candidateCounts[key] || 0}</td></tr>)}</tbody></table></div>
               {state.prepared.warnings.length > 0 && <div className="rounded-xl bg-amber-50 border border-amber-300 p-3"><div className="font-semibold">Warnings</div><ul className="list-disc pl-5 text-sm">{state.prepared.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
-              <div className="flex justify-end"><button className={btnDanger} onClick={onReplace}>Replace Current Data</button></div>
+              <div className="grid sm:grid-cols-2 gap-3 text-sm"><div className="rounded-xl border-2 border-lime-500 bg-lime-50 p-3"><b>Merge preserves current records</b><p>Compatible records are combined. Probable duplicates and conflicts require decisions. A verified pre-merge snapshot is created.</p></div><div className="rounded-xl border border-red-300 bg-red-50 p-3"><b>Replace removes current records</b><p>The imported dataset substitutes the current operational dataset after a verified pre-import snapshot.</p></div></div>
+              {state.mergePlan && (
+                <div className="space-y-3">
+                  <h3 className="font-bold">Planned Merge</h3>
+                  <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b"><th className="text-left py-1">Type</th><th>Add</th><th>Match</th><th>Update</th><th>Skip</th><th>Probable</th><th>Conflicts</th></tr></thead><tbody>{Object.entries(state.mergePlan.stats).map(([type, stats]) => <tr className="border-b text-center" key={type}><td className="text-left py-1 capitalize">{type}</td><td>{stats.added}</td><td>{stats.matched}</td><td>{stats.updated}</td><td>{stats.skipped}</td><td>{stats.probable}</td><td>{stats.conflicts}</td></tr>)}</tbody></table></div>
+                  <div className="rounded-xl bg-neutral-50 border p-3 text-sm"><b>Final expected counts:</b> {rows.map(([label, key]) => `${label} ${state.mergePlan.finalCounts[key] || 0}`).join(" · ")}</div>
+                  {state.mergePlan.unresolved.length > 0 && <div className="rounded-xl border border-amber-400 bg-amber-50 p-3"><div className="flex flex-wrap justify-between gap-2"><b>{state.mergePlan.unresolved.length} decision(s) required</b><div className="flex gap-2"><button className={btnSecondary} onClick={() => onResolveConflicts("current")}>Keep Current for All Conflicts</button><button className={btnSecondary} onClick={() => onResolveConflicts("imported")}>Use Imported for All Conflicts</button></div></div></div>}
+                  {[...state.mergePlan.conflicts, ...state.mergePlan.probableDuplicates].map((item) => (
+                    <div key={item.key} className="rounded-xl border p-3 text-sm space-y-2">
+                      <div className="font-bold capitalize">{item.type}: {item.identity}</div><div className="text-neutral-600">{item.reason}</div>
+                      <div className="grid sm:grid-cols-2 gap-2"><div className="bg-neutral-50 p-2"><b>Current</b>{recordSummary(item.current).map(([key, value]) => <div key={key}><span className="text-neutral-500">{key}:</span> {String(value)}</div>)}</div><div className="bg-neutral-50 p-2"><b>Imported</b>{recordSummary(item.imported).map(([key, value]) => <div key={key}><span className="text-neutral-500">{key}:</span> {String(value)}</div>)}</div></div>
+                      <div className="flex flex-wrap gap-2">{item.options.map((option) => <button key={option} className={state.mergePlan.resolutions[item.key] === option ? btnAccent : btnSecondary} onClick={() => onResolution(item.key, option)}>{({ current: "Keep Current", imported: "Use Imported", both: "Keep Both", remap: "Keep Both (remap vehicle)", same: "Treat as Same Record", skip: "Skip Imported", complete: "Convert Imported to Completed Draft", discard: "Discard Imported Active Trip" })[option] || option}</button>)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap justify-end gap-3"><button className={btnAccent} disabled={!state.mergePlan?.ready} onClick={onMerge}>Merge Into Current Data</button><button className={btnDanger} onClick={onReplace}>Replace Current Data</button></div>
             </>
           )}
           {(state.stage === "error" || state.stage === "transaction-failed") && (
@@ -1311,12 +1336,13 @@ function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onRetry
               <div className="flex flex-wrap gap-2">
                 {state.stage === "transaction-failed" && <button className={btnAccent} onClick={onRetry}>Retry transaction</button>}
                 {state.currentSerialized && <button className={btnSecondary} onClick={onDownloadCurrent}>Download Current Backup</button>}
-                {state.candidateSerialized && <button className={btnSecondary} onClick={onDownloadCandidate}>Download Candidate</button>}
+                {state.candidateSerialized && <button className={btnSecondary} onClick={onDownloadCandidate}>Download Imported</button>}
+                {state.mergeSerialized && <button className={btnSecondary} onClick={onDownloadMerge}>Download Planned Merge</button>}
               </div>
             </div>
           )}
           {state.stage === "success" && (
-            <div className="space-y-4"><div className="rounded-xl border border-green-300 bg-green-50 p-4"><div className="font-bold text-green-900">Import completed and verified.</div><div className="mt-1 text-sm">Rollback key: <span className="font-mono break-all">{state.rollbackKey}</span></div></div><button className={btnDanger} onClick={onRollback}>Restore Pre-Import Data</button></div>
+            <div className="space-y-4"><div className="rounded-xl border border-green-300 bg-green-50 p-4"><div className="font-bold text-green-900">{state.operation === "merge" ? "Merge" : "Import"} completed and verified.</div><div className="mt-1 text-sm">Rollback key: <span className="font-mono break-all">{state.rollbackKey}</span></div></div><button className={btnDanger} onClick={onRollback}>{state.operation === "merge" ? "Restore Pre-Merge Data" : "Restore Pre-Import Data"}</button></div>
           )}
         </div>
       </div>
@@ -2243,7 +2269,11 @@ function TripIt() {
       const text = await file.text();
       const prepared = prepareBackupImport({ text, size: file.size, normalize: (data) => normalizeApp(migrateLegacyIfNeeded(data) || emptyApp()) });
       if (!prepared.ok) setImportWorkflow({ open: true, stage: "error", prepared: null, result: prepared, file });
-      else setImportWorkflow({ open: true, stage: "preview", prepared, result: null, file });
+      else {
+        const mergeTimestamp = new Date().toISOString();
+        const mergePlan = createMergePlan(app, prepared.candidate, { importedAt: mergeTimestamp });
+        setImportWorkflow({ open: true, stage: "preview", prepared, result: null, file, mergeTimestamp, mergePlan });
+      }
     } catch {
       setImportWorkflow({ open: true, stage: "error", prepared: null, result: { code: "FILE_READ_FAILED", errors: [{ path: "$file", message: "The selected file could not be read." }] }, file });
     }
@@ -2455,12 +2485,43 @@ function TripIt() {
     applyTransactionResult(result, setApp);
     if (prepared.profile && typeof prepared.profile === "object" && !Array.isArray(prepared.profile)) setProfile(prepared.profile);
     setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: appRevision.current, error: null });
-    setImportWorkflow((current) => ({ ...current, stage: "success", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: result.candidateSerialized }));
+    setImportWorkflow((current) => ({ ...current, stage: "success", operation: "replace", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: result.candidateSerialized }));
+  };
+
+  const updateMergeResolution = (key, resolution) => {
+    setImportWorkflow((current) => {
+      const resolutions = { ...(current.mergePlan?.resolutions || {}), [key]: resolution };
+      return { ...current, mergePlan: createMergePlan(app, current.prepared.candidate, { importedAt: current.mergeTimestamp, resolutions }) };
+    });
+  };
+
+  const resolveAllMergeConflicts = (resolution) => {
+    setImportWorkflow((current) => {
+      const resolutions = { ...(current.mergePlan?.resolutions || {}) };
+      for (const conflict of current.mergePlan?.conflicts || []) {
+        if (conflict.options.includes(resolution)) resolutions[conflict.key] = resolution;
+      }
+      return { ...current, mergePlan: createMergePlan(app, current.prepared.candidate, { importedAt: current.mergeTimestamp, resolutions }) };
+    });
+  };
+
+  const performMergeTransaction = () => {
+    const plan = importWorkflow.mergePlan;
+    if (!plan?.ready) return;
+    const result = mergeDatasetTransactional({ primaryKey: KEY, currentData: app, candidate: plan.candidate, validate: validateApplicationPayload });
+    if (!result.ok) {
+      setImportWorkflow((current) => ({ ...current, stage: "transaction-failed", operation: "merge", retryAction: "merge", result, currentSerialized: result.currentSerialized || JSON.stringify(app), candidateSerialized: JSON.stringify(current.prepared.candidate), mergeSerialized: result.candidateSerialized || JSON.stringify(plan.candidate) }));
+      return;
+    }
+    applyTransactionResult(result, setApp);
+    setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: appRevision.current, error: null });
+    setImportWorkflow((current) => ({ ...current, stage: "success", operation: "merge", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: JSON.stringify(current.prepared.candidate), mergeSerialized: result.candidateSerialized }));
   };
 
   const restorePreImportData = () => {
     if (!importWorkflow.rollbackKey) return;
-    const result = rollbackTransactional({ primaryKey: KEY, rollbackKey: importWorkflow.rollbackKey, currentData: app, validate: validateApplicationPayload });
+    const rollback = importWorkflow.operation === "merge" ? rollbackMergeTransactional : rollbackTransactional;
+    const result = rollback({ primaryKey: KEY, rollbackKey: importWorkflow.rollbackKey, currentData: app, validate: validateApplicationPayload });
     if (!result.ok) {
       setImportWorkflow((current) => ({ ...current, stage: "transaction-failed", result, retryAction: "rollback", currentSerialized: result.currentSerialized || JSON.stringify(app), candidateSerialized: result.candidateSerialized }));
       return;
@@ -2646,10 +2707,14 @@ function TripIt() {
         currentCounts={currentDatasetCounts}
         onClose={() => setImportWorkflow({ open: false, stage: "idle", prepared: null, result: null, file: null })}
         onReplace={performImportTransaction}
-        onRetry={importWorkflow.retryAction === "rollback" ? restorePreImportData : performImportTransaction}
+        onMerge={performMergeTransaction}
+        onResolution={updateMergeResolution}
+        onResolveConflicts={resolveAllMergeConflicts}
+        onRetry={importWorkflow.retryAction === "rollback" ? restorePreImportData : importWorkflow.retryAction === "merge" ? performMergeTransaction : performImportTransaction}
         onRollback={restorePreImportData}
         onDownloadCurrent={() => downloadRawRecovery(importWorkflow.currentSerialized || JSON.stringify(app, null, 2), `trip-it-current-backup-${todayISO()}.json`)}
         onDownloadCandidate={() => downloadRawRecovery(importWorkflow.candidateSerialized || JSON.stringify(importWorkflow.prepared?.candidate || {}, null, 2), `trip-it-import-candidate-${todayISO()}.json`)}
+        onDownloadMerge={() => downloadRawRecovery(importWorkflow.mergeSerialized || JSON.stringify(importWorkflow.mergePlan?.candidate || {}, null, 2), `trip-it-planned-merge-${todayISO()}.json`)}
       />
 
       <EmailModal
