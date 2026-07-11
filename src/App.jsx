@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import tripitLogo from "./assets/tripit-logo.png";
+import tripitLogo from "./assets/tripit-logo-optimized.png";
 import { readJson, readRaw, writeVerified } from "./storage/storage.js";
 import { downloadRawRecovery, preserveRecoveryRaw, replaceCorruptWithEmpty } from "./storage/recovery.js";
 import { migrateLegacyTransactional } from "./storage/migration.js";
@@ -19,6 +19,13 @@ import { LegComposer } from "./components/trips/LegComposer.jsx";
 import { LegTimeline } from "./components/trips/LegTimeline.jsx";
 import { CompletedTripCard } from "./components/trips/CompletedTripCard.jsx";
 import { deleteLegConfirmation, deleteTripConfirmation } from "./components/trips/legDisplayUtils.js";
+import { FuelEntryCard } from "./components/vehicle/FuelEntryCard.jsx";
+import { WashEntryCard } from "./components/vehicle/WashEntryCard.jsx";
+import { fuelDeleteConfirmation, fuelLogStats, washDeleteConfirmation, washLogStats } from "./components/vehicle/vehicleLogUtils.js";
+import { ReportFilters } from "./components/reports/ReportFilters.jsx";
+import { ReportSummary } from "./components/reports/ReportSummary.jsx";
+import { ExportActions } from "./components/reports/ExportActions.jsx";
+import { validateReportRange } from "./components/reports/reportUiUtils.js";
 import { buildPeopleSuggestionItems, freshLegPeople, migrateTripPeopleToLegs, normalizeDriver, normalizeLegPeople, normalizePassengers } from "./components/trips/tripPeople.js";
 import { createTripsCsv } from "./components/trips/tripExport.js";
 
@@ -1538,6 +1545,8 @@ function TripIt() {
     const avgPerLiter = liters > 0 ? spend / liters : 0;
     return { liters, spend, currency, avgPerLiter, count: fuelForMonth.length };
   }, [fuelForMonth]);
+  const modernFuelStats = useMemo(() => fuelLogStats(fuelForMonth), [fuelForMonth]);
+  const modernWashStats = useMemo(() => washLogStats(washLogs), [washLogs]);
 
   const currentDatasetCounts = useMemo(() => validateApplicationPayload(app).counts || {
     vehicles: 0, completedTrips: 0, activeTrips: 0, legs: 0, fuelEntries: 0, washEntries: 0, templates: 0,
@@ -1545,7 +1554,7 @@ function TripIt() {
 
   // Preview Data Calculation
   const previewData = useMemo(() => {
-    if ((!previewOpen && !exportModalOpen) || !activeVehicle) return { trips: [], fuel: [], totals: {} };
+    if ((!previewOpen && !exportModalOpen) || !activeVehicle) return { trips: [], fuel: [], wash: [], totals: {} };
     
     const { start, end } = previewConfig;
     const s = start || "0000-00-00";
@@ -1559,6 +1568,7 @@ function TripIt() {
     const filteredFuel = fuelLogs
       .filter(f => f.date >= s && f.date <= e)
       .reverse();
+    const filteredWash = washLogs.filter((entry) => entry.date >= s && entry.date <= e).reverse();
 
     let distance = 0;
     let legCount = 0;
@@ -1576,9 +1586,11 @@ function TripIt() {
     return {
       trips: filteredTrips,
       fuel: filteredFuel,
+      wash: filteredWash,
       totals: { distance, legCount, tripCount: filteredTrips.length, liters, spend, currency }
     };
-  }, [previewOpen, exportModalOpen, activeVehicle, trips, fuelLogs, previewConfig]);
+  }, [previewOpen, exportModalOpen, activeVehicle, trips, fuelLogs, washLogs, previewConfig]);
+  const reportRangeValidation = validateReportRange(previewConfig);
 
   const legTags = useMemo(() => {
     // Reduced defaults + frequency based sorting
@@ -2204,12 +2216,13 @@ function TripIt() {
   };
 
   const deleteWash = (id) => {
-    if (!activeVehicle || !window.confirm("Delete this wash entry?")) return;
+    if (!activeVehicle) return;
     if (!allowDestructiveAction("Deleting this wash entry")) return;
     setApp(a => {
       const list = Array.isArray(a.washByVehicle[activeVehicle.id]) ? a.washByVehicle[activeVehicle.id] : [];
       return { ...a, washByVehicle: { ...a.washByVehicle, [activeVehicle.id]: list.filter(w => w.id !== id) } };
     });
+    setConfirm({ open: false, kind: null, id: null, payload: null });
     notify("Wash deleted");
   };
 
@@ -2282,6 +2295,7 @@ function TripIt() {
       const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
       return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: list.filter((f) => f.id !== fuelId) } };
     });
+    setConfirm({ open: false, kind: null, id: null, payload: null });
     notify("Fuel entry deleted");
   };
 
@@ -2461,12 +2475,6 @@ function TripIt() {
     const subject = encodeURIComponent(emailModal.subject || "");
     const body = encodeURIComponent(emailModal.body || "");
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
-  };
-
-  const handleEmailDraft = () => {
-    const subject = `Trip-It Export Pack – ${todayISO()}`;
-    const body = `Attached: PDF export from Trip-It (please attach the downloaded PDF file).\n\nExports are generated locally on your device. No data is uploaded automatically.`;
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const copySummary = async () => {
@@ -2715,9 +2723,9 @@ function TripIt() {
         open={confirm.open}
         title={confirm.payload?.title || (confirm.kind === "vehicle" ? t("deleteVehicleQ") : t("cancelTripQ"))}
         message={confirm.payload?.message || (confirm.kind === "vehicle" ? t("deleteVehicleMsg") : t("cancelTripMsg"))}
-        confirmText={["active-leg", "history-leg", "trip", "vehicle"].includes(confirm.kind) ? t("delete") : t("cancelTrip")}
+        confirmText={["active-leg", "history-leg", "trip", "vehicle", "fuel", "wash"].includes(confirm.kind) ? t("delete") : t("cancelTrip")}
         onCancel={() => setConfirm({ open: false, kind: null, id: null, payload: null })}
-        onConfirm={() => { if (confirm.kind === "vehicle") deleteVehicleNow(); else if (confirm.kind === "active-leg") deleteLeg(confirm.id); else if (confirm.kind === "history-leg") deleteHistoricalLeg(confirm.payload.tripId, confirm.id); else if (confirm.kind === "trip") deleteTrip(confirm.id); else cancelTrip(); }}
+        onConfirm={() => { if (confirm.kind === "vehicle") deleteVehicleNow(); else if (confirm.kind === "active-leg") deleteLeg(confirm.id); else if (confirm.kind === "history-leg") deleteHistoricalLeg(confirm.payload.tripId, confirm.id); else if (confirm.kind === "trip") deleteTrip(confirm.id); else if (confirm.kind === "fuel") deleteFuel(confirm.id); else if (confirm.kind === "wash") deleteWash(confirm.id); else cancelTrip(); }}
       />
 
       <ImportWorkflowModal
@@ -2782,68 +2790,15 @@ function TripIt() {
             <div className="ts-modal__header">
               <div>
                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Data</div>
-                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
+                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-800">
                   {t("exportPack")}
                  </h2>
-                 <p className="text-sm text-neutral-400 mt-1">{t("exportPackDesc")}</p>
+                 <p className="text-sm text-neutral-500 mt-1">{t("exportPackDesc")}</p>
               </div>
               <IconButton label="Close" onClick={() => setExportModalOpen(false)}>×</IconButton>
             </div>
             
-            <div className="ts-modal__body space-y-8">
-              {/* Range Selector */}
-              <div className="space-y-3">
-                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("rangeSelection")}</div>
-                <div className="flex flex-wrap gap-2">
-                  <select 
-                    className="h-12 rounded-sm border-2 border-neutral-700 bg-neutral-700 px-3 text-sm font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] w-full sm:w-auto"
-                    value={previewConfig.mode}
-                    onChange={(e) => updatePreviewMode(e.target.value)}
-                  >
-                    <option value="thisWeek">This Week</option>
-                    <option value="lastWeek">Last Week</option>
-                    <option value="thisMonth">This Month</option>
-                    <option value="lastMonth">Last Month</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <input 
-                      type="date" 
-                      className="h-12 rounded-sm border-2 border-neutral-700 bg-neutral-700 px-3 text-sm font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] grow"
-                      value={previewConfig.start}
-                      onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", start: e.target.value }))}
-                    />
-                    <span className="text-neutral-500 font-black">-</span>
-                    <input 
-                      type="date" 
-                      className="h-12 rounded-sm border-2 border-neutral-700 bg-neutral-700 px-3 text-sm font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] grow"
-                      value={previewConfig.end}
-                      onChange={(e) => setPreviewConfig(p => ({ ...p, mode: "custom", end: e.target.value }))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* PDF & Print */}
-              <div className="space-y-3">
-                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("pdfPrint")}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>{t("downloadPdf")}</button>
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }}>{t("printSavePdf")}</button>
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={handleEmailDraft}>{t("createEmailDraft")}</button>
-                </div>
-              </div>
-
-              {/* Data Backup */}
-              <div className="space-y-3">
-                <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("dataBackup")}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button className="h-12 font-bold text-sm text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:text-neutral-900 transition-all" onClick={exportJSON}>Full Backup — restorable</button>
-                  <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={onImportPick}>{t("importJson")}</button>
-                </div>
-                <div className="text-xs text-neutral-500 font-mono">{t("importJsonWarning")}</div>
-              </div>
-            </div>
+            <div className="ts-modal__body space-y-5"><ReportFilters config={previewConfig} onMode={updatePreviewMode} onChange={setPreviewConfig} vehicle={activeVehicle} resultCount={previewData.trips.length} /><ReportSummary trips={previewData.trips} fuel={previewData.fuel} wash={previewData.wash} /><ExportActions disabled={!reportRangeValidation.valid} onBackup={exportJSON} onImport={onImportPick} onReportJson={exportPreviewJSON} onCsv={exportPreviewCSV} onPrint={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }} onCopy={copySummary} onEmail={openEmail} /><details className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">Advanced backup details</summary><div className="mt-2 break-all font-mono">{persistence.lastSavedAt ? `Last verified save: ${persistence.lastSavedAt}` : "No verified save timestamp"}</div><div className="mt-1">{t("importJsonWarning")}</div></details></div>
           </div>
         </div>
       )}
@@ -2978,7 +2933,7 @@ function TripIt() {
                 
                 <div className="flex flex-wrap items-center gap-2">
                   <select 
-                    className="h-10 rounded-sm border-2 border-neutral-700 bg-neutral-800 px-2 text-xs font-bold text-white focus:outline-none focus:border-[var(--ts-accent)] uppercase tracking-wider"
+                    className="ts-control w-auto text-sm"
                     value={previewConfig.mode}
                     onChange={(e) => updatePreviewMode(e.target.value)}
                   >
@@ -2989,7 +2944,7 @@ function TripIt() {
                     <option value="custom">Custom</option>
                   </select>
                   
-                  <div className="flex items-center gap-1 bg-neutral-800 border-2 border-neutral-700 rounded-sm px-1">
+                  <div className="flex items-center gap-1 rounded-xl border border-neutral-200 bg-white px-1">
                     <input 
                       type="date" 
                       className="h-9 bg-transparent text-xs font-bold text-white focus:outline-none uppercase tracking-wider w-24 sm:w-auto"
@@ -3011,7 +2966,7 @@ function TripIt() {
                   <button className={btnSecondary} onClick={exportPreviewJSON}>Report JSON — not restorable</button>
                   <button className={btnAccent} onClick={() => window.print()}>Print</button>
                   <button 
-                    className="group relative px-3 py-2 font-black uppercase tracking-wider text-white border-2 border-neutral-700 bg-neutral-800 hover:border-red-500 hover:text-red-500 transition-all"
+                    className="ts-button ts-button--ghost"
                     onClick={() => setPreviewOpen(false)}
                   >
                     X
@@ -3022,7 +2977,7 @@ function TripIt() {
             </div>
 
             {/* Printable Content Area */}
-            <div className="overflow-auto flex-1 bg-neutral-900 p-4 sm:p-8 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
+            <div className="overflow-auto flex-1 bg-neutral-100 p-4 sm:p-8">
               <div id="tripit-print" className="bg-white text-neutral-900 p-8 sm:p-12 shadow-[0_0_50px_rgba(0,0,0,0.5)] mx-auto max-w-4xl min-h-[800px]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -3374,12 +3329,12 @@ function TripIt() {
                       </div>
                       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500">{t("date")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("date")}</label>
                           <input type="date" className={inputCompact} value={fuelForm.date} onChange={(e) => setFuelForm({ ...fuelForm, date: e.target.value })} />
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500">{t("odometer")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("odometer")}</label>
                           <input
                             className={`${inputCompact} text-right tabular-nums`}
                             inputMode="decimal"
@@ -3390,12 +3345,12 @@ function TripIt() {
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500">{t("station")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("station")}</label>
                           <input className={inputCompact} value={fuelForm.station} onChange={(e) => setFuelForm({ ...fuelForm, station: e.target.value })} placeholder={t("optional")} />
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500">{t("liters")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("liters")} (L)</label>
                           <input
                             className={`${inputCompact} text-right tabular-nums`}
                             inputMode="decimal"
@@ -3406,7 +3361,7 @@ function TripIt() {
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500">{t("totalCost")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("totalCost")}</label>
                           <input
                             className={`${inputCompact} text-right tabular-nums`}
                             inputMode="decimal"
@@ -3417,7 +3372,7 @@ function TripIt() {
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500">{t("currency")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("currency")}</label>
                           <select className={inputCompact} value={fuelForm.currency} onChange={(e) => setFuelForm({ ...fuelForm, currency: e.target.value })}>
                             <option value="EUR">EUR</option>
                             <option value="USD">USD</option>
@@ -3433,7 +3388,7 @@ function TripIt() {
                         </div>
 
                         <div className="col-span-2 sm:col-span-3">
-                          <label className="text-[10px] font-medium text-neutral-500">{t("notes")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("notes")}</label>
                           <input className={inputCompact} value={fuelForm.notes} onChange={(e) => setFuelForm({ ...fuelForm, notes: e.target.value })} placeholder={t("optional")} />
                         </div>
                       </div>
@@ -3445,7 +3400,7 @@ function TripIt() {
                           </button>
                         )}
                         <button className={btnAccent} onClick={saveFuel}>
-                          {editingFuelId ? t("update") : t("add")}
+                          {editingFuelId ? t("update") : `${t("add")} ${t("fuel")}`}
                         </button>
                       </div>
                     </div>
@@ -3461,7 +3416,10 @@ function TripIt() {
                       </button>
                       
                       {fuelHistoryOpen && (
-                        <div className="mt-2 overflow-x-auto rounded-xl border border-neutral-200">
+                        <div className="mt-2 space-y-2">{fuelLogs.length === 0 ? <EmptyState title="No fuel entries" description="Add the first fuel record using the form above." /> : fuelLogs.map((entry) => <FuelEntryCard key={entry.id} entry={entry} onEdit={editFuel} onDelete={(fuel) => setConfirm({ open: true, kind: "fuel", id: fuel.id, payload: { title: "Delete fuel entry?", message: fuelDeleteConfirmation(fuel) } })} />)}</div>
+                      )}
+                      {fuelHistoryOpen && (
+                        <div className="hidden">
                           <table className="w-full text-left text-xs">
                             <thead className="text-neutral-500 bg-neutral-50 uppercase font-semibold text-[10px]">
                               <tr>
@@ -3503,10 +3461,7 @@ function TripIt() {
                     <div className="mt-4 rounded-2xl border border-neutral-200 p-4 bg-white">
                       <div className="text-sm text-neutral-700">{t("monthSummary")} ({monthLabel(app.ui.month, profile.language)})</div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <Pill>{fuelTotals.count} fill(s)</Pill>
-                        <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
-                        <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
-                        <Pill>{fuelTotals.avgPerLiter ? `${fuelTotals.avgPerLiter.toFixed(3)} /L` : "0.000 /L"}</Pill>
+                        <Pill>{modernFuelStats.count} entries</Pill><Pill>{modernFuelStats.liters.toFixed(2)} L</Pill>{Object.entries(modernFuelStats.currencyTotals).map(([currency, total]) => <Pill key={currency} tone="accent">{money(total, currency)}</Pill>)}<Pill>{modernFuelStats.latestOdometer ?? "—"} km latest</Pill><Pill>{modernFuelStats.averageCostPerLiter != null ? `${modernFuelStats.averageCostPerLiter.toFixed(3)} /L` : "Mixed currencies"}</Pill><Pill>{modernFuelStats.fullTankCount} full tanks</Pill>
                       </div>
                     </div>
                   </>
@@ -3542,11 +3497,11 @@ function TripIt() {
                     <>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("date")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("date")}</label>
                           <input type="date" className={`${inputBase} py-1 text-xs h-8`} value={washForm.date} onChange={e => setWashForm({...washForm, date: e.target.value})} />
                         </div>
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("type")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("type")}</label>
                           <select className={`${inputBase} py-1 text-xs h-8`} value={washForm.type} onChange={e => setWashForm({...washForm, type: e.target.value})}>
                             <option>Quick</option>
                             <option>Full</option>
@@ -3556,25 +3511,28 @@ function TripIt() {
                           </select>
                         </div>
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("location")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("location")}</label>
                           <input className={`${inputBase} py-1 text-xs h-8`} placeholder={t("optional")} value={washForm.location} onChange={e => setWashForm({...washForm, location: e.target.value})} />
                         </div>
                         <div>
-                          <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("note")}</label>
+                          <label className="text-xs font-medium text-neutral-600">{t("note")}</label>
                           <input className={`${inputBase} py-1 text-xs h-8`} placeholder={t("optional")} value={washForm.note} onChange={e => setWashForm({...washForm, note: e.target.value})} />
                         </div>
                         <div className="flex items-end gap-1">
                           <div className="w-14">
-                            <label className="text-[10px] font-medium text-neutral-500 uppercase">{t("cost")}</label>
+                            <label className="text-xs font-medium text-neutral-600">{t("cost")} (EUR)</label>
                             <input className={`${inputBase} py-1 text-xs h-8 text-right`} placeholder="0.00" inputMode="decimal" value={washForm.cost} onChange={e => setWashForm({...washForm, cost: e.target.value})} />
                           </div>
-                          <button className={`${btnAccent} h-8 px-3 py-0 text-[10px]`} onClick={saveWash}>{editingWashId ? t("upd") : t("add")}</button>
-                          {editingWashId && <button className={`${btnSecondary} h-8 px-2 py-0 text-[10px]`} onClick={cancelEditWash}>✕</button>}
+                          <button className={btnAccent} onClick={saveWash}>{editingWashId ? t("update") : `${t("add")} ${t("wash")}`}</button>
+                          {editingWashId && <button className={btnSecondary} onClick={cancelEditWash}>{t("cancel")}</button>}
                         </div>
                       </div>
 
                       {washLogs.length > 0 && (
-                        <div className="overflow-x-auto border-t border-neutral-100 pt-2">
+                        <div className="space-y-2 border-t border-neutral-100 pt-3">{washLogs.map((entry) => <WashEntryCard key={entry.id} entry={entry} onEdit={editWash} onDelete={(wash) => setConfirm({ open: true, kind: "wash", id: wash.id, payload: { title: "Delete wash record?", message: washDeleteConfirmation(wash) } })} />)}</div>
+                      )}
+                      {washLogs.length > 0 && (
+                        <div className="hidden">
                           <table className="w-full text-xs text-left">
                             <thead className="text-neutral-400 font-medium">
                               <tr>
@@ -3602,6 +3560,7 @@ function TripIt() {
                           </table>
                         </div>
                       )}
+                      <div className="mt-3 flex flex-wrap gap-2"><Pill>{modernWashStats.count} washes</Pill>{Object.entries(modernWashStats.currencyTotals).map(([currency, total]) => <Pill key={currency} tone="accent">{money(total, currency)}</Pill>)}<Pill>{modernWashStats.mostRecent || "—"} latest</Pill><Pill>{modernWashStats.mostUsedType || "—"} most used</Pill></div>
                     </>
                   )}
                 </div>

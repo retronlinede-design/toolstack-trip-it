@@ -1,0 +1,47 @@
+import { useState } from "react";
+import { SuggestionChips } from "../ui/SuggestionChips.jsx";
+import { TimeInput } from "./TimeInput.jsx";
+import { LegPeopleInput } from "./LegPeopleInput.jsx";
+import { buildPendingLegSummary, calculatePendingDistance, hasPeopleValidationError, initialPeopleExpanded, legActionLabel, optionalDetailsSummary, peopleSummary, shouldShowRouteSuggestions } from "./legComposerUtils.js";
+
+function RouteSection({ form, setField, suggestions, onReverse, onCurrentLocation, t, onKeyDown, onFocus }) {
+  const [focusedField, setFocusedField] = useState(null);
+  const field = (name, label, placeholder) => <div className="min-w-0 flex-1">
+    <label htmlFor={`leg-${name}`} className="mb-1 block text-xs font-medium text-neutral-600">{label}</label>
+    <div className="relative"><input id={`leg-${name}`} autoFocus={name === "startPlace"} className="ts-control truncate pr-10" value={form[name]} onChange={(event) => setField(name, event.target.value)} onKeyDown={onKeyDown} onFocus={(event) => { setFocusedField(name); onFocus?.(event); }} onBlur={() => setTimeout(() => setFocusedField(null), 100)} placeholder={placeholder} />
+      <button type="button" className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400" onClick={() => onCurrentLocation(name)} aria-label={`Use current location for ${label}`}>⌖</button>
+    </div>
+    {shouldShowRouteSuggestions(focusedField, name, form[name]) && <SuggestionChips suggestions={suggestions} query={form[name]} onSelect={(value) => setField(name, value)} label={`${label} suggestions`} />}
+  </div>;
+  return <section aria-labelledby="route-heading"><div className="mb-2 flex items-center justify-between"><h3 id="route-heading" className="text-sm font-semibold text-neutral-800">Route</h3><button type="button" className="ts-suggestion-chip" onClick={onReverse}>{t("return")}</button></div><div className="flex flex-col gap-2 sm:flex-row">{field("startPlace", t("from"), t("start"))}{field("endPlace", t("to"), t("end"))}</div></section>;
+}
+
+function JourneySection({ form, setField, timeErrors, onKeyDown, onFocus, t }) {
+  const distance = calculatePendingDistance(form.odoStart, form.odoEnd);
+  return <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-3" aria-labelledby="journey-heading"><div className="mb-2 flex items-center justify-between"><h3 id="journey-heading" className="text-sm font-semibold text-neutral-800">Journey</h3><span className={`text-sm font-semibold ${distance.status === "invalid" ? "text-red-600" : "text-neutral-700"}`}>{distance.label}</span></div>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><TimeInput compactAdjustments id="active-leg-start-time" label={t("startTime")} value={form.startTime} onChange={(value) => setField("startTime", value)} error={timeErrors.startTime} onKeyDown={onKeyDown} onFocus={onFocus} /><TimeInput compactAdjustments id="active-leg-end-time" label={t("endTime")} value={form.endTime} onChange={(value) => setField("endTime", value)} error={timeErrors.endTime} onKeyDown={onKeyDown} onFocus={onFocus} /></div>
+    <div className="mt-1 grid grid-cols-2 gap-2"><div><label htmlFor="leg-odo-start" className="mb-1 block text-xs font-medium text-neutral-600">{t("odoStart")}</label><div className="relative"><input id="leg-odo-start" className="ts-control pr-9 text-right tabular-nums" inputMode="decimal" value={form.odoStart} onChange={(event) => setField("odoStart", event.target.value)} onKeyDown={onKeyDown} onFocus={onFocus} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-neutral-400">km</span></div></div><div><label htmlFor="leg-odo-end" className="mb-1 block text-xs font-medium text-neutral-600">{t("odoEnd")}</label><div className="relative"><input id="leg-odo-end" className="ts-control pr-9 text-right tabular-nums" inputMode="decimal" value={form.odoEnd} onChange={(event) => setField("odoEnd", event.target.value)} onKeyDown={onKeyDown} onFocus={onFocus} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-neutral-400">km</span></div></div></div>
+    {distance.status === "invalid" && <div className="mt-2 text-xs text-red-600" role="alert">{distance.label}</div>}
+  </section>;
+}
+
+function Disclosure({ id, title, summary, open, onToggle, children }) {
+  return <section className="rounded-xl border border-neutral-200 bg-white"><button type="button" className="flex w-full items-center justify-between gap-3 p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lime-400" aria-expanded={open} aria-controls={id} onClick={onToggle}><span><span className="block text-sm font-semibold text-neutral-800">{title}</span><span className="mt-0.5 block text-xs text-neutral-500">{summary}</span></span><span aria-hidden="true">{open ? "−" : "+"}</span></button>{open && <div id={id} className="border-t border-neutral-100 p-3">{children}</div>}</section>;
+}
+
+export function LegComposer({ form, setField, setPassengers, locationSuggestions, driverSuggestions, passengerSuggestions, tagSuggestions = [], previousLeg, editingIndex, timeErrors, onSave, onCancelEdit, onDuplicate, onReverse, onCurrentLocation, onTemplate, onKeyDown, onFocus, t }) {
+  const editing = editingIndex != null;
+  const peopleInvalid = hasPeopleValidationError(form);
+  const [peopleOpen, setPeopleOpen] = useState(initialPeopleExpanded(editing, form, peopleInvalid));
+  const [optionalOpen, setOptionalOpen] = useState(editing && (!!form.note || !!form.startTag || !!form.endTag));
+  const pending = buildPendingLegSummary(form);
+  return <div className="space-y-3">
+    {editing && <div className="rounded-lg border border-lime-300 bg-lime-50 px-3 py-2 text-sm font-semibold text-neutral-800">Editing Leg {editingIndex + 1}</div>}
+    <RouteSection form={form} setField={setField} suggestions={locationSuggestions} onReverse={onReverse} onCurrentLocation={onCurrentLocation} t={t} onKeyDown={onKeyDown} onFocus={onFocus} />
+    <JourneySection form={form} setField={setField} timeErrors={timeErrors} onKeyDown={onKeyDown} onFocus={onFocus} t={t} />
+    <Disclosure id="leg-people-panel" title={t("people")} summary={peopleSummary(form.driver, form.passengers)} open={peopleOpen || peopleInvalid} onToggle={() => { if (!peopleInvalid) setPeopleOpen((value) => !value); }}><LegPeopleInput idPrefix="active-leg" driver={form.driver} passengers={form.passengers} onDriverChange={(value) => setField("driver", value)} onPassengersChange={setPassengers} driverSuggestions={driverSuggestions} passengerSuggestions={passengerSuggestions} previousLeg={!editing ? previousLeg : null} t={t} /></Disclosure>
+    <Disclosure id="optional-leg-details" title="Optional details" summary={optionalDetailsSummary(form)} open={optionalOpen} onToggle={() => setOptionalOpen((value) => !value)}><div className="space-y-2"><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><div><label htmlFor="leg-start-tag" className="mb-1 block text-xs font-medium text-neutral-600">{t("startTag")}</label><input id="leg-start-tag" className="ts-control" value={form.startTag} onChange={(event) => setField("startTag", event.target.value)} />{form.startTag && <SuggestionChips suggestions={tagSuggestions} query={form.startTag} onSelect={(value) => setField("startTag", value)} label="Start tag suggestions" />}</div><div><label htmlFor="leg-end-tag" className="mb-1 block text-xs font-medium text-neutral-600">{t("endTag")}</label><input id="leg-end-tag" className="ts-control" value={form.endTag} onChange={(event) => setField("endTag", event.target.value)} />{form.endTag && <SuggestionChips suggestions={tagSuggestions} query={form.endTag} onSelect={(value) => setField("endTag", value)} label="End tag suggestions" />}</div></div><div><label htmlFor="leg-note" className="mb-1 block text-xs font-medium text-neutral-600">{t("note")}</label><input id="leg-note" className="ts-control" value={form.note} onChange={(event) => setField("note", event.target.value)} placeholder={t("optional")} /></div><button type="button" className="ts-suggestion-chip" onClick={onTemplate}>{t("templates")}</button></div></Disclosure>
+    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-3" aria-labelledby="pending-leg-heading"><h3 id="pending-leg-heading" className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Leg review</h3><div className="mt-1 text-sm font-semibold text-neutral-800">{pending.route}</div><div className="mt-0.5 text-xs text-neutral-600">{pending.journey}</div><div className="mt-0.5 text-xs text-neutral-600">{pending.people}</div>{(pending.warning || Object.values(timeErrors).find(Boolean)) && <div className="mt-2 text-xs font-medium text-red-600" role="alert">Check the highlighted journey values before saving.</div>}</section>
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="flex flex-wrap gap-2">{editing ? <button type="button" className="ts-suggestion-chip" onClick={onCancelEdit}>{t("cancel")}</button> : <button type="button" className="ts-suggestion-chip" onClick={onDuplicate}>{t("duplicateLast")}</button>}</div><button type="button" className="ts-button ts-button--primary w-full sm:w-auto" onClick={onSave}>{editing ? t("updateLeg") : legActionLabel(false)}</button></div>
+  </div>;
+}
