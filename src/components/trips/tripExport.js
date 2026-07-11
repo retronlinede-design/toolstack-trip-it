@@ -8,7 +8,7 @@ const csvCell = (value) => {
 export function createTripsCsv(trips) {
   const rows = [["Date", "Trip Title", "Driver", "Passengers", "Start Place", "End Place", "Start Time", "End Time", "Distance (km)", "Odo Start", "Odo End", "Notes"]];
   trips.forEach((trip) => ((trip.legs || []).length ? trip.legs : [{}]).forEach((leg) => rows.push([
-    trip.startDate, trip.title || trip.purpose || "", trip.driver || "", normalizePassengers(trip.passengers).join("; "), leg.startPlace, leg.endPlace,
+    trip.startDate, trip.title || trip.purpose || "", leg.driver || "", normalizePassengers(leg.passengers).join("; "), leg.startPlace, leg.endPlace,
     leg.startTime, leg.endTime, leg.km, leg.odoStart, leg.odoEnd, leg.note || ""
   ])));
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");

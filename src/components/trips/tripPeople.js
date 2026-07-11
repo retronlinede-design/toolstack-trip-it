@@ -51,18 +51,41 @@ export function applyPassengerInputAction(values, draft, action) {
   return { values: result.values, draft: result.added ? "" : draft, error: result.error };
 }
 
-export function normalizeTripPeople(trip) {
-  return { ...trip, driver: normalizeDriver(trip?.driver), passengers: normalizePassengers(trip?.passengers) };
+export function normalizeLegPeople(leg, defaults = {}) {
+  const ownDriver = normalizeDriver(leg?.driver);
+  const ownPassengers = normalizePassengers(leg?.passengers);
+  return {
+    ...leg,
+    driver: ownDriver || normalizeDriver(defaults.driver),
+    passengers: ownPassengers.length ? ownPassengers : normalizePassengers(defaults.passengers),
+  };
 }
 
-export function buildPeopleSuggestionItems(trips) {
+export function migrateTripPeopleToLegs(trip) {
+  const legacy = { driver: normalizeDriver(trip?.driver), passengers: normalizePassengers(trip?.passengers) };
+  const legs = (Array.isArray(trip?.legs) ? trip.legs : []).map((leg) => normalizeLegPeople(leg, legacy));
+  const { driver: _driver, passengers: _passengers, ...withoutLegacyPeople } = trip || {};
+  // With no legs there is nowhere to copy legacy values, so retain them losslessly;
+  // active trips additionally consume them as first-leg defaults.
+  if (!legs.length && (legacy.driver || legacy.passengers.length)) return { ...withoutLegacyPeople, ...legacy, legs };
+  return { ...withoutLegacyPeople, legs };
+}
+
+export function freshLegPeople(previousLeg, legacyDefaults) {
+  return {
+    driver: normalizeDriver(previousLeg?.driver) || normalizeDriver(legacyDefaults?.driver),
+    passengers: previousLeg ? [] : normalizePassengers(legacyDefaults?.passengers),
+  };
+}
+
+export function buildPeopleSuggestionItems(legs) {
   const drivers = [];
   const passengers = [];
-  (Array.isArray(trips) ? trips : []).forEach((trip, index) => {
-    const lastUsed = Date.parse(trip.finishedAt || trip.startedAt || trip.startDate) || (1_000_000_000_000 - index);
-    const driver = normalizeDriver(trip.driver);
+  (Array.isArray(legs) ? legs : []).forEach((leg, index) => {
+    const lastUsed = Date.parse(leg.createdAt) || (1_000_000_000_000 - index);
+    const driver = normalizeDriver(leg.driver);
     if (driver) drivers.push({ value: driver, lastUsed, frequency: 1 });
-    normalizePassengers(trip.passengers).forEach((value) => passengers.push({ value, lastUsed, frequency: 1 }));
+    normalizePassengers(leg.passengers).forEach((value) => passengers.push({ value, lastUsed, frequency: 1 }));
   });
   return { drivers, passengers };
 }

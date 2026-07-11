@@ -41,7 +41,7 @@ export function PassengerInput({ id, label, placeholder, values = [], onChange, 
           {(expanded ? values : values.slice(0, 6)).map((name, index) => <span key={`${name}-${index}`} className="inline-flex min-h-8 items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 pl-2.5 pr-1 text-xs text-neutral-700">
             <span>{name}</span><button type="button" className="grid h-7 w-7 place-items-center rounded-full text-neutral-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400" onClick={() => onChange(removePassenger(values, index))} aria-label={`${removeLabel} ${name}`}>×</button>
           </span>)}
-          {values.length > 6 && <button type="button" className="ts-suggestion-chip ts-suggestion-chip--more" onClick={() => setExpanded((value) => !value)}>{expanded ? showLessLabel : `${showAllLabel} (+${values.length - 6})`}</button>}
+          {values.length > 6 && <button type="button" className="ts-suggestion-chip ts-suggestion-chip--more" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? showLessLabel : `${showAllLabel} (+${values.length - 6})`}</button>}
         </div>}
         <input id={id} className="h-10 w-full border-0 bg-transparent px-1 text-sm text-neutral-800 outline-none placeholder:text-neutral-400" value={draft} onChange={(event) => { setDraft(event.target.value.replace(/,$/, "")); setError(""); }} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={placeholder} aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`} aria-invalid={error ? "true" : undefined} />
       </div>

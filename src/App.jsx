@@ -14,8 +14,8 @@ import { buttonClass, cardBodyClass, cardClass, cardHeaderClass, compactInputCla
 import { SuggestionChips } from "./components/ui/SuggestionChips.jsx";
 import { TimeInput } from "./components/trips/TimeInput.jsx";
 import { freshLegTimes, isValidTime, roundTimeToFiveMinutes, updateLegTime, validateLegTimes } from "./components/trips/timeUtils.js";
-import { PassengerInput } from "./components/trips/PassengerInput.jsx";
-import { buildPeopleSuggestionItems, MAX_DRIVER_LENGTH, normalizeDriver, normalizePassengers, normalizeTripPeople } from "./components/trips/tripPeople.js";
+import { LegPeopleInput } from "./components/trips/LegPeopleInput.jsx";
+import { buildPeopleSuggestionItems, freshLegPeople, migrateTripPeopleToLegs, normalizeDriver, normalizeLegPeople, normalizePassengers } from "./components/trips/tripPeople.js";
 import { createTripsCsv } from "./components/trips/tripExport.js";
 
 /**
@@ -86,7 +86,7 @@ const TRANSLATIONS = {
     templates: "Templates", saveTemplate: "Save as Template", templateName: "Template Name", 
     load: "Load", manageTemplates: "Manage Templates", noTemplates: "No templates saved.", tag: "Tag / Location", startTag: "Start Tag", endTag: "End Tag",
     titleTag: "Title Tag", purposeTag: "Purpose Tag", close: "Close", save: "Save",
-    driver: "Driver", driverPlaceholder: "Enter driver name", passengers: "Passengers", passengerPlaceholder: "Add passenger name", noPassengers: "No passengers", passengerCount: "Passenger count", driverSuggestions: "Driver suggestions", passengerSuggestions: "Passenger suggestions", passengerInstructions: "Press Enter or comma to add a name.", removePassenger: "Remove passenger", showAll: "Show all", showLess: "Show less", more: "more"
+    driver: "Driver", driverPlaceholder: "Enter driver name", passengers: "Passengers", passengerPlaceholder: "Add passenger name", noPassengers: "No passengers", passengerCount: "Passenger count", driverSuggestions: "Driver suggestions", passengerSuggestions: "Passenger suggestions", passengerInstructions: "Press Enter or comma to add a name.", removePassenger: "Remove passenger", showAll: "Show all", showLess: "Show less", more: "more", people: "People", copyPreviousDriver: "Copy previous driver", copyPreviousPassengers: "Copy previous passengers", clearPassengers: "Clear passengers"
   },
   DE: {
     hub: "Hub", preview: "Vorschau", export: "Export", help: "Hilfe",
@@ -133,7 +133,7 @@ const TRANSLATIONS = {
     templates: "Vorlagen", saveTemplate: "Als Vorlage speichern", templateName: "Vorlagenname", 
     load: "Laden", manageTemplates: "Vorlagen verwalten", noTemplates: "Keine Vorlagen gespeichert.", tag: "Tag / Ort", startTag: "Start Tag", endTag: "End Tag",
     titleTag: "Titel-Tag", purposeTag: "Zweck-Tag", close: "Schließen", save: "Speichern",
-    driver: "Fahrer", driverPlaceholder: "Fahrernamen eingeben", passengers: "Fahrgäste", passengerPlaceholder: "Fahrgast hinzufügen", noPassengers: "Keine Fahrgäste", passengerCount: "Anzahl Fahrgäste", driverSuggestions: "Fahrervorschläge", passengerSuggestions: "Fahrgastvorschläge", passengerInstructions: "Mit Eingabetaste oder Komma hinzufügen.", removePassenger: "Fahrgast entfernen", showAll: "Alle anzeigen", showLess: "Weniger anzeigen", more: "weitere"
+    driver: "Fahrer", driverPlaceholder: "Fahrernamen eingeben", passengers: "Fahrgäste", passengerPlaceholder: "Fahrgast hinzufügen", noPassengers: "Keine Fahrgäste", passengerCount: "Anzahl Fahrgäste", driverSuggestions: "Fahrervorschläge", passengerSuggestions: "Fahrgastvorschläge", passengerInstructions: "Mit Eingabetaste oder Komma hinzufügen.", removePassenger: "Fahrgast entfernen", showAll: "Alle anzeigen", showLess: "Weniger anzeigen", more: "weitere", people: "Personen", copyPreviousDriver: "Vorherigen Fahrer kopieren", copyPreviousPassengers: "Vorherige Fahrgäste kopieren", clearPassengers: "Fahrgäste löschen"
   }
 };
 
@@ -608,20 +608,20 @@ function TagSuggestions({ tags, onSelect, query = "" }) {
   return <SuggestionChips suggestions={tags} query={query} onSelect={onSelect} label="Tag suggestions" />;
 }
 
-function TripPeopleSummary({ trip, t, compact = false }) {
+function LegPeopleSummary({ leg, t, compact = false }) {
   const [expanded, setExpanded] = useState(false);
-  const passengers = normalizePassengers(trip?.passengers);
+  const passengers = normalizePassengers(leg?.passengers);
   const visible = expanded ? passengers : passengers.slice(0, 3);
-  if (!trip?.driver && !passengers.length) return null;
+  if (!leg?.driver && !passengers.length) return null;
   return <div className={`${compact ? "mt-2" : "mt-3 border-t border-neutral-200 pt-3"} text-xs text-neutral-600`}>
-    {trip.driver && <div><span className="font-semibold text-neutral-700">{t("driver")}:</span> {trip.driver}</div>}
-    {!!passengers.length && <div className="mt-1"><span className="font-semibold text-neutral-700">{t("passengers")} ({passengers.length}):</span> {visible.join(" · ")}{!expanded && passengers.length > visible.length && <button type="button" className="ml-1 font-semibold text-neutral-600 underline decoration-neutral-300 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400" onClick={(event) => { event.stopPropagation(); setExpanded(true); }}>+{passengers.length - visible.length} {t("more")}</button>}{expanded && passengers.length > 3 && <button type="button" className="ml-1 text-neutral-500 underline" onClick={(event) => { event.stopPropagation(); setExpanded(false); }}>{t("showLess")}</button>}</div>}
+    {leg.driver && <div><span className="font-semibold text-neutral-700">{t("driver")}:</span> {leg.driver}</div>}
+    {!!passengers.length && <div className="mt-1"><span className="font-semibold text-neutral-700">{t("passengers")} ({passengers.length}):</span> {visible.join(" · ")}{!expanded && passengers.length > visible.length && <button type="button" aria-expanded={false} className="ml-1 font-semibold text-neutral-600 underline decoration-neutral-300 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400" onClick={(event) => { event.stopPropagation(); setExpanded(true); }}>+{passengers.length - visible.length} {t("more")}</button>}{expanded && passengers.length > 3 && <button type="button" aria-expanded={true} className="ml-1 text-neutral-500 underline" onClick={(event) => { event.stopPropagation(); setExpanded(false); }}>{t("showLess")}</button>}</div>}
   </div>;
 }
 
 // ---------- Leg Modal (for saved legs) ----------
-function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
-  const [draft, setDraft] = useState(leg || {});
+function LegModal({ open, leg, onClose, onSave, t, suggestions = [], driverSuggestions = [], passengerSuggestions = [] }) {
+  const [draft, setDraft] = useState(normalizeLegPeople(leg || {}));
   const [timeValidationAttempted, setTimeValidationAttempted] = useState(false);
   const timeValidation = validateLegTimes(draft);
   const showTimeErrors = timeValidationAttempted || (isValidTime(draft.startTime) && isValidTime(draft.endTime) && draft.endTime < draft.startTime);
@@ -638,7 +638,7 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
       setTimeValidationAttempted(true);
       return;
     }
-    onSave(draft);
+    onSave(normalizeLegPeople(draft));
   };
 
   return (
@@ -683,6 +683,7 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
               <input className={`${inputBase} mt-1 text-right tabular-nums`} inputMode="decimal" value={draft.odoEnd || ""} onChange={e => handleChange("odoEnd", e.target.value)} />
             </div>
           </div>
+          <LegPeopleInput idPrefix="saved-leg" driver={draft.driver || ""} passengers={draft.passengers || []} onDriverChange={(value) => handleChange("driver", value)} onPassengersChange={(value) => handleChange("passengers", value)} driverSuggestions={driverSuggestions} passengerSuggestions={passengerSuggestions} t={t} />
           <div>
             <label className="text-xs font-medium text-neutral-600">{t("note")}</label>
             <input className={`${inputBase} mt-1`} value={draft.note || ""} onChange={e => handleChange("note", e.target.value)} />
@@ -936,6 +937,8 @@ function normalizeApp(raw) {
           startTag: l.startTag || "",
           endTag: l.endTag || l.tag || "",
           tag: l.tag || "",
+          driver: "",
+          passengers: [],
           createdAt: l.createdAt || new Date().toISOString()
         }));
 
@@ -972,17 +975,17 @@ function normalizeApp(raw) {
     // Ensure each trip has legs array
     normTripsByVehicle[v.id] = normTripsByVehicle[v.id].map(t => {
         if (!t) return null;
-        return normalizeTripPeople({ ...t, tags: t.tags || "", titleTag: t.titleTag || "", purposeTag: t.purposeTag || "", legs: Array.isArray(t.legs) ? t.legs : [] });
+        return migrateTripPeopleToLegs({ ...t, tags: t.tags || "", titleTag: t.titleTag || "", purposeTag: t.purposeTag || "", legs: Array.isArray(t.legs) ? t.legs : [] });
     }).filter(Boolean);
 
     if (!normActiveTripByVehicle[v.id]) {
         normActiveTripByVehicle[v.id] = null;
     } else {
         // Ensure active trip has legs array
-        normActiveTripByVehicle[v.id] = normalizeTripPeople({
+        normActiveTripByVehicle[v.id] = migrateTripPeopleToLegs({
           ...normActiveTripByVehicle[v.id],
           legs: Array.isArray(normActiveTripByVehicle[v.id].legs) ? normActiveTripByVehicle[v.id].legs : []
-        });
+        }, { preserveEmptyTripDefaults: true });
     }
 
     // Normalize Fuel
@@ -1018,11 +1021,7 @@ function normalizeApp(raw) {
     id: t.id || uid(),
     type: t.type || "trip",
     name: String(t.name || "Untitled"),
-    data: t.type === "trip" ? {
-      ...(t.data || {}),
-      driver: normalizeDriver(t.data?.driver),
-      passengers: normalizePassengers(t.data?.passengers)
-    } : (t.data || {})
+    data: t.type === "leg" ? normalizeLegPeople(t.data || {}) : (t.data || {})
   }));
 
   let activeVehicleId = a.activeVehicleId || null;
@@ -1361,10 +1360,9 @@ function TripIt() {
   const [tripStartForm, setTripStartForm] = useState({
     title: "",
     purpose: "",
-    driver: "",
-    passengers: [],
     startDate: todayISO()
   });
+  const [pendingFirstLegPeople, setPendingFirstLegPeople] = useState({ driver: "", passengers: [] });
 
   const [legForm, setLegForm] = useState({
     startPlace: "",
@@ -1376,6 +1374,8 @@ function TripIt() {
     note: "",
     startTag: "",
     endTag: ""
+    ,driver: "",
+    passengers: []
   });
   const [editingActiveLegId, setEditingActiveLegId] = useState(null);
   const [timeValidationAttempted, setTimeValidationAttempted] = useState(false);
@@ -1624,7 +1624,7 @@ function TripIt() {
   }, [app.tripsByVehicle, activeVehicle]);
 
   const allLocations = useMemo(() => locationSuggestions.map((item) => item.value), [locationSuggestions]);
-  const peopleSuggestions = useMemo(() => buildPeopleSuggestionItems(Object.values(app.tripsByVehicle).flat()), [app.tripsByVehicle]);
+  const peopleSuggestions = useMemo(() => buildPeopleSuggestionItems(Object.values(app.tripsByVehicle).flatMap((vehicleTrips) => vehicleTrips.flatMap((trip) => trip.legs || []))), [app.tripsByVehicle]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
@@ -1657,6 +1657,8 @@ function TripIt() {
       note: last.note,
       startTime: freshLegTimes(last.endTime).startTime,
       endTime: "",
+      driver: normalizeDriver(last.driver),
+      passengers: normalizePassengers(last.passengers),
     }));
   };
 
@@ -1672,11 +1674,12 @@ function TripIt() {
 
   const resetLegForm = (trip) => {
     if (trip && trip.draft) {
-      setLegForm(trip.draft);
+      setLegForm(normalizeLegPeople(trip.draft, trip));
       return;
     }
     if (trip && trip.legs.length > 0) {
       const lastLeg = trip.legs[trip.legs.length - 1];
+      const peopleDefaults = freshLegPeople(lastLeg);
       setLegForm({
         startPlace: lastLeg.endPlace,
         startTag: lastLeg.endTag || "",
@@ -1686,7 +1689,8 @@ function TripIt() {
         endTag: "",
         endTime: "",
         odoEnd: "",
-        note: ""
+        note: "",
+        ...peopleDefaults
       });
     } else {
       // New trip or first leg: fetch last odo from history
@@ -1698,6 +1702,7 @@ function TripIt() {
           if (lastLeg && lastLeg.odoEnd != null) lastOdo = lastLeg.odoEnd;
         }
       }
+      const peopleDefaults = freshLegPeople(null, trip);
       setLegForm({
         startPlace: "",
         startTag: "",
@@ -1707,7 +1712,8 @@ function TripIt() {
         endTag: "",
         endTime: "",
         odoEnd: "",
-        note: ""
+        note: "",
+        ...peopleDefaults
       });
     }
   };
@@ -1733,7 +1739,9 @@ function TripIt() {
           endPlace: "",
           endTime: "",
           odoEnd: "",
-          note: ""
+          note: "",
+          driver: "",
+          passengers: []
         }));
       }
     }
@@ -1765,12 +1773,14 @@ function TripIt() {
     let data = {};
     
     if (type === 'trip') {
-      data = { title: tripStartForm.title, purpose: tripStartForm.purpose, driver: normalizeDriver(tripStartForm.driver), passengers: normalizePassengers(tripStartForm.passengers) };
+      data = { title: tripStartForm.title, purpose: tripStartForm.purpose };
     } else {
       data = { 
         startPlace: legForm.startPlace, 
         endPlace: legForm.endPlace, 
-        note: legForm.note 
+        note: legForm.note,
+        driver: normalizeDriver(legForm.driver),
+        passengers: normalizePassengers(legForm.passengers)
       };
     }
 
@@ -1788,7 +1798,10 @@ function TripIt() {
 
   const loadTemplate = (tpl) => {
     if (tpl.type === 'trip') {
-      setTripStartForm(prev => ({ ...prev, title: tpl.data.title || "", purpose: tpl.data.purpose || "", driver: normalizeDriver(tpl.data.driver), passengers: normalizePassengers(tpl.data.passengers) }));
+      setTripStartForm(prev => ({ ...prev, title: tpl.data.title || "", purpose: tpl.data.purpose || "" }));
+      const legacyPeople = { driver: normalizeDriver(tpl.data.driver), passengers: normalizePassengers(tpl.data.passengers) };
+      setPendingFirstLegPeople(legacyPeople);
+      if (legacyPeople.driver || legacyPeople.passengers.length) notify("Template people will be used as first-leg defaults");
     } else {
       setLegForm(prev => ({
         ...prev,
@@ -1797,6 +1810,8 @@ function TripIt() {
         endPlace: tpl.data.endPlace || "",
         endTag: tpl.data.endTag || "",
         note: tpl.data.note || "",
+        driver: normalizeDriver(tpl.data.driver),
+        passengers: normalizePassengers(tpl.data.passengers),
         odoEnd: ""
       }));
     }
@@ -1864,14 +1879,16 @@ function TripIt() {
       vehicleId: activeVehicle.id,
       title: tripStartForm.title,
       purpose: tripStartForm.purpose,
-      driver: normalizeDriver(tripStartForm.driver),
-      passengers: normalizePassengers(tripStartForm.passengers),
       startedAt: new Date().toISOString(),
       startDate: tripStartForm.startDate,
       status: "active",
       legs: [],
       notes: ""
     };
+    if (pendingFirstLegPeople.driver || pendingFirstLegPeople.passengers.length) {
+      newTrip.driver = pendingFirstLegPeople.driver;
+      newTrip.passengers = pendingFirstLegPeople.passengers;
+    }
 
     setApp(a => ({
       ...a,
@@ -1879,7 +1896,8 @@ function TripIt() {
     }));
     
     // Reset start form
-    setTripStartForm({ title: "", purpose: "", driver: "", passengers: [], startDate: todayISO() });
+    setTripStartForm({ title: "", purpose: "", startDate: todayISO() });
+    setPendingFirstLegPeople({ driver: "", passengers: [] });
     notify("Trip started");
   };
 
@@ -1904,13 +1922,16 @@ function TripIt() {
       odoEnd: odoEnd,
       startTag: legForm.startTag,
       endTag: legForm.endTag,
+      driver: normalizeDriver(legForm.driver),
+      passengers: normalizePassengers(legForm.passengers),
       km: km,
       note: legForm.note,
     };
 
     if (editingActiveLegId) {
+      const { driver: _legacyDriver, passengers: _legacyPassengers, ...activeTripWithoutLegacyPeople } = activeTrip;
       const updatedTrip = {
-        ...activeTrip,
+        ...activeTripWithoutLegacyPeople,
         legs: activeTrip.legs.map(l => l.id === editingActiveLegId ? { ...l, ...legData } : l)
       };
       setApp(a => ({
@@ -1927,8 +1948,9 @@ function TripIt() {
         ...legData,
         createdAt: new Date().toISOString()
       };
+      const { driver: _legacyDriver, passengers: _legacyPassengers, ...activeTripWithoutLegacyPeople } = activeTrip;
       const updatedTrip = {
-        ...activeTrip,
+        ...activeTripWithoutLegacyPeople,
         legs: [...activeTrip.legs, newLeg]
         ,draft: null
       };
@@ -1953,6 +1975,8 @@ function TripIt() {
       endTime: leg.endTime,
       odoEnd: leg.odoEnd != null ? leg.odoEnd : "",
       note: leg.note || ""
+      ,driver: normalizeDriver(leg.driver),
+      passengers: normalizePassengers(leg.passengers)
     });
     setEditingActiveLegId(leg.id);
   };
@@ -2058,6 +2082,7 @@ function TripIt() {
 
     if (sortedLegs.length > 0) {
       const lastLeg = sortedLegs[sortedLegs.length - 1];
+      const peopleDefaults = freshLegPeople(lastLeg);
       setLegForm({
         startPlace: lastLeg.endPlace,
         startTag: lastLeg.endTag || "",
@@ -2067,7 +2092,8 @@ function TripIt() {
         endTag: "",
         endTime: "",
         odoEnd: "",
-        note: ""
+        note: "",
+        ...peopleDefaults
       });
     } else {
       setLegForm({
@@ -2079,7 +2105,9 @@ function TripIt() {
         endTag: "",
         endTime: "",
         odoEnd: "",
-        note: ""
+        note: "",
+        driver: "",
+        passengers: []
       });
     }
   };
@@ -2101,6 +2129,7 @@ function TripIt() {
       startPlace: legForm.startPlace, startTime: legForm.startTime, odoStart,
       endPlace: legForm.endPlace, endTime: legForm.endTime, odoEnd,
       startTag: legForm.startTag, endTag: legForm.endTag,
+      driver: normalizeDriver(legForm.driver), passengers: normalizePassengers(legForm.passengers),
       km, note: legForm.note, createdAt: new Date().toISOString()
     };
 
@@ -2382,8 +2411,11 @@ function TripIt() {
     lines.push("Trips");
     previewData.trips.forEach((trip) => {
       lines.push(`- ${trip.startDate}: ${trip.title || trip.purpose || "Untitled Trip"}`);
-      if (trip.driver) lines.push(`  Driver: ${trip.driver}`);
-      if (trip.passengers?.length) lines.push(`  Passengers (${trip.passengers.length}): ${normalizePassengers(trip.passengers).join("; ")}`);
+      (trip.legs || []).forEach((leg) => {
+        lines.push(`  ${leg.startPlace || "?"} to ${leg.endPlace || "?"}`);
+        if (leg.driver) lines.push(`    Driver: ${leg.driver}`);
+        if (leg.passengers?.length) lines.push(`    Passengers (${leg.passengers.length}): ${normalizePassengers(leg.passengers).join("; ")}`);
+      });
     });
     lines.push("");
 
@@ -2718,6 +2750,8 @@ function TripIt() {
         onSave={saveSavedLeg} 
         t={t}
         suggestions={allLocations}
+        driverSuggestions={peopleSuggestions.drivers}
+        passengerSuggestions={peopleSuggestions.passengers}
       />
 
       <TemplateModal 
@@ -3048,8 +3082,6 @@ function TripIt() {
                                   <div>
                                     <div className="font-medium">{trip.title}</div>
                                     {trip.purpose && <div className="text-xs text-neutral-500">{trip.purpose}</div>}
-                                    {trip.driver && <div className="text-xs text-neutral-500">{t("driver")}: {trip.driver}</div>}
-                                    {!!trip.passengers?.length && <div className="text-xs text-neutral-500">{t("passengers")} ({trip.passengers.length}): {normalizePassengers(trip.passengers).join(" · ")}</div>}
                                   </div>
                                 ) : null}
                               </td>
@@ -3057,6 +3089,8 @@ function TripIt() {
                                 <div>{l.startPlace} → {l.endPlace}</div>
                                 {(l.startTag || l.endTag) && <div className="text-xs font-medium text-lime-700 bg-lime-50 inline-block px-1.5 rounded mt-0.5">{l.startTag}{l.startTag && l.endTag ? " → " : ""}{l.endTag}</div>}
                                 <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime}</div>
+                                {l.driver && <div className="text-xs text-neutral-500">{t("driver")}: {l.driver}</div>}
+                                {!!l.passengers?.length && <div className="text-xs text-neutral-500">{t("passengers")} ({l.passengers.length}): {normalizePassengers(l.passengers).join(" · ")}</div>}
                                 {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
                               </td>
                               <td className="py-2 align-top text-neutral-800 text-right">{l.km != null ? toNumber(l.km).toFixed(1) : ""}</td>
@@ -3209,7 +3243,6 @@ function TripIt() {
                     <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-neutral-700">
                       <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-base text-neutral-800">{activeTrip.title || "Untitled Trip"}</div><div className="mt-1">{activeVehicle.name} · {activeTrip.startDate}</div><div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div></div><div className="flex gap-2"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant="accent">{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</Badge></div></div>
                       {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">{t("purpose")} {activeTrip.purpose}</div> : null}
-                      <TripPeopleSummary trip={activeTrip} t={t} />
                     </div>
 
                     {/* List of Legs in Active Trip */}
@@ -3221,6 +3254,7 @@ function TripIt() {
                             <div className="min-w-0">
                               <div className="font-medium text-neutral-800">{l.startPlace} → {l.endPlace}</div>
                               <div className="text-xs text-neutral-500">{l.startTime} - {l.endTime} • {l.km.toFixed(1)} km</div>
+                              <LegPeopleSummary leg={l} t={t} compact />
                             </div>
                             <div className="flex items-center gap-2">
                               <button 
@@ -3372,17 +3406,13 @@ function TripIt() {
                             placeholder="0"
                           />
                           </div>
-                          <div className="grow min-w-[150px]">
+                        </div>
+
+                        <LegPeopleInput idPrefix="active-leg" driver={legForm.driver} passengers={legForm.passengers} onDriverChange={(driver) => setLegForm((current) => ({ ...current, driver }))} onPassengersChange={(passengers) => setLegForm((current) => ({ ...current, passengers }))} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} previousLeg={!editingActiveLegId ? activeTrip.legs.at(-1) : null} t={t} />
+
+                        <div>
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("note")}</label>
-                          <input
-                            className={inputBase}
-                            value={legForm.note}
-                            onChange={(e) => setLegForm({ ...legForm, note: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                            placeholder={t("optional")}
-                          />
-                          </div>
+                          <input className={inputBase} value={legForm.note} onChange={(e) => setLegForm({ ...legForm, note: e.target.value })} onKeyDown={handleLegKeyDown} onFocus={handleFocus} placeholder={t("optional")} />
                         </div>
 
                         {editingActiveLegId ? (
@@ -3433,12 +3463,6 @@ function TripIt() {
                         placeholder="e.g. Business"
                       />
                     </div>
-                    <div>
-                      <label htmlFor="trip-driver" className="text-sm font-medium text-neutral-700">{t("driver")}</label>
-                      <input id="trip-driver" className={`${inputBase} mt-1`} value={tripStartForm.driver} maxLength={MAX_DRIVER_LENGTH} onChange={(e) => setTripStartForm({ ...tripStartForm, driver: e.target.value })} onBlur={(e) => setTripStartForm((current) => ({ ...current, driver: normalizeDriver(e.target.value) }))} placeholder={t("driverPlaceholder")} />
-                      <SuggestionChips suggestions={peopleSuggestions.drivers} query={tripStartForm.driver} onSelect={(value) => setTripStartForm((current) => ({ ...current, driver: value }))} label={t("driverSuggestions")} />
-                    </div>
-                    <PassengerInput id="trip-passengers" label={t("passengers")} placeholder={t("passengerPlaceholder")} values={tripStartForm.passengers} onChange={(passengers) => setTripStartForm((current) => ({ ...current, passengers }))} suggestions={peopleSuggestions.passengers} suggestionsLabel={t("passengerSuggestions")} instructions={t("passengerInstructions")} removeLabel={t("removePassenger")} showAllLabel={t("showAll")} showLessLabel={t("showLess")} renderSuggestions={(suggestions, onSelect, label) => <SuggestionChips suggestions={suggestions} onSelect={onSelect} label={label} />} />
                     <div>
                       <label className="text-sm font-medium text-neutral-700">{t("date")}</label>
                       <input
@@ -3514,7 +3538,6 @@ function TripIt() {
                                 </span>
                               )}
                             </div>
-                            <TripPeopleSummary trip={trip} t={t} compact />
                           </div>
                           
                           {isExpanded && (
@@ -3538,6 +3561,7 @@ function TripIt() {
                                   <div className="text-xs text-neutral-500">
                                     {l.startTime} - {l.endTime} • Odo: {l.odoStart} - {l.odoEnd}
                                   </div>
+                                  <LegPeopleSummary leg={l} t={t} compact />
                                   {l.note && <div className="text-xs text-neutral-500 italic">"{l.note}"</div>}
                                 </div>
                               ))}
@@ -3581,6 +3605,7 @@ function TripIt() {
                                             <div><label className="text-[10px] font-medium text-neutral-500">{t("odoS")}</label><input className={`${inputCompact} text-right`} value={legForm.odoStart} onChange={e => setLegForm({...legForm, odoStart: e.target.value})} /></div>
                                             <div><label className="text-[10px] font-medium text-neutral-500">{t("odoE")}</label><input className={`${inputCompact} text-right`} value={legForm.odoEnd} onChange={e => setLegForm({...legForm, odoEnd: e.target.value})} /></div>
                                         </div>
+                                        <LegPeopleInput idPrefix={`historical-${trip.id}`} driver={legForm.driver} passengers={legForm.passengers} onDriverChange={(driver) => setLegForm((current) => ({ ...current, driver }))} onPassengersChange={(passengers) => setLegForm((current) => ({ ...current, passengers }))} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} previousLeg={trip.legs.at(-1)} t={t} />
                                         <div>
                                             <label className="text-[10px] font-medium text-neutral-500">{t("note")}</label>
                                             <input className={inputCompact} value={legForm.note} onChange={e => setLegForm({...legForm, note: e.target.value})} />

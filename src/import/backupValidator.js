@@ -66,7 +66,7 @@ function inspectSafeTree(value, limits, errors, path = "$", depth = 0) {
 const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 const finiteWhenPresent = (value) => value === undefined || value === null || value === "" || Number.isFinite(Number(String(value).replace(",", ".")));
 
-function validateTripPeople(value, path, errors) {
+function validatePeopleFields(value, path, errors) {
   if (value.driver !== undefined && (typeof value.driver !== "string" || value.driver.length > MAX_DRIVER_LENGTH)) errors.push(issue("INVALID_SCHEMA", `${path}.driver`, `Driver must be a string of at most ${MAX_DRIVER_LENGTH} characters.`));
   if (value.passengers === undefined) return;
   if (!Array.isArray(value.passengers)) { errors.push(issue("INVALID_SCHEMA", `${path}.passengers`, "Passengers must be an array of strings.")); return; }
@@ -108,6 +108,7 @@ function validateLegs(legs, path, errors, limits) {
     else if (ids.has(leg.id)) errors.push(issue("DUPLICATE_ID", `${legPath}.id`, `Duplicate leg ID ${leg.id}.`));
     else ids.add(leg.id);
     for (const field of ["odoStart", "odoEnd", "km"]) if (!finiteWhenPresent(leg[field])) errors.push(issue("INVALID_SCHEMA", `${legPath}.${field}`, `${field} must be finite when present.`));
+    validatePeopleFields(leg, legPath, errors);
   });
   return legs.length;
 }
@@ -142,7 +143,8 @@ export function validateApplicationPayload(payload, options = {}) {
     else tripIds.add(trip.id);
     if (trip.vehicleId !== undefined && trip.vehicleId !== vehicleId) errors.push(issue("UNKNOWN_VEHICLE_REFERENCE", `${path}.vehicleId`, "Trip vehicleId does not match its containing vehicle."));
     if (!validDate(trip.startDate)) errors.push(issue("INVALID_SCHEMA", `${path}.startDate`, "Trip startDate must use YYYY-MM-DD."));
-    validateTripPeople(trip, path, errors);
+    // Trip-level people remain accepted only as migration input for older backups.
+    validatePeopleFields(trip, path, errors);
     const supported = isActive ? ["active", undefined] : ["finished", undefined];
     if (!supported.includes(trip.status)) errors.push(issue("INVALID_SCHEMA", `${path}.status`, "Trip status is not supported."));
     legCount += validateLegs(trip.legs, `${path}.legs`, errors, limits);
@@ -190,7 +192,7 @@ export function validateApplicationPayload(payload, options = {}) {
     else templateIds.add(template.id);
     if (!["trip", "leg"].includes(template.type)) errors.push(issue("INVALID_SCHEMA", `${path}.type`, "Template type must be trip or leg."));
     if (!isPlainObject(template.data)) errors.push(issue("INVALID_SCHEMA", `${path}.data`, "Template data must be a plain object."));
-    else if (template.type === "trip") validateTripPeople(template.data, `${path}.data`, errors);
+    else validatePeopleFields(template.data, `${path}.data`, errors);
   });
 
   const supportedKeys = new Set(["vehicles", "activeVehicleId", "activeTripByVehicle", "tripsByVehicle", "fuelByVehicle", "washByVehicle", "ui", "templates"]);
