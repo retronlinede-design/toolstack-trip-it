@@ -11,6 +11,7 @@ import { createMergePlan } from "./import/mergePlanner.js";
 import { mergeDatasetTransactional, rollbackMergeTransactional } from "./import/mergeTransaction.js";
 import { AlertBanner, Badge, Button, EmptyState, IconButton } from "./components/ui/index.jsx";
 import { buttonClass, cardBodyClass, cardClass, cardHeaderClass, compactInputClass, inputClass } from "./components/ui/styles.js";
+import { SuggestionChips } from "./components/ui/SuggestionChips.jsx";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -603,22 +604,8 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
   );
 }
 
-function TagSuggestions({ tags, onSelect }) {
-  if (!tags.length) return null;
-  return (
-    <div className="flex flex-wrap gap-1.5 mt-1.5">
-      {tags.map(t => (
-        <button
-          key={t}
-          type="button"
-          onClick={() => onSelect(t)}
-          className="px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-wider border-2 border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
-        >
-          {t}
-        </button>
-      ))}
-    </div>
-  );
+function TagSuggestions({ tags, onSelect, query = "" }) {
+  return <SuggestionChips suggestions={tags} query={query} onSelect={onSelect} label="Tag suggestions" />;
 }
 
 // ---------- Leg Modal (for saved legs) ----------
@@ -1569,18 +1556,27 @@ function TripIt() {
     return Array.from(combined).slice(0, 8);
   }, [app.tripsByVehicle, activeVehicle]);
 
-  const allLocations = useMemo(() => {
-    const counts = {};
+  const locationSuggestions = useMemo(() => {
+    const locations = new Map();
     if (activeVehicle && app.tripsByVehicle[activeVehicle.id]) {
-      app.tripsByVehicle[activeVehicle.id].forEach(t => {
-        (t.legs || []).forEach(l => {
-          if (l.startPlace) counts[l.startPlace] = (counts[l.startPlace] || 0) + 1;
-          if (l.endPlace) counts[l.endPlace] = (counts[l.endPlace] || 0) + 1;
+      app.tripsByVehicle[activeVehicle.id].forEach((t, tripIndex) => {
+        (t.legs || []).forEach((l, legIndex) => {
+          const timestamp = Date.parse(l.createdAt || `${t.startDate}T${l.endTime || l.startTime || "00:00"}`) || (1_000_000_000_000 - tripIndex * 1_000 - legIndex);
+          [l.startPlace, l.endPlace].forEach((rawValue) => {
+            const value = String(rawValue || "").trim().replace(/\s+/g, " ");
+            if (!value) return;
+            const key = value.toLocaleLowerCase();
+            const existing = locations.get(key);
+            if (existing) { existing.frequency += 1; existing.lastUsed = Math.max(existing.lastUsed, timestamp); }
+            else locations.set(key, { value, frequency: 1, lastUsed: timestamp });
+          });
         });
       });
     }
-    return Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    return [...locations.values()];
   }, [app.tripsByVehicle, activeVehicle]);
+
+  const allLocations = useMemo(() => locationSuggestions.map((item) => item.value), [locationSuggestions]);
 
   const setMonth = (m) => setApp((a) => ({ ...a, ui: { ...a.ui, month: m } }));
 
@@ -3268,6 +3264,7 @@ function TripIt() {
                               </svg>
                             </button>
                           </div>
+                          <SuggestionChips suggestions={locationSuggestions} query={legForm.startPlace} onSelect={(value) => setLegForm(prev => ({ ...prev, startPlace: value }))} />
                             
                             <div>
                               <input
@@ -3278,10 +3275,9 @@ function TripIt() {
                                 onFocus={handleFocus}
                                 placeholder={t("startTag")}
                               />
-                              <TagSuggestions tags={legTags} onSelect={(t) => setLegForm(prev => ({ ...prev, startTag: t }))} />
+                              <TagSuggestions tags={legTags} query={legForm.startTag} onSelect={(t) => setLegForm(prev => ({ ...prev, startTag: t }))} />
                             </div>
                           </div>
-
                           <div className="space-y-2">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("to")}</label>
                           <div className="relative">
@@ -3305,6 +3301,7 @@ function TripIt() {
                               </svg>
                             </button>
                           </div>
+                          <SuggestionChips suggestions={locationSuggestions} query={legForm.endPlace} onSelect={(value) => setLegForm(prev => ({ ...prev, endPlace: value }))} />
 
                             <div>
                               <input
@@ -3315,7 +3312,7 @@ function TripIt() {
                                 onFocus={handleFocus}
                                 placeholder={t("endTag")}
                               />
-                              <TagSuggestions tags={legTags} onSelect={(t) => setLegForm(prev => ({ ...prev, endTag: t }))} />
+                              <TagSuggestions tags={legTags} query={legForm.endTag} onSelect={(t) => setLegForm(prev => ({ ...prev, endTag: t }))} />
                             </div>
                           </div>
                         </div>

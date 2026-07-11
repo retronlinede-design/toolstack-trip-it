@@ -97,6 +97,10 @@ label { color: var(--ts-text-muted); }
 .ts-stat span, .ts-stat small { color: var(--ts-text-muted); }
 .ts-stat strong { display: block; margin-top: 3px; color: var(--ts-text); font-size: 1.45rem; }
 .ts-divider { height: 1px; background: var(--ts-border); }
+.ts-suggestion-chip { height: 29px; max-width: 100%; display: inline-flex; align-items: center; border: 1px solid var(--ts-border); border-radius: 999px; background: #fff; color: var(--ts-text-muted); padding: 0 9px; font-size: 11px; font-weight: 550; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .14s, border-color .14s, background-color .14s, box-shadow .14s; }
+.ts-suggestion-chip:hover { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
+.ts-suggestion-chip:focus-visible { outline: none; border-color: #b5d51c; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 28%, transparent); color: #526300; }
+.ts-suggestion-chip--more { border-style: dashed; color: var(--ts-text-subtle); }
 
 /* Compatibility bridge for existing workflow markup; print output is reset below. */
 .tripit-app .bg-white { background-color: var(--ts-surface-raised); }
