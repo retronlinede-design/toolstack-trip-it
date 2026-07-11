@@ -12,6 +12,8 @@ import { mergeDatasetTransactional, rollbackMergeTransactional } from "./import/
 import { AlertBanner, Badge, Button, EmptyState, IconButton } from "./components/ui/index.jsx";
 import { buttonClass, cardBodyClass, cardClass, cardHeaderClass, compactInputClass, inputClass } from "./components/ui/styles.js";
 import { SuggestionChips } from "./components/ui/SuggestionChips.jsx";
+import { TimeInput } from "./components/trips/TimeInput.jsx";
+import { freshLegTimes, isValidTime, roundTimeToFiveMinutes, updateLegTime, validateLegTimes } from "./components/trips/timeUtils.js";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -175,13 +177,6 @@ const safeStorageSet = (key, value) => {
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const roundTime = () => {
-  const coeff = 1000 * 60 * 5;
-  const date = new Date();
-  const rounded = new Date(Math.round(date.getTime() / coeff) * coeff);
-  return rounded.toTimeString().slice(0, 5);
-};
-
 const toNumber = (v) => {
   const n = Number(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
@@ -611,10 +606,24 @@ function TagSuggestions({ tags, onSelect, query = "" }) {
 // ---------- Leg Modal (for saved legs) ----------
 function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
   const [draft, setDraft] = useState(leg || {});
+  const [timeValidationAttempted, setTimeValidationAttempted] = useState(false);
+  const timeValidation = validateLegTimes(draft);
+  const showTimeErrors = timeValidationAttempted || (isValidTime(draft.startTime) && isValidTime(draft.endTime) && draft.endTime < draft.startTime);
 
   if (!open) return null;
 
   const handleChange = (f, v) => setDraft(d => ({ ...d, [f]: v }));
+  const handleTimeChange = (field, value) => {
+    setDraft((current) => updateLegTime(current, field, value));
+    setTimeValidationAttempted(false);
+  };
+  const handleSave = () => {
+    if (!timeValidation.ok) {
+      setTimeValidationAttempted(true);
+      return;
+    }
+    onSave(draft);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
@@ -634,13 +643,12 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
               <label className="text-xs font-medium text-neutral-600">{t("to")}</label>
               <input className={`${inputBase} mt-1`} value={draft.endPlace || ""} onChange={e => handleChange("endPlace", e.target.value)} list="leg-modal-locations" />
             </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-600">{t("startTime")}</label>
-              <input type="time" className={`${inputBase} mt-1`} value={draft.startTime || ""} onChange={e => handleChange("startTime", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-600">{t("endTime")}</label>
-              <input type="time" className={`${inputBase} mt-1`} value={draft.endTime || ""} onChange={e => handleChange("endTime", e.target.value)} />
+            <div className="col-span-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+              <div className="mb-2 text-xs font-semibold text-neutral-700">Time</div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <TimeInput id="saved-leg-start-time" label={t("startTime")} value={draft.startTime || ""} onChange={(value) => handleTimeChange("startTime", value)} error={showTimeErrors ? timeValidation.errors.startTime : ""} />
+                <TimeInput id="saved-leg-end-time" label={t("endTime")} value={draft.endTime || ""} onChange={(value) => handleTimeChange("endTime", value)} error={showTimeErrors ? timeValidation.errors.endTime : ""} />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("odoStart")}</label>
@@ -666,7 +674,7 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
         </div>
         <div className="p-4 border-t border-neutral-100 flex justify-end gap-2">
           <button className={btnSecondary} onClick={onClose}>{t("cancel")}</button>
-          <button className={btnAccent} onClick={() => onSave(draft)}>{t("save")}</button>
+          <button className={btnAccent} onClick={handleSave}>{t("save")}</button>
         </div>
         <datalist id="leg-modal-locations">
           {suggestions.map((s, i) => <option key={i} value={s} />)}
@@ -1335,17 +1343,31 @@ function TripIt() {
 
   const [legForm, setLegForm] = useState({
     startPlace: "",
-    startTime: roundTime(),
+    startTime: roundTimeToFiveMinutes(),
     odoStart: "",
     endPlace: "",
-    endTime: roundTime(),
+    endTime: "",
     odoEnd: "",
     note: "",
     startTag: "",
     endTag: ""
   });
   const [editingActiveLegId, setEditingActiveLegId] = useState(null);
+  const [timeValidationAttempted, setTimeValidationAttempted] = useState(false);
   const [savedLegModal, setSavedLegModal] = useState({ open: false, tripId: null, leg: null });
+  const legTimeValidation = validateLegTimes(legForm);
+  const showLegTimeErrors = timeValidationAttempted || (isValidTime(legForm.startTime) && isValidTime(legForm.endTime) && legForm.endTime < legForm.startTime);
+  const changeLegTime = (field, value) => {
+    setLegForm((current) => updateLegTime(current, field, value));
+    setTimeValidationAttempted(false);
+  };
+  const requireValidLegTimes = (form = legForm) => {
+    const result = validateLegTimes(form);
+    if (result.ok) return true;
+    setTimeValidationAttempted(true);
+    notify(Object.values(result.errors)[0]);
+    return false;
+  };
 
   // Fuel Form State
   const [fuelForm, setFuelForm] = useState({
@@ -1607,7 +1629,7 @@ function TripIt() {
       endPlace: last.endPlace,
       endTag: last.endTag || last.tag || "",
       note: last.note,
-      startTime: roundTime(),
+      startTime: freshLegTimes(last.endTime).startTime,
       endTime: "",
     }));
   };
@@ -1632,11 +1654,11 @@ function TripIt() {
       setLegForm({
         startPlace: lastLeg.endPlace,
         startTag: lastLeg.endTag || "",
-        startTime: roundTime(),
+        startTime: freshLegTimes(lastLeg.endTime).startTime,
         odoStart: (lastLeg && lastLeg.odoEnd != null) ? lastLeg.odoEnd : "",
         endPlace: "",
         endTag: "",
-        endTime: roundTime(),
+        endTime: "",
         odoEnd: "",
         note: ""
       });
@@ -1653,11 +1675,11 @@ function TripIt() {
       setLegForm({
         startPlace: "",
         startTag: "",
-        startTime: roundTime(),
+        startTime: roundTimeToFiveMinutes(),
         odoStart: lastOdo !== "" ? lastOdo : "",
         endPlace: "",
         endTag: "",
-        endTime: roundTime(),
+        endTime: "",
         odoEnd: "",
         note: ""
       });
@@ -1680,10 +1702,10 @@ function TripIt() {
         setLegForm(prev => ({
           ...prev,
           startPlace: "",
-          startTime: roundTime(),
+          startTime: roundTimeToFiveMinutes(),
           odoStart: lastOdo,
           endPlace: "",
-          endTime: roundTime(),
+          endTime: "",
           odoEnd: "",
           note: ""
         }));
@@ -1835,6 +1857,7 @@ function TripIt() {
 
   const saveActiveLeg = () => {
     if (!activeVehicle || !activeTrip) return;
+    if (!requireValidLegTimes()) return;
 
     const odoStart = legForm.odoStart !== "" ? toNumber(legForm.odoStart) : null;
     const odoEnd = legForm.odoEnd !== "" ? toNumber(legForm.odoEnd) : null;
@@ -1867,6 +1890,7 @@ function TripIt() {
         activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
       }));
       setEditingActiveLegId(null);
+      setTimeValidationAttempted(false);
       resetLegForm(updatedTrip);
       notify("Leg updated");
     } else {
@@ -1884,11 +1908,13 @@ function TripIt() {
         ...a,
         activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: updatedTrip }
       }));
+      setTimeValidationAttempted(false);
       notify("Leg added");
     }
   };
 
   const editActiveLeg = (leg) => {
+    setTimeValidationAttempted(false);
     setLegForm({
       startPlace: leg.startPlace,
       startTime: leg.startTime,
@@ -1905,6 +1931,7 @@ function TripIt() {
 
   const cancelEditActiveLeg = () => {
     setEditingActiveLegId(null);
+    setTimeValidationAttempted(false);
     resetLegForm(activeTrip);
   };
 
@@ -1965,6 +1992,8 @@ function TripIt() {
 
   const saveSavedLeg = (updatedLeg) => {
     if (!activeVehicle || !savedLegModal.tripId) return;
+    const timeValidation = validateLegTimes(updatedLeg);
+    if (!timeValidation.ok) return notify(Object.values(timeValidation.errors)[0]);
     
     const odoStart = updatedLeg.odoStart !== "" ? toNumber(updatedLeg.odoStart) : null;
     const odoEnd = updatedLeg.odoEnd !== "" ? toNumber(updatedLeg.odoEnd) : null;
@@ -1995,6 +2024,7 @@ function TripIt() {
   const openAddLegToTrip = (trip) => {
     setAddingLegToTripId(trip.id);
     setExpandedTripId(trip.id); // Ensure it's expanded
+    setTimeValidationAttempted(false);
     
     const sortedLegs = [...trip.legs].sort((a,b) => (a.startTime || "").localeCompare(b.startTime || ""));
 
@@ -2003,11 +2033,11 @@ function TripIt() {
       setLegForm({
         startPlace: lastLeg.endPlace,
         startTag: lastLeg.endTag || "",
-        startTime: roundTime(),
+        startTime: freshLegTimes(lastLeg.endTime).startTime,
         odoStart: (lastLeg && lastLeg.odoEnd != null) ? lastLeg.odoEnd : "",
         endPlace: "",
         endTag: "",
-        endTime: roundTime(),
+        endTime: "",
         odoEnd: "",
         note: ""
       });
@@ -2015,11 +2045,11 @@ function TripIt() {
       setLegForm({
         startPlace: "",
         startTag: "",
-        startTime: roundTime(),
+        startTime: roundTimeToFiveMinutes(),
         odoStart: "",
         endPlace: "",
         endTag: "",
-        endTime: roundTime(),
+        endTime: "",
         odoEnd: "",
         note: ""
       });
@@ -2028,6 +2058,7 @@ function TripIt() {
 
   const addLegToSavedTrip = (tripId) => {
     if (!activeVehicle) return;
+    if (!requireValidLegTimes()) return;
 
     const odoStart = legForm.odoStart !== "" ? toNumber(legForm.odoStart) : null;
     const odoEnd = legForm.odoEnd !== "" ? toNumber(legForm.odoEnd) : null;
@@ -2058,6 +2089,7 @@ function TripIt() {
     });
 
     setAddingLegToTripId(null);
+    setTimeValidationAttempted(false);
     notify("Leg added to trip");
   };
 
@@ -2562,19 +2594,6 @@ function TripIt() {
       () => notify("Location failed"),
       { enableHighAccuracy: true }
     );
-  };
-
-  const handleQuickStart = () => {
-    setLegForm((prev) => ({
-      ...prev,
-      startTime: new Date().toTimeString().slice(0, 5),
-    }));
-    getCurrentLocation("startPlace");
-  };
-
-  const handleQuickEnd = () => {
-    setLegForm((prev) => ({ ...prev, endTime: new Date().toTimeString().slice(0, 5) }));
-    getCurrentLocation("endPlace");
   };
 
   if (storageGate) {
@@ -3205,24 +3224,6 @@ function TripIt() {
                     )}
 
                     <div className="border-t border-neutral-100 pt-4">
-                      {!editingActiveLegId && (
-                        <div className="flex gap-3 mb-4">
-                          <button
-                            className={`${btnSecondary} flex-1 py-3 border-[var(--ts-accent)] bg-neutral-700 text-[var(--ts-accent)] hover:bg-white hover:text-neutral-900`}
-                            onClick={handleQuickStart}
-                            title="Auto-fill Start Time & Location"
-                          >
-                            START
-                          </button>
-                          <button
-                            className={`${btnSecondary} flex-1 py-3 border-[var(--ts-accent)] bg-neutral-700 text-[var(--ts-accent)] hover:bg-white hover:text-neutral-900`}
-                            onClick={handleQuickEnd}
-                            title="Auto-fill End Time & Location"
-                          >
-                            END
-                          </button>
-                        </div>
-                      )}
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-medium text-neutral-800">{editingActiveLegId ? t("updateLeg") : t("quickLeg")}</div>
                         <div className="flex gap-3 items-center">
@@ -3317,30 +3318,16 @@ function TripIt() {
                           </div>
                         </div>
 
+                        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="mb-2 text-xs font-semibold text-neutral-700">Time</div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <TimeInput id="active-leg-start-time" label={t("startTime")} value={legForm.startTime} onChange={(value) => changeLegTime("startTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.startTime : ""} onKeyDown={handleLegKeyDown} onFocus={handleFocus} />
+                            <TimeInput id="active-leg-end-time" label={t("endTime")} value={legForm.endTime} onChange={(value) => changeLegTime("endTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.endTime : ""} onKeyDown={handleLegKeyDown} onFocus={handleFocus} />
+                          </div>
+                        </div>
+
                         {/* Row 3: Details */}
                         <div className="flex flex-wrap gap-2 items-end">
-                          <div className="w-28">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("start")}</label>
-                          <input
-                            type="time"
-                            className={inputBase}
-                            value={legForm.startTime}
-                            onChange={(e) => setLegForm({ ...legForm, startTime: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                          />
-                          </div>
-                          <div className="w-28">
-                          <label className="text-xs text-neutral-500 font-medium block mb-1">{t("end")}</label>
-                          <input
-                            type="time"
-                            className={inputBase}
-                            value={legForm.endTime}
-                            onChange={(e) => setLegForm({ ...legForm, endTime: e.target.value })}
-                            onKeyDown={handleLegKeyDown}
-                            onFocus={handleFocus}
-                          />
-                          </div>
                           <div className="w-20">
                           <label className="text-xs text-neutral-500 font-medium block mb-1">{t("odoS")}</label>
                           <input
@@ -3556,9 +3543,14 @@ function TripIt() {
                                                 <input className={inputCompact} value={legForm.endPlace} onChange={e => setLegForm({...legForm, endPlace: e.target.value})} list="locations-list" />
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("startTime")}</label><input type="time" className={inputCompact} value={legForm.startTime} onChange={e => setLegForm({...legForm, startTime: e.target.value})} /></div>
-                                            <div><label className="text-[10px] font-medium text-neutral-500">{t("endTime")}</label><input type="time" className={inputCompact} value={legForm.endTime} onChange={e => setLegForm({...legForm, endTime: e.target.value})} /></div>
+                                        <div className="rounded-xl border border-neutral-200 bg-white p-3">
+                                          <div className="mb-2 text-xs font-semibold text-neutral-700">Time</div>
+                                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <TimeInput compact id={`historical-${trip.id}-start-time`} label={t("startTime")} value={legForm.startTime} onChange={(value) => changeLegTime("startTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.startTime : ""} />
+                                            <TimeInput compact id={`historical-${trip.id}-end-time`} label={t("endTime")} value={legForm.endTime} onChange={(value) => changeLegTime("endTime", value)} error={showLegTimeErrors ? legTimeValidation.errors.endTime : ""} />
+                                          </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
                                             <div><label className="text-[10px] font-medium text-neutral-500">{t("odoS")}</label><input className={`${inputCompact} text-right`} value={legForm.odoStart} onChange={e => setLegForm({...legForm, odoStart: e.target.value})} /></div>
                                             <div><label className="text-[10px] font-medium text-neutral-500">{t("odoE")}</label><input className={`${inputCompact} text-right`} value={legForm.odoEnd} onChange={e => setLegForm({...legForm, odoEnd: e.target.value})} /></div>
                                         </div>

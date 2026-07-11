@@ -101,6 +101,12 @@ label { color: var(--ts-text-muted); }
 .ts-suggestion-chip:hover { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
 .ts-suggestion-chip:focus-visible { outline: none; border-color: #b5d51c; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 28%, transparent); color: #526300; }
 .ts-suggestion-chip--more { border-style: dashed; color: var(--ts-text-subtle); }
+.ts-time-now { height: 44px; flex: 0 0 auto; border: 1px solid var(--ts-border-strong); border-radius: 10px; background: var(--ts-surface-muted); color: var(--ts-text-muted); padding: 0 10px; font-size: 12px; font-weight: 600; transition: border-color .14s, background-color .14s, color .14s; }
+.ts-time-now:hover, .ts-time-now:focus-visible { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
+.ts-time-now:focus-visible, .ts-time-adjust:focus-visible { outline: 3px solid color-mix(in srgb, var(--ts-accent) 28%, transparent); outline-offset: 1px; }
+.ts-time-adjust { min-width: 38px; height: 30px; border: 1px solid var(--ts-border); border-radius: 8px; background: #fff; color: var(--ts-text-muted); padding: 0 7px; font-size: 11px; font-weight: 600; transition: border-color .14s, background-color .14s, color .14s; }
+.ts-time-adjust:hover:not(:disabled) { border-color: #c4df45; background: var(--ts-accent-soft); color: #526300; }
+.ts-time-adjust:disabled { opacity: .38; cursor: not-allowed; }
 
 /* Compatibility bridge for existing workflow markup; print output is reset below. */
 .tripit-app .bg-white { background-color: var(--ts-surface-raised); }
