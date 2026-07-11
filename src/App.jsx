@@ -9,6 +9,8 @@ import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateAppl
 import { applyTransactionResult, replaceDatasetTransactional, rollbackTransactional } from "./import/importTransaction.js";
 import { createMergePlan } from "./import/mergePlanner.js";
 import { mergeDatasetTransactional, rollbackMergeTransactional } from "./import/mergeTransaction.js";
+import { AlertBanner, Badge, Button, EmptyState, IconButton } from "./components/ui/index.jsx";
+import { buttonClass, cardBodyClass, cardClass, cardHeaderClass, compactInputClass, inputClass } from "./components/ui/styles.js";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -130,10 +132,6 @@ const TRANSLATIONS = {
 // Optional: set later
 const HUB_URL = "https://YOUR-WIX-HUB-URL-HERE";
 
-// Master accent
-const ACCENT = "#D5FF00"; // rgb(213,255,0)
-const ACCENT_RGB = "213 255 0";
-
 // 1) Safe uid helper (Hardened for mobile/older browsers)
 const uid = () => {
   try {
@@ -254,7 +252,7 @@ function AccentUnderline({ className = "" }) {
   return (
     <div
       className={`h-[2px] rounded-full ${className}`}
-      style={{ background: `linear-gradient(to right, transparent, ${ACCENT}, transparent)` }}
+      style={{ background: "linear-gradient(to right, transparent, var(--ts-accent), transparent)" }}
     />
   );
 }
@@ -273,24 +271,11 @@ function loadProfile() {
 }
 
 // ---------- Normalized top actions (Master Pack) ----------
-const ACTION_BASE =
-  "print:hidden group relative h-10 px-2 sm:px-3 flex items-center justify-center min-w-0 " +
-  "text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-200 " +
-  "border-2 border-neutral-700 shadow-[3px_3px_0px_rgba(0,0,0,0.2)] " +
-  "active:translate-y-0.5 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[3px_3px_0px_rgba(0,0,0,0.2)] hover:z-10";
-
-// Match the "?" Help hover (accent tint + accent border)
-const HOVER_ACCENT = "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]";
-
 function ActionButton({ children, onClick, disabled, title }) {
-  const cls = disabled
-    ? "bg-neutral-800 text-neutral-500 border-neutral-700"
-    : "bg-neutral-700 text-white hover:-translate-y-1 hover:shadow-[5px_5px_0px_var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)]";
-
   return (
-    <button type="button" onClick={onClick} title={title} disabled={disabled} className={`${ACTION_BASE} ${cls}`}>
-      <span className="truncate w-full text-center relative z-10">{children}</span>
-    </button>
+    <Button variant="ghost" onClick={onClick} title={title} disabled={disabled} className="print:hidden min-w-0">
+      <span className="w-full text-center">{children}</span>
+    </Button>
   );
 }
 
@@ -298,9 +283,9 @@ function ActionButton({ children, onClick, disabled, title }) {
 // ---------- Help Pack v1 (Graffiti Style) ----------
 function HelpCard({ title, children }) {
   return (
-    <div className="group relative rounded-sm border-2 border-neutral-700 bg-neutral-800 p-4 transition-all hover:border-[var(--ts-accent)] hover:shadow-[4px_4px_0px_var(--ts-accent)] hover:-translate-y-1">
-      <div className="mb-2 text-lg font-black uppercase tracking-tight text-[var(--ts-accent)] drop-shadow-md">{title}</div>
-      <div className="text-sm font-medium text-neutral-300 leading-relaxed space-y-2">{children}</div>
+    <div className="rounded-xl border border-[var(--ts-border)] bg-[var(--ts-surface)] p-4">
+      <div className="mb-2 text-base font-semibold text-[var(--ts-text)]">{title}</div>
+      <div className="text-sm text-[var(--ts-text-muted)] leading-relaxed space-y-2">{children}</div>
     </div>
   );
 }
@@ -321,31 +306,22 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
     <div className="fixed inset-0 z-50 backdrop-blur-sm">
       <div className="absolute inset-0 bg-black/80" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-3xl transform border-4 border-[var(--ts-accent)] bg-neutral-900 shadow-[8px_8px_0px_rgba(0,0,0,0.5)] overflow-hidden">
+        <div className="ts-modal max-w-3xl">
           
           {/* Header */}
-          <div className="relative border-b-4 border-[var(--ts-accent)] bg-neutral-900 p-6 flex items-start justify-between gap-4">
+          <div className="ts-modal__header">
             <div className="relative z-10">
               <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Help Pack v1</div>
-              <h2 className="mt-1 text-4xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
                 {appName} <span className="text-[var(--ts-accent)]">Help</span>
               </h2>
               <div className="mt-2 text-sm font-bold text-neutral-400 uppercase tracking-wide">How your data works</div>
             </div>
 
-            <button
-              type="button"
-              className="group relative px-4 py-2 font-black uppercase tracking-wider text-neutral-900 bg-[var(--ts-accent)] hover:bg-white transition-colors border-2 border-[var(--ts-accent)] hover:border-[var(--ts-accent)]"
-              onClick={onClose}
-            >
-              <span className="relative z-10">Close X</span>
-            </button>
-            
-            {/* Graffiti splatter decoration (CSS shapes) */}
-            <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[var(--ts-accent)] opacity-20 blur-2xl pointer-events-none"></div>
+            <IconButton label="Close" onClick={onClose}>×</IconButton>
           </div>
 
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-auto bg-neutral-900 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
+          <div className="ts-modal__body space-y-6">
             
             <HelpCard title="About Trip-It">
               <p>Trip-It is a local-first trip and vehicle log tool designed to help you record trips, fuel, and key vehicle details, then generate clean print-ready summaries. It’s built for daily operational logging with no accounts, no cloud storage, and no automatic data sharing.</p>
@@ -424,10 +400,10 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
 
           </div>
 
-          <div className="border-t-4 border-[var(--ts-accent)] bg-neutral-900 p-4 flex items-center justify-end gap-2">
+          <div className="ts-modal__footer">
             <button
               type="button"
-              className="px-6 py-3 font-black uppercase tracking-wider text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:scale-105 transition-all shadow-[4px_4px_0px_rgba(255,255,255,0.2)]"
+              className={btnAccent}
               onClick={onClose}
             >
               Got it
@@ -440,50 +416,33 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
 }
 
 // ---------- UI helpers ----------
-const BTN_BASE = "print:hidden group relative inline-flex items-center justify-center px-4 py-2 rounded-sm text-xs font-black uppercase tracking-wider transition-all duration-200 border-2 shadow-[3px_3px_0px_rgba(0,0,0,0.2)] active:translate-y-0.5 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed";
-
-const btnSecondary = `${BTN_BASE} border-neutral-700 bg-neutral-700 text-white hover:bg-[var(--ts-accent)] hover:text-neutral-900 hover:border-[var(--ts-accent)] hover:-translate-y-1 hover:shadow-[5px_5px_0px_var(--ts-accent)]`;
-
+const BTN_BASE = "print:hidden";
+const btnSecondary = `${buttonClass("secondary")} ${BTN_BASE}`;
 const btnPrimary = btnSecondary;
-
-// Accent (green) button (requested: green with dark-grey text)
-const btnAccent = `${BTN_BASE} border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-900 hover:bg-white hover:text-neutral-900 hover:border-[var(--ts-accent)] hover:-translate-y-1 hover:shadow-[5px_5px_0px_rgba(0,0,0,0.2)]`;
-
-const btnDanger = `${BTN_BASE} border-red-500 bg-red-500 text-white hover:bg-white hover:text-red-600 hover:border-red-500 hover:-translate-y-1 hover:shadow-[5px_5px_0px_rgba(0,0,0,0.2)]`;
+const btnAccent = `${buttonClass("primary")} ${BTN_BASE}`;
+const btnDanger = `${buttonClass("danger")} ${BTN_BASE}`;
 
 
-const inputBase =
-  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]";
-const inputCompact =
-  "w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)]";
-const card = "rounded-2xl bg-white border border-neutral-200 shadow-sm overflow-hidden";
-const cardHead = "px-4 py-3 border-b border-neutral-100";
-const cardPad = "p-4";
+const inputBase = inputClass;
+const inputCompact = compactInputClass;
+const card = cardClass;
+const cardHead = cardHeaderClass;
+const cardPad = cardBodyClass;
 
 function Pill({ children, tone = "default" }) {
-  const cls =
-    tone === "accent"
-      ? "bg-[var(--ts-accent)] text-neutral-900 border-neutral-700"
-      : tone === "warn"
-      ? "bg-red-500 text-white border-neutral-700"
-      : "bg-neutral-700 text-white border-neutral-700";
-  return <span className={`inline-flex items-center px-2 py-1 rounded-sm text-[10px] sm:text-xs font-black uppercase tracking-wider border-2 shadow-[2px_2px_0px_rgba(0,0,0,0.2)] transform -rotate-1 hover:rotate-0 transition-transform ${cls}`}>{children}</span>;
+  return <Badge variant={tone === "warn" ? "danger" : tone}>{children}</Badge>;
 }
 
 function ConfirmModal({ open, title, message, confirmText = "Delete", onConfirm, onCancel }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
-        <div className="p-4 border-b border-neutral-100">
-          <div className="text-lg font-semibold text-neutral-800">{title}</div>
-          <div className="text-sm text-neutral-700 mt-1">{message}</div>
-          <div className="mt-3">
-            <AccentUnderline className="w-40" />
-          </div>
+    <div className="ts-modal-backdrop">
+      <div className="ts-modal max-w-md" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div className="ts-modal__header">
+          <div><div id="confirm-title" className="text-lg font-semibold text-neutral-800">{title}</div><div className="text-sm text-neutral-700 mt-1">{message}</div></div>
+          <IconButton label="Close" onClick={onCancel}>×</IconButton>
         </div>
-        <div className="p-4 flex items-center justify-end gap-2">
+        <div className="ts-modal__footer">
           <button
             type="button"
             className={btnSecondary}
@@ -532,7 +491,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
             <div>
               <label className="text-sm font-medium text-neutral-700">To</label>
               <input
-                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] mt-2"
+                className={`${inputBase} mt-2`}
                 value={to}
                 onChange={(e) => onChangeTo && onChangeTo(e.target.value)}
                 placeholder="email@example.com (optional)"
@@ -553,7 +512,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
             <div>
               <label className="text-sm font-medium text-neutral-700">Message</label>
               <textarea
-                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ts-accent-rgb)/0.3)] focus:border-[var(--ts-accent)] mt-2 min-h-[220px]"
+                className={`${inputBase} mt-2 min-h-[220px]`}
                 value={body}
                 onChange={(e) => onChangeBody && onChangeBody(e.target.value)}
               />
@@ -625,7 +584,7 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
           <div className="space-y-2">
             <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("load")}</div>
             {filtered.length === 0 ? (
-              <div className="text-sm text-neutral-500 italic">{t("noTemplates")}</div>
+              <EmptyState title={t("noTemplates")} description="Save the current form to reuse it later." />
             ) : (
               filtered.map(tpl => (
                 <div key={tpl.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white hover:border-neutral-300 transition">
@@ -784,8 +743,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
           disabled={disabled}
           onClick={() => { setYear(currentYear); setOpen(true); }}
           className={
-            "w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-[13px] sm:text-sm text-neutral-700 shadow-sm " +
-            "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] transition flex items-center justify-between gap-3 " +
+            "ts-control flex items-center justify-between gap-3 text-left " +
             (disabled ? "opacity-50 cursor-not-allowed" : "")
           }
           title="Choose month"
@@ -817,11 +775,11 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-50">
+        <div className="ts-modal-backdrop">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
-              <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
+          <div className="w-full max-w-md">
+            <div className="ts-modal max-w-md">
+              <div className="ts-modal__header">
                 <div>
                   <div className="text-sm text-neutral-500">ToolStack • Month picker</div>
                   <div className="text-lg font-semibold text-neutral-800">{t("selectMonth")}</div>
@@ -838,11 +796,11 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
                 </button>
               </div>
 
-              <div className="p-4 space-y-3">
+              <div className="ts-modal__body space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-neutral-700">{t("year")}</div>
                   <select
-                    className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-700"
+                    className="ts-control w-auto"
                     value={year}
                     onChange={(e) => setYear(Number(e.target.value))}
                   >
@@ -861,7 +819,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
                       <button
                         key={m.n}
                         type="button"
-                        className={`h-10 rounded-sm border-2 text-xs font-black uppercase tracking-wider transition-all ${
+                        className={`min-h-11 rounded-xl border text-sm font-semibold transition-all ${
                           active
                             ? "border-neutral-700 bg-neutral-700 text-white shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
                             : "border-neutral-200 bg-white text-neutral-600 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)]"
@@ -1293,13 +1251,13 @@ function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onMerge
   ];
   const recordSummary = (record) => Object.entries(record || {}).filter(([, value]) => ["string", "number", "boolean"].includes(typeof value)).slice(0, 7);
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="import-title">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border-2 border-neutral-300 shadow-2xl">
-        <div className="p-5 border-b flex justify-between gap-4">
+    <div className="ts-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <div className="ts-modal max-w-2xl">
+        <div className="ts-modal__header">
           <div><h2 id="import-title" className="text-xl font-bold">Backup Import</h2><p className="text-sm text-neutral-600">Current data is not replaced until validation, snapshot, write, and read-back verification succeed.</p></div>
-          <button className={btnSecondary} onClick={onClose}>Close</button>
+          <IconButton label="Close" onClick={onClose}>×</IconButton>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="ts-modal__body space-y-4">
           {state.stage === "reading" && <p>Reading and validating backup…</p>}
           {state.stage === "preview" && candidateCounts && (
             <>
@@ -2635,25 +2593,14 @@ function TripIt() {
   }
 
   return (
-    <div
-      className="min-h-screen bg-neutral-50 text-neutral-800"
-      style={{
-        "--ts-accent": ACCENT,
-        "--ts-accent-rgb": ACCENT_RGB,
-      }}
-    >
+    <div className="tripit-app">
       {persistenceFailed && (
-        <div className="sticky top-0 z-[60] border-b-4 border-red-700 bg-red-100 px-4 py-3 text-red-950 shadow-lg print:hidden" role="alert">
-          <div className="mx-auto max-w-6xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="font-black uppercase">Changes are not safely stored</div>
-              <div className="text-sm">Recent changes may be lost on reload. No save confirmation will be shown until a write and read-back verification succeeds.</div>
+        <div className="sticky top-0 z-[60] p-3 print:hidden">
+          <div className="mx-auto max-w-6xl">
+            <AlertBanner variant="danger" title="Changes are not safely stored" actions={<><Button onClick={() => persistApp(app)}>Retry Save</Button><Button variant="primary" onClick={exportJSON}>Export Backup</Button></>}>
+              Recent changes may be lost on reload. No save confirmation will be shown until a write and read-back verification succeeds.
               {persistence.lastSavedAt && <div className="text-xs mt-1">Last verified save: {new Date(persistence.lastSavedAt).toLocaleString()}</div>}
-            </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
-              <button className={btnSecondary} onClick={() => persistApp(app)}>Retry Save</button>
-              <button className={btnAccent} onClick={exportJSON}>Export Backup</button>
-            </div>
+            </AlertBanner>
           </div>
         </div>
       )}
@@ -2754,30 +2701,23 @@ function TripIt() {
 
       {/* Export Menu Modal */}
       {exportModalOpen && (
-        <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8">
+        <div className="ts-modal-backdrop">
           <div className="absolute inset-0 bg-black/80" onClick={() => setExportModalOpen(false)} />
-          <div className="relative w-full max-w-lg transform border-4 border-[var(--ts-accent)] bg-neutral-900 shadow-[8px_8px_0px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="ts-modal max-w-lg">
             
             {/* Header */}
-            <div className="relative border-b-4 border-[var(--ts-accent)] bg-neutral-900 p-6 flex items-center justify-between z-10">
+            <div className="ts-modal__header">
               <div>
                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Data</div>
-                 <h2 className="mt-1 text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
+                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
                   {t("exportPack")}
                  </h2>
                  <p className="text-sm text-neutral-400 mt-1">{t("exportPackDesc")}</p>
               </div>
-              <button 
-                className="group relative px-4 py-2 font-black uppercase tracking-wider text-black bg-[var(--ts-accent)] hover:bg-white transition-colors border-2 border-transparent hover:border-[var(--ts-accent)]"
-                onClick={() => setExportModalOpen(false)}
-              >
-                <span className="relative z-10">Close X</span>
-              </button>
-              {/* Graffiti splatter decoration */}
-              <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[var(--ts-accent)] opacity-20 blur-2xl pointer-events-none"></div>
+              <IconButton label="Close" onClick={() => setExportModalOpen(false)}>×</IconButton>
             </div>
             
-            <div className="p-6 overflow-y-auto space-y-8 bg-neutral-900 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
+            <div className="ts-modal__body space-y-8">
               {/* Range Selector */}
               <div className="space-y-3">
                 <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("rangeSelection")}</div>
@@ -2949,16 +2889,16 @@ function TripIt() {
 
       {/* Print Preview Modal */}
       {previewOpen ? (
-        <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8">
+        <div className="ts-modal-backdrop">
           <div className="absolute inset-0 bg-black/80" onClick={() => setPreviewOpen(false)} />
-          <div className="relative w-full max-w-5xl transform border-4 border-[var(--ts-accent)] bg-neutral-900 shadow-[8px_8px_0px_rgba(0,0,0,0.5)] flex flex-col max-h-[90vh]">
+          <div className="ts-modal max-w-5xl">
             
             {/* Header (Controls) */}
-            <div className="relative border-b-4 border-[var(--ts-accent)] bg-neutral-900 p-4 sm:p-6 z-10 print:hidden">
+            <div className="ts-modal__header print:hidden">
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 relative z-20">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">ToolStack • Preview</div>
-                  <h2 className="mt-1 text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-[2px_2px_0px_var(--ts-accent)]">
+                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
                     {t("tripItReport")}
                   </h2>
                 </div>
@@ -3006,8 +2946,6 @@ function TripIt() {
                 </div>
               </div>
               
-              {/* Graffiti splatter decoration */}
-              <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[var(--ts-accent)] opacity-20 blur-2xl pointer-events-none"></div>
             </div>
 
             {/* Printable Content Area */}
@@ -3108,32 +3046,33 @@ function TripIt() {
         </div>
       ) : null}
 
-      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="ts-shell">
         {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="w-fit">
+        <header className="mb-6 rounded-2xl border border-[var(--ts-border)] bg-[var(--ts-surface)]/90 p-4 sm:p-5 shadow-lg shadow-black/20 backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <img
                 src={tripitLogo}
                 alt="TripIt"
-                className="h-28 w-auto sm:h-40 select-none mix-blend-multiply"
+                className="h-14 w-14 shrink-0 rounded-xl object-contain select-none sm:h-16 sm:w-16"
                 draggable="false"
               />
-            </div>
-            {activeVehicle && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Pill>{tripTotals.tripCount} {t("trips")}</Pill>
-                <Pill>{tripTotals.distance.toFixed(1)} km</Pill>
-                <Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill>
-                <Pill>{fuelTotals.liters.toFixed(2)} L</Pill>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ts-accent)]">ToolStack</div>
+                <h1 className="text-2xl font-bold tracking-tight text-[var(--ts-text)] sm:text-3xl">Trip-It</h1>
+                <p className="text-sm text-[var(--ts-text-muted)]">Vehicle &amp; Duty Trip Log</p>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Normalized top actions grid (with pinned help) */}
-          <div className="w-full sm:flex-1 lg:flex-none lg:w-3/5">
-            <div className="relative">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 pr-24">
+            <div className="flex flex-col gap-3 lg:items-end">
+              <div className="flex flex-wrap items-center gap-2">
+                {activeVehicle && <Badge variant="accent">Active vehicle: {activeVehicle.name}</Badge>}
+                <div className="ts-segmented" role="group" aria-label="Language">
+                  <button onClick={() => setProfile(p => ({ ...p, language: "EN" }))} className={`${buttonClass(profile.language === "EN" ? "primary" : "ghost")} min-h-9 px-3`}>EN</button>
+                  <button onClick={() => setProfile(p => ({ ...p, language: "DE" }))} className={`${buttonClass(profile.language === "DE" ? "primary" : "ghost")} min-h-9 px-3`}>DE</button>
+                </div>
+              </div>
+              <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end" aria-label="Application actions">
                 <ActionButton onClick={openHub} title={t("returnHub")}>
                   {t("hub")}
                 </ActionButton>
@@ -3141,48 +3080,12 @@ function TripIt() {
                   {t("preview")}
                 </ActionButton>
                 <ActionButton onClick={openExportModal} disabled={!activeVehicle}>{t("export")}</ActionButton>
-              </div>
-
-              <button
-                type="button"
-                title="Help"
-                onClick={() => setHelpOpen(true)}
-                className="print:hidden absolute right-0 top-0 h-12 w-12 z-30 group"
-                aria-label="Help"
-              >
-                <div className="absolute inset-0 bg-neutral-700 border-2 border-[var(--ts-accent)] shadow-[4px_4px_0px_rgba(0,0,0,0.5)] flex items-center justify-center transform transition-all group-hover:-translate-y-1 group-hover:shadow-[6px_6px_0px_var(--ts-accent)]">
-                  <span className="text-2xl font-black text-[var(--ts-accent)] italic">?</span>
-                </div>
-              </button>
-
-              <div className="print:hidden absolute right-0 top-20 flex items-center justify-end z-20">
-                <div className="flex bg-neutral-800 p-1 gap-1 border-2 border-neutral-800 shadow-[4px_4px_0px_rgba(0,0,0,0.1)]">
-                  <button
-                    onClick={() => setProfile(p => ({ ...p, language: "EN" }))}
-                    className={`px-2 py-1 text-xs font-black uppercase tracking-tighter transition-all border-2 ${
-                      profile.language === "EN"
-                        ? "bg-[var(--ts-accent)] border-[var(--ts-accent)] text-black shadow-[2px_2px_0px_white] -translate-y-0.5"
-                        : "bg-transparent border-transparent text-neutral-500 hover:text-white"
-                    }`}
-                  >
-                    EN
-                  </button>
-                  <button
-                    onClick={() => setProfile(p => ({ ...p, language: "DE" }))}
-                    className={`px-2 py-1 text-xs font-black uppercase tracking-tighter transition-all border-2 ${
-                      profile.language === "DE"
-                        ? "bg-[var(--ts-accent)] border-[var(--ts-accent)] text-black shadow-[2px_2px_0px_white] -translate-y-0.5"
-                        : "bg-transparent border-transparent text-neutral-500 hover:text-white"
-                    }`}
-                  >
-                    DE
-                  </button>
-                </div>
-              </div>
-
+                <IconButton label="Help" onClick={() => setHelpOpen(true)}><span className="text-lg font-semibold">?</span></IconButton>
+              </nav>
             </div>
           </div>
-        </div>
+          {activeVehicle && <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--ts-border)] pt-4"><Pill>{tripTotals.tripCount} {t("trips")}</Pill><Pill>{tripTotals.distance.toFixed(1)} km</Pill><Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill><Pill>{fuelTotals.liters.toFixed(2)} L</Pill></div>}
+        </header>
 
         {/* CONTENT */}
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -3208,9 +3111,7 @@ function TripIt() {
                       ))}
                     </select>
                   ) : (
-                    <div className="mt-2 text-sm text-neutral-700">
-                      {t("noVehicles")} <span className="font-medium">{t("addVehicle")}</span>.
-                    </div>
+                    <EmptyState title="No vehicles yet" description="Add a vehicle to begin recording duty trips." />
                   )}
                 </div>
 
@@ -3251,9 +3152,9 @@ function TripIt() {
           <div className="lg:col-span-2 space-y-3">
             
             {/* 1. Active Trip Card */}
-            <div className={card}>
+            <div className={`${card} ${activeTrip ? "ts-card--selected" : ""}`}>
               <div className={`${cardHead} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
-                <div className="font-semibold text-neutral-800">{activeTrip ? t("activeTrip") : t("startTrip")}</div>
+                <div className="flex flex-wrap items-center gap-2"><div className="font-semibold text-neutral-800">{activeTrip ? t("activeTrip") : t("startTrip")}</div>{activeTrip && <Badge variant="success">Active</Badge>}</div>
                 
                 <div className="flex flex-wrap items-center gap-3 justify-end">
                   {activeTrip ? (
@@ -3265,13 +3166,12 @@ function TripIt() {
               </div>
               <div className={cardPad}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-700">{t("addVehicleToStart")}</div>
+                  <EmptyState title="No active vehicle" description={t("addVehicleToStart")} action={<Button variant="primary" onClick={openNewVehicle}>{t("addVehicle")}</Button>} />
                 ) : activeTrip ? (
                   // Active Trip View
                   <div className="space-y-4">
-                    <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-3 text-sm text-neutral-700">
-                      <div className="font-medium text-neutral-800">{activeTrip.title || "Untitled Trip"}</div>
-                      <div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div>
+                    <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-neutral-700">
+                      <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-base text-neutral-800">{activeTrip.title || "Untitled Trip"}</div><div className="mt-1">{activeVehicle.name} · {activeTrip.startDate}</div><div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div></div><div className="flex gap-2"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant="accent">{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</Badge></div></div>
                       {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">{t("purpose")} {activeTrip.purpose}</div> : null}
                     </div>
 
@@ -3549,7 +3449,7 @@ function TripIt() {
             {/* 2. Recent Trips List */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${recentTripsOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[var(--ts-accent)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${recentTripsOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "hover:bg-[var(--ts-surface-soft)]"}`}
                 onClick={() => setRecentTripsOpen(!recentTripsOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3567,9 +3467,9 @@ function TripIt() {
               {recentTripsOpen && (
               <div className={cardPad}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-700">{t("selectVehicleView")}</div>
+                  <EmptyState title="Select a vehicle" description={t("selectVehicleView")} />
                 ) : tripsForMonth.length === 0 ? (
-                  <div className="text-sm text-neutral-700">{t("noTrips")} {monthLabel(app.ui.month, profile.language)}.</div>
+                  <EmptyState title="No trips this month" description={`${t("noTrips")} ${monthLabel(app.ui.month, profile.language)}.`} />
                 ) : (
                   <div className="space-y-3">
                     {tripsForMonth.map((trip) => {
@@ -3688,7 +3588,7 @@ function TripIt() {
             {/* 3. Fuel (Updated Workflow) */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${fuelSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[var(--ts-accent)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${fuelSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "hover:bg-[var(--ts-surface-soft)]"}`}
                 onClick={() => setFuelSectionOpen(!fuelSectionOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3707,7 +3607,7 @@ function TripIt() {
               {fuelSectionOpen && (
               <div className={cardPad}>
                 {!activeVehicle ? (
-                  <div className="text-sm text-neutral-700">{t("selectVehicleFuel")}</div>
+                  <EmptyState title="Select a vehicle" description={t("selectVehicleFuel")} />
                 ) : (
                   <>
                     {/* Fuel Form */}
@@ -3861,7 +3761,7 @@ function TripIt() {
             {/* 4. Wash (Compact) */}
             <div className={card}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${washSectionOpen ? "bg-[var(--ts-accent)]" : "hover:bg-[var(--ts-accent)]"}`}
+                className={`${cardHead} flex items-center justify-between cursor-pointer transition select-none ${washSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "hover:bg-[var(--ts-surface-soft)]"}`}
                 onClick={() => setWashSectionOpen(!washSectionOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
@@ -3880,7 +3780,7 @@ function TripIt() {
               {washSectionOpen && (
                 <div className={cardPad}>
                   {!activeVehicle ? (
-                    <div className="text-sm text-neutral-700">{t("selectVehicleWash")}</div>
+                    <EmptyState title="Select a vehicle" description={t("selectVehicleWash")} />
                   ) : (
                     <>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
