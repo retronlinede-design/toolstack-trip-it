@@ -304,7 +304,7 @@ function HelpModal({ open, onClose, appName = "ToolStack App" }) {
 
   return (
     <div className="fixed inset-0 z-50 backdrop-blur-sm">
-      <div className="absolute inset-0 bg-black/80" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-slate-700/25" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
         <div className="ts-modal max-w-3xl">
           
@@ -467,7 +467,7 @@ function EmailModal({ open, to, subject, body, onClose, onChangeTo, onChangeBody
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-slate-700/25" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
           <div className="p-4 border-b border-neutral-100 flex items-start justify-between gap-4">
@@ -551,7 +551,7 @@ function TemplateModal({ open, type, templates, onClose, onLoad, onDelete, onSav
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-700/25" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
         <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
           <div className="font-semibold text-neutral-800">{t("manageTemplates")} ({type === 'trip' ? t("trips") : t("legs")})</div>
@@ -631,7 +631,7 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-700/25" onClick={onClose} />
       <div className="relative w-full max-w-lg rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
         <div className="p-4 border-b border-neutral-100">
           <div className="text-lg font-semibold text-neutral-800">{t("editLeg")}</div>
@@ -776,7 +776,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
 
       {open ? (
         <div className="ts-modal-backdrop">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-slate-700/25" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="w-full max-w-md">
             <div className="ts-modal max-w-md">
               <div className="ts-modal__header">
@@ -1213,22 +1213,22 @@ function BlockingStorageScreen({ gate, onRetry, onStartNew, onContinueLegacy }) 
       ? "Legacy data migration could not be completed"
       : "Browser storage is unavailable";
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-4">
-      <main className="w-full max-w-2xl border-4 border-amber-400 bg-neutral-900 p-6 shadow-xl" role="alert">
-        <h1 className="text-2xl font-black text-amber-300">{title}</h1>
-        <p className="mt-4 text-neutral-200">
+    <div className="min-h-screen bg-[#f4f6f8] text-[#1f2933] flex items-center justify-center p-4">
+      <main className="w-full max-w-2xl rounded-2xl border border-amber-300 bg-white p-6 shadow-xl" role="alert">
+        <div className="mb-4 h-1 w-16 rounded-full bg-[var(--ts-accent)]" /><h1 className="text-2xl font-semibold text-amber-800">{title}</h1>
+        <p className="mt-4 text-neutral-700">
           {recovery && "Trip-It found saved data that cannot be parsed. The normal application is locked so the unreadable value cannot be overwritten."}
           {migration && "Trip-It could not verify a safe copy at the new storage key. The original data remains unchanged under toolstack_tripit_v1."}
           {gate.kind === "storage-unavailable" && "Trip-It cannot safely read browser storage. The application is locked to prevent accidental replacement of existing records."}
         </p>
         {recovery && (
-          <div className="mt-4 rounded bg-neutral-800 p-3 text-sm">
+          <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm">
             {gate.preservation?.ok
               ? <>Recovery copy: <span className="font-mono break-all">{key}</span><br />Preserved: {gate.preservation.timestamp}</>
               : "The in-browser recovery copy could not be verified. Download the raw value before taking any other action."}
           </div>
         )}
-        {migration && gate.result?.phase && <p className="mt-3 text-sm text-neutral-300">Failed step: {gate.result.phase}</p>}
+        {migration && gate.result?.phase && <p className="mt-3 text-sm text-neutral-600">Failed step: {gate.result.phase}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
           {raw !== undefined && (
             <button className={btnAccent} onClick={() => downloadRawRecovery(raw, recovery ? "tripit-corrupt-recovery.txt" : "tripit-legacy-recovery.json")}>Download raw data</button>
@@ -2702,7 +2702,7 @@ function TripIt() {
       {/* Export Menu Modal */}
       {exportModalOpen && (
         <div className="ts-modal-backdrop">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setExportModalOpen(false)} />
+          <div className="absolute inset-0 bg-slate-700/25" onClick={() => setExportModalOpen(false)} />
           <div className="ts-modal max-w-lg">
             
             {/* Header */}
@@ -2792,7 +2792,7 @@ function TripIt() {
       {vehicleModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
           <div
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-slate-700/25"
             onClick={() => setVehicleModal({ open: false, mode: "new", vehicleId: null })}
           />
           <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
@@ -2890,7 +2890,7 @@ function TripIt() {
       {/* Print Preview Modal */}
       {previewOpen ? (
         <div className="ts-modal-backdrop">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setPreviewOpen(false)} />
+          <div className="absolute inset-0 bg-slate-700/25" onClick={() => setPreviewOpen(false)} />
           <div className="ts-modal max-w-5xl">
             
             {/* Header (Controls) */}
@@ -3048,19 +3048,21 @@ function TripIt() {
 
       <div className="ts-shell">
         {/* Header */}
-        <header className="mb-6 rounded-2xl border border-[var(--ts-border)] bg-[var(--ts-surface)]/90 p-4 sm:p-5 shadow-lg shadow-black/20 backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <header className="mb-6 overflow-hidden rounded-2xl border border-[var(--ts-border)] bg-white shadow-[0_6px_24px_rgba(31,41,51,0.07)]">
+          <div className="h-1.5 bg-[var(--ts-accent)]" aria-hidden="true" />
+          <div className="flex flex-col gap-5 p-4 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-6">
               <img
                 src={tripitLogo}
                 alt="TripIt"
-                className="h-14 w-14 shrink-0 rounded-xl object-contain select-none sm:h-16 sm:w-16"
+                className="h-28 w-28 shrink-0 object-contain select-none sm:h-36 sm:w-36"
                 draggable="false"
               />
               <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ts-accent)]">ToolStack</div>
-                <h1 className="text-2xl font-bold tracking-tight text-[var(--ts-text)] sm:text-3xl">Trip-It</h1>
-                <p className="text-sm text-[var(--ts-text-muted)]">Vehicle &amp; Duty Trip Log</p>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ts-text-muted)]">ToolStack</div>
+                <h1 className="text-3xl font-bold tracking-[-0.03em] text-[var(--ts-text)] sm:text-4xl">Trip-It</h1>
+                <p className="mt-1 text-sm text-[var(--ts-text-muted)] sm:text-base">Vehicle &amp; Duty Trip Log</p>
+                <div className="mt-3 h-1 w-16 rounded-full bg-[var(--ts-accent)]" aria-hidden="true" />
               </div>
             </div>
 
@@ -3084,7 +3086,7 @@ function TripIt() {
               </nav>
             </div>
           </div>
-          {activeVehicle && <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--ts-border)] pt-4"><Pill>{tripTotals.tripCount} {t("trips")}</Pill><Pill>{tripTotals.distance.toFixed(1)} km</Pill><Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill><Pill>{fuelTotals.liters.toFixed(2)} L</Pill></div>}
+          {activeVehicle && <div className="flex flex-wrap gap-2 border-t border-[var(--ts-border)] bg-[var(--ts-surface-muted)] px-4 py-3 sm:px-6"><Pill>{tripTotals.tripCount} {t("trips")}</Pill><Pill>{tripTotals.distance.toFixed(1)} km</Pill><Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill><Pill>{fuelTotals.liters.toFixed(2)} L</Pill></div>}
         </header>
 
         {/* CONTENT */}
