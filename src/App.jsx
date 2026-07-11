@@ -1,5 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import tripitLogo from "./assets/tripit-logo.png";
+import { readJson, readRaw, writeVerified } from "./storage/storage.js";
+import { downloadRawRecovery, preserveRecoveryRaw, replaceCorruptWithEmpty } from "./storage/recovery.js";
+import { migrateLegacyTransactional } from "./storage/migration.js";
+import { canShowSavedFeedback, persistenceFromResult, requiresDestructiveConfirmation } from "./storage/persistence.js";
+import { createFullBackup, createReportExport, IMPORT_LIMITS } from "./import/backupSchema.js";
+import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateApplicationPayload } from "./import/backupValidator.js";
+import { applyTransactionResult, replaceDatasetTransactional, rollbackTransactional } from "./import/importTransaction.js";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -15,6 +22,13 @@ const PROFILE_KEY = "toolstack.profile.v1";
 
 // Legacy key (older Trip-It)
 const LEGACY_LS_KEY = "toolstack_tripit_v1";
+
+const SUCCESS_MESSAGES = new Set([
+  "Vehicle saved", "Vehicle deleted", "Trip started", "Leg updated", "Leg added",
+  "Trip finished", "Trip cancelled", "Trip deleted", "Leg added to trip", "Wash updated",
+  "Wash logged", "Wash deleted", "Fuel updated", "Fuel added", "Fuel entry deleted",
+  "Template saved", "Template loaded", "Imported",
+]);
 
 const TRANSLATIONS = {
   EN: {
@@ -159,17 +173,7 @@ const safeStorageSet = (key, value) => {
   }
 };
 
-const safeStorageRemove = (key) => {
-  try {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-};
-
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const nowTime = () => new Date().toTimeString().slice(0, 5);
 const roundTime = () => {
   const coeff = 1000 * 60 * 5;
   const date = new Date();
@@ -276,7 +280,7 @@ const ACTION_BASE =
 // Match the "?" Help hover (accent tint + accent border)
 const HOVER_ACCENT = "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)]";
 
-function ActionButton({ children, onClick, tone = "default", disabled, title }) {
+function ActionButton({ children, onClick, disabled, title }) {
   const cls = disabled
     ? "bg-neutral-800 text-neutral-500 border-neutral-700"
     : "bg-neutral-700 text-white hover:-translate-y-1 hover:shadow-[5px_5px_0px_var(--ts-accent)] hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)]";
@@ -290,22 +294,26 @@ function ActionButton({ children, onClick, tone = "default", disabled, title }) 
 
 // ---------- Help Pack v1 (Canonical) ----------
 // ---------- Help Pack v1 (Graffiti Style) ----------
-function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(unknown)", actions = [] }) {
-  if (!open) return null;
-
-  const Card = ({ title, children }) => (
+function HelpCard({ title, children }) {
+  return (
     <div className="group relative rounded-sm border-2 border-neutral-700 bg-neutral-800 p-4 transition-all hover:border-[var(--ts-accent)] hover:shadow-[4px_4px_0px_var(--ts-accent)] hover:-translate-y-1">
       <div className="mb-2 text-lg font-black uppercase tracking-tight text-[var(--ts-accent)] drop-shadow-md">{title}</div>
       <div className="text-sm font-medium text-neutral-300 leading-relaxed space-y-2">{children}</div>
     </div>
   );
+}
 
-  const Bullet = ({ children }) => (
+function HelpBullet({ children }) {
+  return (
     <li className="flex items-start gap-2">
       <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-[var(--ts-accent)]" />
       <span>{children}</span>
     </li>
   );
+}
+
+function HelpModal({ open, onClose, appName = "ToolStack App" }) {
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 backdrop-blur-sm">
@@ -337,73 +345,73 @@ function HelpModal({ open, onClose, appName = "ToolStack App", storageKey = "(un
 
           <div className="p-6 space-y-6 max-h-[70vh] overflow-auto bg-neutral-900 scrollbar-thin scrollbar-thumb-[var(--ts-accent)] scrollbar-track-neutral-800">
             
-            <Card title="About Trip-It">
+            <HelpCard title="About Trip-It">
               <p>Trip-It is a local-first trip and vehicle log tool designed to help you record trips, fuel, and key vehicle details, then generate clean print-ready summaries. It’s built for daily operational logging with no accounts, no cloud storage, and no automatic data sharing.</p>
-            </Card>
+            </HelpCard>
 
-            <Card title="How Trip-It Works">
+            <HelpCard title="How Trip-It Works">
               <p>Trip-It follows a simple workflow:</p>
               <ul className="space-y-2 mt-2">
-                <Bullet><b className="text-white">1. Add Vehicles</b><br/>Create one or more vehicles with basic identifiers (name/plate/type).</Bullet>
-                <Bullet><b className="text-white">2. Log Trips</b><br/>Add trips with dates, purpose/route notes, and distance (km).</Bullet>
-                <Bullet><b className="text-white">3. Log Fuel (optional)</b><br/>Record fuel entries to support cost tracking and usage history.</Bullet>
-                <Bullet><b className="text-white">4. Review Totals</b><br/>Trip-It calculates totals and summaries based on your entries.</Bullet>
-                <Bullet><b className="text-white">5. Preview & Print</b><br/>Use Preview to generate a print-ready report.</Bullet>
-                <Bullet><b className="text-white">6. Export a Backup</b><br/>Export a JSON backup regularly, especially after major updates.</Bullet>
+                <HelpBullet><b className="text-white">1. Add Vehicles</b><br/>Create one or more vehicles with basic identifiers (name/plate/type).</HelpBullet>
+                <HelpBullet><b className="text-white">2. Log Trips</b><br/>Add trips with dates, purpose/route notes, and distance (km).</HelpBullet>
+                <HelpBullet><b className="text-white">3. Log Fuel (optional)</b><br/>Record fuel entries to support cost tracking and usage history.</HelpBullet>
+                <HelpBullet><b className="text-white">4. Review Totals</b><br/>Trip-It calculates totals and summaries based on your entries.</HelpBullet>
+                <HelpBullet><b className="text-white">5. Preview & Print</b><br/>Use Preview to generate a print-ready report.</HelpBullet>
+                <HelpBullet><b className="text-white">6. Export a Backup</b><br/>Export a JSON backup regularly, especially after major updates.</HelpBullet>
               </ul>
-            </Card>
+            </HelpCard>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <Card title="Your Data & Privacy">
+              <HelpCard title="Your Data & Privacy">
                 <p>Your data is saved locally in this browser using secure local storage.</p>
                 <p className="mt-2">This means:</p>
                 <ul className="mt-2 space-y-2">
-                  <Bullet>Your data stays on this device</Bullet>
-                  <Bullet>Clearing browser data can remove your logs</Bullet>
-                  <Bullet>Incognito/private mode will not retain data</Bullet>
-                  <Bullet>Data does not automatically sync across devices</Bullet>
+                  <HelpBullet>Your data stays on this device</HelpBullet>
+                  <HelpBullet>Clearing browser data can remove your logs</HelpBullet>
+                  <HelpBullet>Incognito/private mode will not retain data</HelpBullet>
+                  <HelpBullet>Data does not automatically sync across devices</HelpBullet>
                 </ul>
-              </Card>
+              </HelpCard>
 
-              <Card title="Backup & Restore">
+              <HelpCard title="Backup & Restore">
                 <p>Export downloads a JSON backup of your current Trip-It data.</p>
                 <p>Import restores a previously exported JSON file and replaces current app data.</p>
                 <p className="mt-2">Recommended routine:</p>
                 <ul className="mt-2 space-y-2">
-                  <Bullet>Export weekly</Bullet>
-                  <Bullet>Export after major edits</Bullet>
-                  <Bullet>Store backups in two locations (e.g., Downloads + Drive/USB)</Bullet>
+                  <HelpBullet>Export weekly</HelpBullet>
+                  <HelpBullet>Export after major edits</HelpBullet>
+                  <HelpBullet>Store backups in two locations (e.g., Downloads + Drive/USB)</HelpBullet>
                 </ul>
-              </Card>
+              </HelpCard>
             </div>
 
-            <Card title="Buttons Explained">
+            <HelpCard title="Buttons Explained">
               <ul className="space-y-2">
-                <Bullet><b className="text-white">Preview</b> – Opens the print-ready view.</Bullet>
-                <Bullet><b className="text-white">Print / Save PDF</b> – Prints only the preview sheet. Choose “Save as PDF” to create a file.</Bullet>
-                <Bullet><b className="text-white">Export</b> – Downloads a JSON backup file.</Bullet>
-                <Bullet><b className="text-white">Import</b> – Restores data from a JSON backup file.</Bullet>
+                <HelpBullet><b className="text-white">Preview</b> – Opens the print-ready view.</HelpBullet>
+                <HelpBullet><b className="text-white">Print / Save PDF</b> – Prints only the preview sheet. Choose “Save as PDF” to create a file.</HelpBullet>
+                <HelpBullet><b className="text-white">Export</b> – Downloads a JSON backup file.</HelpBullet>
+                <HelpBullet><b className="text-white">Import</b> – Restores data from a JSON backup file.</HelpBullet>
               </ul>
-            </Card>
+            </HelpCard>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <Card title="Storage Keys (Advanced)">
+              <HelpCard title="Storage Keys (Advanced)">
                 <div className="rounded-sm border-2 border-dashed border-neutral-600 bg-neutral-900 px-3 py-2 text-xs font-mono text-[var(--ts-accent)] break-all">
                   App data key: toolstack.tripit.v1<br/>
                   Shared profile key: toolstack.profile.v1<br/>
                   Legacy key: toolstack_tripit_v1
                 </div>
-              </Card>
+              </HelpCard>
 
-              <Card title="Notes / Limitations">
+              <HelpCard title="Notes / Limitations">
                 <p>Trip-It is a logging tool. Totals and summaries depend on the accuracy of the entries you provide.</p>
                 <p className="mt-2">Use Export regularly to avoid data loss.</p>
-              </Card>
+              </HelpCard>
             </div>
 
-            <Card title="Support / Feedback">
+            <HelpCard title="Support / Feedback">
               <p>If something breaks, include: device + browser + steps to reproduce + what you expected vs what happened.</p>
-            </Card>
+            </HelpCard>
 
           </div>
 
@@ -648,8 +656,6 @@ function TagSuggestions({ tags, onSelect }) {
 // ---------- Leg Modal (for saved legs) ----------
 function LegModal({ open, leg, onClose, onSave, t, suggestions = [] }) {
   const [draft, setDraft] = useState(leg || {});
-  useEffect(() => { setDraft(leg || {}); }, [leg]);
-  const uniqueId = useMemo(() => Math.random().toString(36).slice(2), []);
 
   if (!open) return null;
 
@@ -725,9 +731,6 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
 
   // popup defaults to current year when opened
   const [year, setYear] = useState(currentYear);
-  useEffect(() => {
-    if (open) setYear(currentYear);
-  }, [open, currentYear]);
 
   const years = useMemo(() => {
     const start = currentYear - 5;
@@ -770,7 +773,7 @@ function MonthPicker({ value, onChange, disabled, lang, t }) {
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setOpen(true)}
+          onClick={() => { setYear(currentYear); setOpen(true); }}
           className={
             "w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-[13px] sm:text-sm text-neutral-700 shadow-sm " +
             "hover:bg-[rgb(var(--ts-accent-rgb)/0.25)] hover:border-[var(--ts-accent)] transition flex items-center justify-between gap-3 " +
@@ -1114,6 +1117,58 @@ function migrateLegacyIfNeeded(saved) {
   };
 }
 
+function isNormalizedApp(value) {
+  return !!value && typeof value === "object" && Array.isArray(value.vehicles)
+    && value.tripsByVehicle && typeof value.tripsByVehicle === "object";
+}
+
+function loadInitialState() {
+  const primary = readJson(KEY);
+  if (primary.ok && primary.status === "valid") {
+    return { app: normalizeApp(primary.value), gate: null, source: "primary" };
+  }
+
+  if (!primary.ok && primary.status === "corrupt") {
+    const preserved = preserveRecoveryRaw(KEY, primary.raw);
+    return {
+      app: emptyApp(),
+      gate: { kind: "recovery", raw: primary.raw, preservation: preserved },
+      source: "corrupt",
+    };
+  }
+
+  if (!primary.ok) {
+    return {
+      app: emptyApp(),
+      gate: { kind: "storage-unavailable", result: primary },
+      source: "unavailable",
+    };
+  }
+
+  const legacy = readRaw(LEGACY_LS_KEY);
+  if (!legacy.ok) {
+    return {
+      app: emptyApp(),
+      gate: { kind: "storage-unavailable", result: legacy },
+      source: "unavailable",
+    };
+  }
+  if (legacy.status === "missing") return { app: emptyApp(), gate: null, source: "new" };
+
+  const migrated = migrateLegacyTransactional({
+    legacyKey: LEGACY_LS_KEY,
+    destinationKey: KEY,
+    transform: (value) => normalizeApp(migrateLegacyIfNeeded(value) || emptyApp()),
+    validate: isNormalizedApp,
+  });
+  if (migrated.ok) return { app: normalizeApp(migrated.data), gate: null, source: "migrated" };
+  return {
+    app: emptyApp(),
+    gate: { kind: "migration", result: migrated, legacyRaw: legacy.raw },
+    source: "legacy-error",
+  };
+}
+
 // A) Crash Overlay & Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -1180,30 +1235,110 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+function BlockingStorageScreen({ gate, onRetry, onStartNew, onContinueLegacy }) {
+  const recovery = gate.kind === "recovery";
+  const migration = gate.kind === "migration";
+  const raw = recovery ? gate.raw : gate.legacyRaw;
+  const key = recovery ? gate.preservation?.recoveryKey : gate.result?.backupKey;
+  const title = recovery
+    ? "Unreadable Trip-It data found"
+    : migration
+      ? "Legacy data migration could not be completed"
+      : "Browser storage is unavailable";
+  return (
+    <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-4">
+      <main className="w-full max-w-2xl border-4 border-amber-400 bg-neutral-900 p-6 shadow-xl" role="alert">
+        <h1 className="text-2xl font-black text-amber-300">{title}</h1>
+        <p className="mt-4 text-neutral-200">
+          {recovery && "Trip-It found saved data that cannot be parsed. The normal application is locked so the unreadable value cannot be overwritten."}
+          {migration && "Trip-It could not verify a safe copy at the new storage key. The original data remains unchanged under toolstack_tripit_v1."}
+          {gate.kind === "storage-unavailable" && "Trip-It cannot safely read browser storage. The application is locked to prevent accidental replacement of existing records."}
+        </p>
+        {recovery && (
+          <div className="mt-4 rounded bg-neutral-800 p-3 text-sm">
+            {gate.preservation?.ok
+              ? <>Recovery copy: <span className="font-mono break-all">{key}</span><br />Preserved: {gate.preservation.timestamp}</>
+              : "The in-browser recovery copy could not be verified. Download the raw value before taking any other action."}
+          </div>
+        )}
+        {migration && gate.result?.phase && <p className="mt-3 text-sm text-neutral-300">Failed step: {gate.result.phase}</p>}
+        <div className="mt-6 flex flex-wrap gap-3">
+          {raw !== undefined && (
+            <button className={btnAccent} onClick={() => downloadRawRecovery(raw, recovery ? "tripit-corrupt-recovery.txt" : "tripit-legacy-recovery.json")}>Download raw data</button>
+          )}
+          <button className={btnSecondary} onClick={onRetry}>{migration ? "Retry migration" : "Retry reading storage"}</button>
+          {migration && <button className={btnSecondary} onClick={onContinueLegacy}>Continue from legacy source</button>}
+          {recovery && <button className={btnDanger} onClick={onStartNew}>Start with a new empty dataset</button>}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onRetry, onRollback, onDownloadCurrent, onDownloadCandidate }) {
+  if (!state.open) return null;
+  const candidateCounts = state.prepared?.counts;
+  const rows = [
+    ["Vehicles", "vehicles"], ["Completed trips", "completedTrips"], ["Active trips", "activeTrips"],
+    ["Legs", "legs"], ["Fuel entries", "fuelEntries"], ["Wash entries", "washEntries"], ["Templates", "templates"],
+  ];
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border-2 border-neutral-300 shadow-2xl">
+        <div className="p-5 border-b flex justify-between gap-4">
+          <div><h2 id="import-title" className="text-xl font-bold">Backup Import</h2><p className="text-sm text-neutral-600">Current data is not replaced until validation, snapshot, write, and read-back verification succeed.</p></div>
+          <button className={btnSecondary} onClick={onClose}>Close</button>
+        </div>
+        <div className="p-5 space-y-4">
+          {state.stage === "reading" && <p>Reading and validating backup…</p>}
+          {state.stage === "preview" && candidateCounts && (
+            <>
+              <div className="rounded-xl border bg-neutral-50 p-4 text-sm space-y-1">
+                <div><b>Detected:</b> {state.prepared.classification.label}</div>
+                <div><b>Schema:</b> {state.prepared.classification.schemaVersion}</div>
+                <div><b>Exported:</b> {state.prepared.classification.exportedAt || "Not recorded"}</div>
+                <div><b>Migration:</b> {state.prepared.classification.migrationRequired ? "Yes" : "No"}</div>
+                <div className="font-semibold text-red-700">This will replace the current operational dataset.</div>
+              </div>
+              <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="text-left py-2">Records</th><th className="text-right">Current</th><th className="text-right">Imported</th></tr></thead><tbody>{rows.map(([label, key]) => <tr className="border-b" key={key}><td className="py-2">{label}</td><td className="text-right">{currentCounts[key] || 0}</td><td className="text-right font-semibold">{candidateCounts[key] || 0}</td></tr>)}</tbody></table></div>
+              {state.prepared.warnings.length > 0 && <div className="rounded-xl bg-amber-50 border border-amber-300 p-3"><div className="font-semibold">Warnings</div><ul className="list-disc pl-5 text-sm">{state.prepared.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
+              <div className="flex justify-end"><button className={btnDanger} onClick={onReplace}>Replace Current Data</button></div>
+            </>
+          )}
+          {(state.stage === "error" || state.stage === "transaction-failed") && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-950"><div className="font-bold">File rejected — {state.result?.code}</div><ul className="mt-2 list-disc pl-5 text-sm space-y-1">{(state.result?.errors || []).map((error, index) => <li key={`${error.path}-${index}`}><span className="font-mono">{error.path}</span>: {error.message}</li>)}</ul></div>
+              <div className="flex flex-wrap gap-2">
+                {state.stage === "transaction-failed" && <button className={btnAccent} onClick={onRetry}>Retry transaction</button>}
+                {state.currentSerialized && <button className={btnSecondary} onClick={onDownloadCurrent}>Download Current Backup</button>}
+                {state.candidateSerialized && <button className={btnSecondary} onClick={onDownloadCandidate}>Download Candidate</button>}
+              </div>
+            </div>
+          )}
+          {state.stage === "success" && (
+            <div className="space-y-4"><div className="rounded-xl border border-green-300 bg-green-50 p-4"><div className="font-bold text-green-900">Import completed and verified.</div><div className="mt-1 text-sm">Rollback key: <span className="font-mono break-all">{state.rollbackKey}</span></div></div><button className={btnDanger} onClick={onRollback}>Restore Pre-Import Data</button></div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TripIt() {
   const importInputRef = useRef(null);
 
   const [profile, setProfile] = useState(loadProfile);
-  const [storageError, setStorageError] = useState(false);
-
-  const [app, setApp] = useState(() => {
-    const raw = safeStorageGet(KEY) || safeStorageGet(LEGACY_LS_KEY) || null;
-    const saved = raw ? safeParse(raw, null) : null;
-    const migrated = migrateLegacyIfNeeded(saved);
-    const norm = normalizeApp(migrated || emptyApp());
-
-    try {
-      const fromLegacy = !safeStorageGet(KEY) && !!safeStorageGet(LEGACY_LS_KEY);
-      if (fromLegacy) {
-        safeStorageSet(KEY, JSON.stringify(norm));
-        safeStorageRemove(LEGACY_LS_KEY);
-      }
-    } catch {
-      // ignore
-    }
-
-    return norm;
+  const [initial] = useState(loadInitialState);
+  const [app, setApp] = useState(initial.app);
+  const [storageGate, setStorageGate] = useState(initial.gate);
+  const [persistence, setPersistence] = useState({
+    status: initial.gate?.kind === "storage-unavailable" ? "unavailable" : "saved",
+    lastSavedAt: initial.source === "new" ? null : new Date().toISOString(),
+    revision: 0,
+    error: null,
   });
+  const pendingSuccess = useRef(null);
+  const appRevision = useRef(0);
 
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -1217,7 +1352,7 @@ function TripIt() {
 
   const [vehicleModal, setVehicleModal] = useState({ open: false, mode: "new", vehicleId: null });
   const [confirm, setConfirm] = useState({ open: false, kind: null, id: null, payload: null });
-  const [importConfirm, setImportConfirm] = useState({ open: false, file: null });
+  const [importWorkflow, setImportWorkflow] = useState({ open: false, stage: "idle", prepared: null, result: null, file: null });
   const [templateModal, setTemplateModal] = useState({ open: false, type: "trip" });
 
   // Form States
@@ -1273,19 +1408,51 @@ function TripIt() {
     const l = profile.language || "EN";
     return TRANSLATIONS[l]?.[k] || TRANSLATIONS["EN"][k] || k;
   };
-  const toggleLang = () => setProfile(p => ({ ...p, language: p.language === "EN" ? "DE" : "EN" }));
 
-  const notify = (msg) => {
+  const showToast = useCallback((msg) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  const notify = (msg) => {
+    if (SUCCESS_MESSAGES.has(msg)) pendingSuccess.current = msg;
+    else showToast(msg);
   };
 
+  const persistApp = useCallback((value, revision = appRevision.current) => {
+    setPersistence((current) => ({ ...current, status: "saving", error: null }));
+    let serialized;
+    try {
+      serialized = JSON.stringify(value);
+    } catch (error) {
+      setPersistence((current) => ({ ...current, status: "failed", error }));
+      pendingSuccess.current = null;
+      return false;
+    }
+    const result = writeVerified(KEY, serialized);
+    if (!result.ok) {
+      setPersistence((current) => persistenceFromResult(result, current));
+      pendingSuccess.current = null;
+      return false;
+    }
+    const savedAt = new Date().toISOString();
+    const nextPersistence = persistenceFromResult({ ok: true, savedAt, revision });
+    setPersistence(nextPersistence);
+    if (pendingSuccess.current && canShowSavedFeedback(nextPersistence)) {
+      showToast(pendingSuccess.current);
+      pendingSuccess.current = null;
+    }
+    return true;
+  }, [showToast]);
+
   useEffect(() => {
-    const success = safeStorageSet(KEY, JSON.stringify(app));
-    if (!success && !storageError) setStorageError(true);
-    else if (success && storageError) setStorageError(false);
-  }, [app, storageError]);
+    if (storageGate) return;
+    appRevision.current += 1;
+    const revision = appRevision.current;
+    const timer = setTimeout(() => persistApp(app, revision), 0);
+    return () => clearTimeout(timer);
+  }, [app, storageGate, persistApp]);
 
   useEffect(() => {
     safeStorageSet(PROFILE_KEY, JSON.stringify(profile));
@@ -1355,6 +1522,10 @@ function TripIt() {
     const avgPerLiter = liters > 0 ? spend / liters : 0;
     return { liters, spend, currency, avgPerLiter, count: fuelForMonth.length };
   }, [fuelForMonth]);
+
+  const currentDatasetCounts = useMemo(() => validateApplicationPayload(app).counts || {
+    vehicles: 0, completedTrips: 0, activeTrips: 0, legs: 0, fuelEntries: 0, washEntries: 0, templates: 0,
+  }, [app]);
 
   // Preview Data Calculation
   const previewData = useMemo(() => {
@@ -1583,6 +1754,7 @@ function TripIt() {
   };
 
   const deleteTemplate = (id) => {
+    if (!allowDestructiveAction("Deleting this template")) return;
     setApp(a => ({ ...a, templates: (a.templates || []).filter(t => t.id !== id) }));
   };
 
@@ -1630,6 +1802,7 @@ function TripIt() {
   };
 
   const deleteVehicleNow = () => {
+    if (!allowDestructiveAction("Deleting this vehicle and its records")) return;
     const id = confirm.id;
     setApp((a) => {
       const vehicles = a.vehicles.filter((v) => v.id !== id);
@@ -1757,6 +1930,7 @@ function TripIt() {
 
   const deleteLeg = (legId) => {
     if (!activeVehicle || !activeTrip) return;
+    if (!allowDestructiveAction("Deleting this leg")) return;
     const updatedTrip = {
       ...activeTrip,
       legs: activeTrip.legs.filter(l => l.id !== legId)
@@ -1790,6 +1964,7 @@ function TripIt() {
 
   const cancelTrip = () => {
     if (!activeVehicle) return;
+    if (!allowDestructiveAction("Cancelling this active trip")) return;
     setApp(a => ({
       ...a,
       activeTripByVehicle: { ...a.activeTripByVehicle, [activeVehicle.id]: null }
@@ -1800,6 +1975,7 @@ function TripIt() {
 
   const deleteTrip = (tripId) => {
     if (!activeVehicle) return;
+    if (!allowDestructiveAction("Deleting this trip")) return;
     setApp(a => ({
       ...a,
       tripsByVehicle: { ...a.tripsByVehicle, [activeVehicle.id]: (a.tripsByVehicle[activeVehicle.id] || []).filter(t => t.id !== tripId) }
@@ -1953,6 +2129,7 @@ function TripIt() {
 
   const deleteWash = (id) => {
     if (!activeVehicle || !window.confirm("Delete this wash entry?")) return;
+    if (!allowDestructiveAction("Deleting this wash entry")) return;
     setApp(a => {
       const list = Array.isArray(a.washByVehicle[activeVehicle.id]) ? a.washByVehicle[activeVehicle.id] : [];
       return { ...a, washByVehicle: { ...a.washByVehicle, [activeVehicle.id]: list.filter(w => w.id !== id) } };
@@ -2024,6 +2201,7 @@ function TripIt() {
 
   const deleteFuel = (fuelId) => {
     if (!activeVehicle) return;
+    if (!allowDestructiveAction("Deleting this fuel entry")) return;
     setApp((a) => {
       const list = Array.isArray(a.fuelByVehicle[activeVehicle.id]) ? a.fuelByVehicle[activeVehicle.id] : [];
       return { ...a, fuelByVehicle: { ...a.fuelByVehicle, [activeVehicle.id]: list.filter((f) => f.id !== fuelId) } };
@@ -2038,38 +2216,37 @@ function TripIt() {
   };
 
   // ---------- Export / Import ----------
-  const exportJSON = () => {
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      profile,
-      data: app,
-      meta: { appId: APP_ID, version: APP_VERSION, storageKey: KEY },
-    };
+  const downloadJSON = (payload, filename) => {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `toolstack-trip-it-${APP_VERSION}-${todayISO()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
     URL.revokeObjectURL(url);
   };
 
-  const importJSON = async (file) => {
+  const exportJSON = () => {
+    downloadJSON(createFullBackup({ data: app, profile }), `trip-it-full-backup-${todayISO()}.json`);
+  };
+
+  const prepareImportFile = async (file) => {
     if (!file) return;
-    const text = await file.text();
-    const parsed = safeParse(text, null);
-    if (!parsed) return notify("Invalid JSON");
-
-    // Accept either {profile,data} export OR raw app object
-    const incomingProfile = parsed?.profile || profile;
-    const incomingData = parsed?.data || parsed;
-
-    const migrated = migrateLegacyIfNeeded(incomingData);
-    setProfile(incomingProfile);
-    setApp(normalizeApp(migrated || emptyApp()));
-    notify("Imported");
+    setImportWorkflow({ open: true, stage: "reading", prepared: null, result: null, file });
+    if (file.size > IMPORT_LIMITS.maxFileBytes) {
+      setImportWorkflow({ open: true, stage: "error", prepared: null, result: { code: "FILE_TOO_LARGE", errors: [{ path: "$file", message: `File exceeds ${IMPORT_LIMITS.maxFileBytes} bytes.` }] }, file });
+      return;
+    }
+    try {
+      const text = await file.text();
+      const prepared = prepareBackupImport({ text, size: file.size, normalize: (data) => normalizeApp(migrateLegacyIfNeeded(data) || emptyApp()) });
+      if (!prepared.ok) setImportWorkflow({ open: true, stage: "error", prepared: null, result: prepared, file });
+      else setImportWorkflow({ open: true, stage: "preview", prepared, result: null, file });
+    } catch {
+      setImportWorkflow({ open: true, stage: "error", prepared: null, result: { code: "FILE_READ_FAILED", errors: [{ path: "$file", message: "The selected file could not be read." }] }, file });
+    }
   };
 
   const onImportPick = () => {
@@ -2146,22 +2323,13 @@ function TripIt() {
   };
 
   const exportPreviewJSON = () => {
-    const payload = {
+    const payload = createReportExport({
       range: { start: previewConfig.start, end: previewConfig.end },
-      exportedAt: new Date().toISOString(),
       vehicle: { name: activeVehicle.name, plate: activeVehicle.plate },
       trips: previewData.trips,
-      fuel: previewData.fuel
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tripit-export-${previewConfig.start}-to-${previewConfig.end}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+      fuel: previewData.fuel,
+    });
+    downloadJSON(payload, `trip-it-report-${todayISO()}.json`);
   };
 
   // ---------- Email ----------
@@ -2245,6 +2413,8 @@ function TripIt() {
       notify("Summary copied");
     } catch { notify("Copy failed"); }
   };
+  void openEmail;
+  void copySummary;
 
   // ---------- Vehicle modal state ----------
   const vehicleFormVehicle = useMemo(() => {
@@ -2260,6 +2430,91 @@ function TripIt() {
   }, [vehicleFormVehicle]);
 
   const vehicleSaveDisabled = useMemo(() => !String((vehicleDraft && vehicleDraft.name) || "").trim(), [vehicleDraft]);
+
+  const persistenceFailed = requiresDestructiveConfirmation(persistence);
+  const allowDestructiveAction = (label) => {
+    if (!persistenceFailed) return true;
+    return window.confirm(`${label} may exist only in memory because browser storage is not saving. It may be lost on reload. Continue?`);
+  };
+
+  const performImportTransaction = () => {
+    const prepared = importWorkflow.prepared;
+    if (!prepared) return;
+    if (requiresEmptyReplacementConfirmation(currentDatasetCounts, prepared.counts)
+      && !window.confirm("The selected backup is empty while current Trip-It data is not. Confirm replacing all current records with an empty dataset.")) return;
+    const result = replaceDatasetTransactional({
+      primaryKey: KEY,
+      currentData: app,
+      candidate: prepared.candidate,
+      validate: validateApplicationPayload,
+    });
+    if (!result.ok) {
+      setImportWorkflow((current) => ({ ...current, stage: "transaction-failed", result, retryAction: "import", currentSerialized: result.currentSerialized || JSON.stringify(app), candidateSerialized: result.candidateSerialized || JSON.stringify(prepared.candidate) }));
+      return;
+    }
+    applyTransactionResult(result, setApp);
+    if (prepared.profile && typeof prepared.profile === "object" && !Array.isArray(prepared.profile)) setProfile(prepared.profile);
+    setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: appRevision.current, error: null });
+    setImportWorkflow((current) => ({ ...current, stage: "success", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: result.candidateSerialized }));
+  };
+
+  const restorePreImportData = () => {
+    if (!importWorkflow.rollbackKey) return;
+    const result = rollbackTransactional({ primaryKey: KEY, rollbackKey: importWorkflow.rollbackKey, currentData: app, validate: validateApplicationPayload });
+    if (!result.ok) {
+      setImportWorkflow((current) => ({ ...current, stage: "transaction-failed", result, retryAction: "rollback", currentSerialized: result.currentSerialized || JSON.stringify(app), candidateSerialized: result.candidateSerialized }));
+      return;
+    }
+    applyTransactionResult(result, setApp);
+    setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: appRevision.current, error: null });
+    setImportWorkflow((current) => ({ ...current, stage: "success", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: result.candidateSerialized }));
+  };
+
+  const retryStorageGate = () => {
+    const next = loadInitialState();
+    setApp(next.app);
+    setStorageGate(next.gate);
+    setPersistence((current) => ({
+      ...current,
+      status: next.gate?.kind === "storage-unavailable" ? "unavailable" : "saved",
+      error: next.gate?.result?.error || null,
+    }));
+  };
+
+  const startNewAfterRecovery = () => {
+    if (storageGate?.kind !== "recovery") return;
+    const next = emptyApp();
+    const resolution = replaceCorruptWithEmpty({
+      primaryKey: KEY,
+      raw: storageGate.raw,
+      emptyData: next,
+      confirm: () => window.confirm("Start with a new empty dataset? The unreadable primary value will be replaced. The preserved recovery copy will remain available."),
+    });
+    if (resolution.status === "cancelled") return;
+    if (!resolution.ok && resolution.phase === "preserve_recovery") {
+      showToast("Could not verify a recovery copy. Download the raw data before retrying.");
+      return;
+    }
+    if (!resolution.ok) {
+      setPersistence({ status: resolution.status === "unavailable" ? "unavailable" : "failed", lastSavedAt: null, revision: 0, error: resolution.error });
+      return;
+    }
+    setApp(next);
+    setStorageGate(null);
+    setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: 0, error: null });
+  };
+
+  const continueFromLegacy = () => {
+    if (storageGate?.kind !== "migration") return;
+    try {
+      const parsed = JSON.parse(storageGate.legacyRaw);
+      setApp(normalizeApp(migrateLegacyIfNeeded(parsed) || emptyApp()));
+      setStorageGate(null);
+      setPersistence({ status: "failed", lastSavedAt: null, revision: 0, error: new Error("Legacy source is loaded in memory; the original legacy key remains unchanged") });
+    } catch {
+      showToast("Legacy data is unreadable and cannot be continued safely.");
+    }
+  };
 
   // ---------- Trip Details Expand ----------
   const [expandedTripId, setExpandedTripId] = useState(null);
@@ -2307,6 +2562,17 @@ function TripIt() {
     getCurrentLocation("endPlace");
   };
 
+  if (storageGate) {
+    return (
+      <BlockingStorageScreen
+        gate={storageGate}
+        onRetry={retryStorageGate}
+        onStartNew={startNewAfterRecovery}
+        onContinueLegacy={continueFromLegacy}
+      />
+    );
+  }
+
   return (
     <div
       className="min-h-screen bg-neutral-50 text-neutral-800"
@@ -2315,6 +2581,21 @@ function TripIt() {
         "--ts-accent-rgb": ACCENT_RGB,
       }}
     >
+      {persistenceFailed && (
+        <div className="sticky top-0 z-[60] border-b-4 border-red-700 bg-red-100 px-4 py-3 text-red-950 shadow-lg print:hidden" role="alert">
+          <div className="mx-auto max-w-6xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="font-black uppercase">Changes are not safely stored</div>
+              <div className="text-sm">Recent changes may be lost on reload. No save confirmation will be shown until a write and read-back verification succeeds.</div>
+              {persistence.lastSavedAt && <div className="text-xs mt-1">Last verified save: {new Date(persistence.lastSavedAt).toLocaleString()}</div>}
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button className={btnSecondary} onClick={() => persistApp(app)}>Retry Save</button>
+              <button className={btnAccent} onClick={exportJSON}>Export Backup</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Print rules */}
       <style>{`
         @media print {
@@ -2360,17 +2641,15 @@ function TripIt() {
         onConfirm={confirm.kind === "vehicle" ? deleteVehicleNow : cancelTrip}
       />
 
-      <ConfirmModal
-        open={importConfirm.open}
-        title={t("importBackupQ")}
-        message={t("importBackupMsg")}
-        confirmText={t("import")}
-        onCancel={() => setImportConfirm({ open: false, file: null })}
-        onConfirm={() => {
-          const f = importConfirm.file;
-          setImportConfirm({ open: false, file: null });
-          importJSON(f);
-        }}
+      <ImportWorkflowModal
+        state={importWorkflow}
+        currentCounts={currentDatasetCounts}
+        onClose={() => setImportWorkflow({ open: false, stage: "idle", prepared: null, result: null, file: null })}
+        onReplace={performImportTransaction}
+        onRetry={importWorkflow.retryAction === "rollback" ? restorePreImportData : performImportTransaction}
+        onRollback={restorePreImportData}
+        onDownloadCurrent={() => downloadRawRecovery(importWorkflow.currentSerialized || JSON.stringify(app, null, 2), `trip-it-current-backup-${todayISO()}.json`)}
+        onDownloadCandidate={() => downloadRawRecovery(importWorkflow.candidateSerialized || JSON.stringify(importWorkflow.prepared?.candidate || {}, null, 2), `trip-it-import-candidate-${todayISO()}.json`)}
       />
 
       <EmailModal
@@ -2385,9 +2664,10 @@ function TripIt() {
         onOpenEmail={openEmailClientFromModal}
       />
 
-      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} appName="Trip-It" storageKey={KEY} actions={["Email"]} />
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} appName="Trip-It" />
 
       <LegModal 
+        key={savedLegModal.leg?.id || "closed-leg-modal"}
         open={savedLegModal.open} 
         leg={savedLegModal.leg} 
         onClose={() => setSavedLegModal({ open: false, tripId: null, leg: null })} 
@@ -2480,7 +2760,7 @@ function TripIt() {
               <div className="space-y-3">
                 <div className="text-xs font-black text-[var(--ts-accent)] uppercase tracking-widest">{t("dataBackup")}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button className="h-12 font-bold text-sm text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:text-neutral-900 transition-all" onClick={exportJSON}>{t("downloadJson")}</button>
+                  <button className="h-12 font-bold text-sm text-neutral-900 bg-[var(--ts-accent)] border-2 border-[var(--ts-accent)] hover:bg-white hover:text-neutral-900 transition-all" onClick={exportJSON}>Full Backup — restorable</button>
                   <button className="h-12 font-bold text-sm text-white border-2 border-neutral-700 bg-neutral-700 hover:border-[var(--ts-accent)] hover:text-[var(--ts-accent)] transition-all" onClick={onImportPick}>{t("importJson")}</button>
                 </div>
                 <div className="text-xs text-neutral-500 font-mono">{t("importJsonWarning")}</div>
@@ -2498,7 +2778,7 @@ function TripIt() {
         className="hidden"
         onChange={(e) => {
           const file = (e.target.files && e.target.files[0]) || null;
-          if (file) setImportConfirm({ open: true, file });
+          if (file) prepareImportFile(file);
           e.target.value = "";
         }}
       />
@@ -2650,7 +2930,7 @@ function TripIt() {
                   <div className="w-px h-8 bg-neutral-700 mx-1 hidden xl:block"></div>
 
                   <button className={btnSecondary} onClick={exportPreviewCSV}>CSV</button>
-                  <button className={btnSecondary} onClick={exportPreviewJSON}>JSON</button>
+                  <button className={btnSecondary} onClick={exportPreviewJSON}>Report JSON — not restorable</button>
                   <button className={btnAccent} onClick={() => window.print()}>Print</button>
                   <button 
                     className="group relative px-3 py-2 font-black uppercase tracking-wider text-white border-2 border-neutral-700 bg-neutral-800 hover:border-red-500 hover:text-red-500 transition-all"
@@ -2919,11 +3199,6 @@ function TripIt() {
                 </div>
               </div>
               <div className={cardPad}>
-                {storageError && (
-                  <div className="mb-4 bg-amber-100 border border-amber-200 text-amber-900 px-4 py-2 text-xs rounded-lg text-center">
-                    Storage unavailable. Data may not persist.
-                  </div>
-                )}
                 {!activeVehicle ? (
                   <div className="text-sm text-neutral-700">{t("addVehicleToStart")}</div>
                 ) : activeTrip ? (
@@ -2939,7 +3214,7 @@ function TripIt() {
                     {activeTrip.legs.length > 0 ? (
                       <div className="space-y-2">
                         <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{t("legs")}</div>
-                        {activeTrip.legs.map((l, idx) => (
+                        {activeTrip.legs.map((l) => (
                           <div key={l.id} className="flex items-center justify-between p-2 rounded-lg border border-neutral-100 bg-white text-sm">
                             <div className="min-w-0">
                               <div className="font-medium text-neutral-800">{l.startPlace} → {l.endPlace}</div>
