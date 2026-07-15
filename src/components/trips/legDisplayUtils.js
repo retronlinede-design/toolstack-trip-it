@@ -1,6 +1,15 @@
 const numberValue = (value) => Number(String(value ?? "").replace(",", "."));
 export const validOdometer = (value) => value !== "" && value !== null && value !== undefined && Number.isFinite(numberValue(value));
 
+export function getTripEndOdometer(trip) {
+  const legs = Array.isArray(trip?.legs) ? trip.legs : [];
+  const finalLeg = legs.at(-1);
+  if (!finalLeg) return null;
+
+  const value = finalLeg.odoEnd ?? finalLeg.endOdometer;
+  return validOdometer(value) ? numberValue(value) : null;
+}
+
 export function legCompactSummary(leg) {
   return {
     route: `${leg.startPlace || "Unknown start"} → ${leg.endPlace || "Unknown destination"}`,

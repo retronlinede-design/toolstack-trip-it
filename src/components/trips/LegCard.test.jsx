@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CompletedTripCard } from "./CompletedTripCard.jsx";
 import { LegCard } from "./LegCard.jsx";
-import { deleteLegConfirmation, deleteTripConfirmation, legCompactSummary, tripSummaryStats } from "./legDisplayUtils.js";
+import { deleteLegConfirmation, deleteTripConfirmation, getTripEndOdometer, legCompactSummary, tripSummaryStats } from "./legDisplayUtils.js";
 
 const leg = { id: "l1", startPlace: "Consulate", endPlace: "Munich Airport", startTime: "08:10", endTime: "08:55", km: 42, odoStart: 50120, odoEnd: 50162, driver: "Retro", passengers: ["Ambassador", "Deputy Minister", "Security Officer", "Assistant"], note: "Meet at terminal\nDoor 3", startTag: "Duty", endTag: "Airport" };
 
@@ -12,6 +12,9 @@ describe("shared leg and trip presentation", () => {
   it("renders expanded odometer, passengers, tags, and multiline notes", () => { const html = renderToStaticMarkup(<LegCard leg={leg} sequence={1} context="history" initiallyExpanded />); expect(html).toContain("50120 km"); expect(html).toContain("Ambassador"); expect(html).toContain("Meet at terminal\nDoor 3"); expect(html).toContain("Duty"); });
   it("expresses active editing state in text and aria", () => { const html = renderToStaticMarkup(<LegCard leg={leg} sequence={2} editing />); expect(html).toContain("Currently editing"); expect(html).toContain('aria-current="step"'); });
   it("derives completed-trip statistics without storing them", () => expect(tripSummaryStats({ legs: [leg, { ...leg, id: "l2", driver: "Other", passengers: ["A"] }] })).toMatchObject({ legs: 2, totalKm: 84, passengers: 5, distinctDrivers: 2, duration: "0h 45m" }));
-  it("renders a semantic collapsed and expanded completed-trip disclosure", () => { const trip = { id: "t1", title: "Airport Run", startDate: "2026-07-11", purpose: "Duty", legs: [leg] }; const collapsed = renderToStaticMarkup(<CompletedTripCard trip={trip} vehicleName="Car" expanded={false} />); const expanded = renderToStaticMarkup(<CompletedTripCard trip={trip} vehicleName="Car" expanded />); expect(collapsed).toContain('aria-expanded="false"'); expect(collapsed).toContain("Airport Run"); expect(expanded).toContain("Passengers carried"); });
+  it("derives the end odometer from the final leg in established order", () => expect(getTripEndOdometer({ legs: [{ odoEnd: 999999 }, { odoEnd: "124580" }] })).toBe(124580));
+  it("does not fall back when the final leg has no valid end odometer", () => { expect(getTripEndOdometer({ legs: [{ odoEnd: 123 }, { odoEnd: "invalid" }] })).toBeNull(); expect(getTripEndOdometer({ legs: [] })).toBeNull(); });
+  it("renders a semantic collapsed and expanded completed-trip disclosure", () => { const trip = { id: "t1", title: "Airport Run", startDate: "2026-07-11", purpose: "Duty", legs: [{ ...leg, odoEnd: 124580 }] }; const collapsed = renderToStaticMarkup(<CompletedTripCard trip={trip} vehicleName="Car" expanded={false} />); const expanded = renderToStaticMarkup(<CompletedTripCard trip={trip} vehicleName="Car" expanded />); expect(collapsed).toContain('aria-expanded="false"'); expect(collapsed).toContain("Airport Run"); expect(collapsed).toContain("End KM 124,580"); expect(expanded).toContain("Passengers carried"); });
+  it("renders a neutral end odometer when the final leg value is malformed", () => { const trip = { id: "t2", title: "Unknown End", legs: [{ odoEnd: 500 }, { odoEnd: "bad" }] }; expect(renderToStaticMarkup(<CompletedTripCard trip={trip} vehicleName="Car" expanded={false} />)).toContain("End KM —"); });
   it("includes record context in delete confirmations", () => { expect(deleteLegConfirmation(leg)).toContain("Consulate → Munich Airport"); expect(deleteTripConfirmation({ title: "Airport Run" })).toContain("Airport Run"); });
 });
