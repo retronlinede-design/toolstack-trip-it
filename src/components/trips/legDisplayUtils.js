@@ -26,13 +26,16 @@ export function tripSummaryStats(trip) {
   const totalKm = legs.reduce((sum, leg) => sum + (Number.isFinite(Number(leg.km)) ? Number(leg.km) : 0), 0);
   const start = legs.find((leg) => leg.startTime)?.startTime || "";
   const end = [...legs].reverse().find((leg) => leg.endTime)?.endTime || "";
-  let duration = "";
-  if (/^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end) && end >= start) {
-    const [sh, sm] = start.split(":").map(Number); const [eh, em] = end.split(":").map(Number);
-    const minutes = eh * 60 + em - sh * 60 - sm;
-    duration = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  }
-  return { legs: legs.length, totalKm, passengers, distinctDrivers: drivers.size, start, end, duration };
+  const validTime = (value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  const driveMinutes = legs.reduce((sum, leg) => {
+    if (!validTime(leg.startTime) || !validTime(leg.endTime) || leg.endTime < leg.startTime) return sum;
+    const [startHours, startMinutes] = leg.startTime.split(":").map(Number);
+    const [endHours, endMinutes] = leg.endTime.split(":").map(Number);
+    return sum + endHours * 60 + endMinutes - startHours * 60 - startMinutes;
+  }, 0);
+  const hasValidDriveTime = legs.some((leg) => validTime(leg.startTime) && validTime(leg.endTime) && leg.endTime >= leg.startTime);
+  const totalDriveTime = hasValidDriveTime ? `${Math.floor(driveMinutes / 60)}h ${driveMinutes % 60}m` : "";
+  return { legs: legs.length, totalKm, passengers, distinctDrivers: drivers.size, start, end, driveMinutes, totalDriveTime };
 }
 
 export const deleteLegConfirmation = (leg) => `Delete leg “${leg.startPlace || "Unknown start"} → ${leg.endPlace || "Unknown destination"}”? This cannot be undone.`;
