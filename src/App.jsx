@@ -28,6 +28,8 @@ import { ExportActions } from "./components/reports/ExportActions.jsx";
 import { validateReportRange } from "./components/reports/reportUiUtils.js";
 import { buildPeopleSuggestionItems, freshLegPeople, migrateTripPeopleToLegs, normalizeDriver, normalizeLegPeople, normalizePassengers } from "./components/trips/tripPeople.js";
 import { createTripsCsv } from "./components/trips/tripExport.js";
+import { DriverProfiles } from "./components/drivers/DriverProfiles.jsx";
+import { duplicateDriverProfile, normalizeDriverProfile, normalizeDriverProfiles } from "./components/drivers/driverProfileUtils.js";
 
 /**
  * ToolStack — Trip-It (Duty Trip Log) — Styled v1.3 (Trip Workflow)
@@ -884,6 +886,7 @@ function emptyApp() {
     tripsByVehicle: {},      // { [vid]: Trip[] }
     fuelByVehicle: {},
     washByVehicle: {},
+    drivers: [],
     ui: { month: monthKey(todayISO()) },
     templates: [],
   };
@@ -1031,6 +1034,8 @@ function normalizeApp(raw) {
     name: String(t.name || "Untitled"),
     data: t.type === "leg" ? normalizeLegPeople(t.data || {}) : (t.data || {})
   }));
+  const vehicleIds = new Set(normVehicles.map((vehicle) => vehicle.id));
+  const normDrivers = normalizeDriverProfiles(a.drivers, normTripsByVehicle).map((driver) => vehicleIds.has(driver.defaultVehicleId) ? driver : { ...driver, defaultVehicleId: "" });
 
   let activeVehicleId = a.activeVehicleId || null;
   if (activeVehicleId && !normVehicles.some((x) => x.id === activeVehicleId)) activeVehicleId = null;
@@ -1045,6 +1050,7 @@ function normalizeApp(raw) {
     tripsByVehicle: normTripsByVehicle,
     fuelByVehicle: normFuelByVehicle,
     washByVehicle: normWashByVehicle,
+    drivers: normDrivers,
     ui: { month },
     templates: normTemplates,
   };
@@ -1881,6 +1887,26 @@ function TripIt() {
   };
 
   const selectVehicle = (id) => setApp((a) => ({ ...a, activeVehicleId: id }));
+
+  const saveDriverProfile = (value) => {
+    const profile = normalizeDriverProfile(value, { id: value.id || uid() });
+    setApp((current) => ({ ...current, drivers: current.drivers.some((driver) => driver.id === profile.id) ? current.drivers.map((driver) => driver.id === profile.id ? profile : driver) : [profile, ...current.drivers] }));
+    notify("Driver profile saved");
+  };
+  const duplicateDriver = (driver) => setApp((current) => ({ ...current, drivers: [duplicateDriverProfile(driver, uid()), ...current.drivers] }));
+  const toggleDriverActive = (id) => setApp((current) => ({ ...current, drivers: current.drivers.map((driver) => driver.id === id ? { ...driver, active: !driver.active } : driver) }));
+  const deleteDriverProfile = (driver) => setApp((current) => ({ ...current, drivers: current.drivers.filter((item) => item.id !== driver.id) }));
+  const selectNewTripDriver = (driverId) => {
+    const driver = app.drivers.find((item) => item.id === driverId && item.active);
+    setPendingFirstLegPeople((current) => ({ ...current, driver: driver?.fullName || "" }));
+    if (driver?.defaultVehicleId && app.vehicles.some((vehicle) => vehicle.id === driver.defaultVehicleId && vehicle.active !== false)) {
+      setApp((current) => ({ ...current, activeVehicleId: driver.defaultVehicleId }));
+    }
+  };
+  const viewDriverTrip = ({ trip, vehicleId }) => {
+    setApp((current) => ({ ...current, activeVehicleId: vehicleId, ui: { ...current.ui, month: monthKey(trip.startDate) } }));
+    setExpandedTripId(trip.id);
+  };
 
   // ---------- Trip Workflow ----------
   const startTrip = () => {
@@ -3167,6 +3193,7 @@ function TripIt() {
                 ) : null}
               </div>
             </div>
+            <DriverProfiles drivers={app.drivers || []} vehicles={app.vehicles} tripsByVehicle={app.tripsByVehicle} onSave={saveDriverProfile} onDuplicate={duplicateDriver} onToggleActive={toggleDriverActive} onDelete={deleteDriverProfile} onViewTrip={viewDriverTrip} />
           </div>
 
           {/* Right: Trips + Fuel */}
@@ -3216,6 +3243,7 @@ function TripIt() {
                 ) : (
                   // Start Trip Form
                   <div className="space-y-3">
+                    {!!app.drivers?.some((driver) => driver.active) && <div><label htmlFor="new-trip-driver-profile" className="text-sm font-medium text-neutral-700">Driver profile</label><select id="new-trip-driver-profile" className={`${inputBase} mt-1`} value={app.drivers.find((driver) => driver.active && normalizeDriver(driver.fullName) === normalizeDriver(pendingFirstLegPeople.driver))?.id || ""} onChange={(event) => selectNewTripDriver(event.target.value)}><option value="">Select later</option>{app.drivers.filter((driver) => driver.active).map((driver) => <option key={driver.id} value={driver.id}>{driver.displayName || driver.fullName}</option>)}</select></div>}
                     <div>
                       <label className="text-sm font-medium text-neutral-700">{t("tripTitle")}</label>
                       <input

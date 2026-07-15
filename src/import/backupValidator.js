@@ -178,6 +178,19 @@ export function validateApplicationPayload(payload, options = {}) {
     if (entry.date !== undefined && !validDate(entry.date)) listErrors.push(issue("INVALID_SCHEMA", `${path}.date`, "Wash date must use YYYY-MM-DD."));
   }, errors);
 
+  const drivers = payload.drivers === undefined ? [] : payload.drivers;
+  if (!Array.isArray(drivers)) errors.push(issue("INVALID_SCHEMA", "data.drivers", "Drivers must be an array when present."));
+  const driverIds = new Set();
+  if (Array.isArray(drivers)) drivers.forEach((driver, index) => {
+    const path = `data.drivers[${index}]`;
+    if (!isPlainObject(driver)) { errors.push(issue("INVALID_SCHEMA", path, "Driver profile must be an object.")); return; }
+    if (typeof driver.id !== "string" || !driver.id.trim()) errors.push(issue("INVALID_SCHEMA", `${path}.id`, "Driver ID must be nonempty."));
+    else if (driverIds.has(driver.id)) errors.push(issue("DUPLICATE_ID", `${path}.id`, `Duplicate driver ID ${driver.id}.`));
+    else driverIds.add(driver.id);
+    if (typeof driver.fullName !== "string" || !driver.fullName.trim()) errors.push(issue("INVALID_SCHEMA", `${path}.fullName`, "Driver fullName must be nonempty."));
+    if (driver.defaultVehicleId && !vehicleIds.has(driver.defaultVehicleId)) errors.push(issue("UNKNOWN_VEHICLE_REFERENCE", `${path}.defaultVehicleId`, "Default vehicle references an unknown vehicle."));
+  });
+
   if (payload.profile !== undefined && !isPlainObject(payload.profile)) errors.push(issue("INVALID_SCHEMA", "data.profile", "Profile must be a plain object when present."));
   if (!isPlainObject(payload.ui)) errors.push(issue("INVALID_SCHEMA", "data.ui", "UI settings must be an object."));
   if (!Array.isArray(payload.templates)) errors.push(issue("INVALID_SCHEMA", "data.templates", "Templates must be an array."));
@@ -195,7 +208,7 @@ export function validateApplicationPayload(payload, options = {}) {
     else validatePeopleFields(template.data, `${path}.data`, errors);
   });
 
-  const supportedKeys = new Set(["vehicles", "activeVehicleId", "activeTripByVehicle", "tripsByVehicle", "fuelByVehicle", "washByVehicle", "ui", "templates"]);
+  const supportedKeys = new Set(["vehicles", "activeVehicleId", "activeTripByVehicle", "tripsByVehicle", "fuelByVehicle", "washByVehicle", "drivers", "ui", "templates"]);
   for (const key of Object.keys(payload)) if (!supportedKeys.has(key)) warnings.push(`Unsupported top-level field "${key}" was ignored by the current application schema.`);
 
   const counts = { vehicles: vehicles.length, completedTrips: completedTripCount, activeTrips: activeTripCount, legs: legCount, fuelEntries: fuelEntryCount, washEntries: washEntryCount, templates: templates.length };
