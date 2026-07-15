@@ -10,6 +10,29 @@ export function getTripEndOdometer(trip) {
   return validOdometer(value) ? numberValue(value) : null;
 }
 
+export function getTripPassengerSummary(trip) {
+  const legs = Array.isArray(trip?.legs) ? trip.legs : [];
+  const distinctPassengers = [];
+  const seen = new Set();
+  let instances = 0;
+
+  for (const leg of legs) {
+    const passengers = Array.isArray(leg?.passengers) ? leg.passengers : [];
+    for (const rawName of passengers) {
+      const name = String(rawName ?? "").trim().replace(/\s+/g, " ");
+      if (!name) continue;
+      instances += 1;
+      const key = name.toLocaleLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        distinctPassengers.push(name);
+      }
+    }
+  }
+
+  return { distinctPassengers, instances };
+}
+
 export function legCompactSummary(leg) {
   return {
     route: `${leg.startPlace || "Unknown start"} → ${leg.endPlace || "Unknown destination"}`,

@@ -9,7 +9,7 @@ import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateAppl
 import { applyTransactionResult, replaceDatasetTransactional, rollbackTransactional } from "./import/importTransaction.js";
 import { createMergePlan } from "./import/mergePlanner.js";
 import { mergeDatasetTransactional, rollbackMergeTransactional } from "./import/mergeTransaction.js";
-import { AlertBanner, Badge, Button, EmptyState, IconButton } from "./components/ui/index.jsx";
+import { AlertBanner, Badge, Button, EmptyState, IconButton, ModalShell } from "./components/ui/index.jsx";
 import { buttonClass, cardBodyClass, cardClass, cardHeaderClass, compactInputClass, inputClass } from "./components/ui/styles.js";
 import { SuggestionChips } from "./components/ui/SuggestionChips.jsx";
 import { TimeInput } from "./components/trips/TimeInput.jsx";
@@ -631,6 +631,15 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [], driverSugge
   const timeValidation = validateLegTimes(draft);
   const showTimeErrors = timeValidationAttempted || (isValidTime(draft.startTime) && isValidTime(draft.endTime) && draft.endTime < draft.startTime);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const handleChange = (f, v) => setDraft(d => ({ ...d, [f]: v }));
@@ -647,15 +656,14 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [], driverSugge
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-      <div className="absolute inset-0 bg-slate-700/25" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-neutral-200 shadow-xl overflow-hidden">
-        <div className="p-4 border-b border-neutral-100">
-          <div className="text-lg font-semibold text-neutral-800">{t("editLeg")}</div>
-          <div className="mt-3"><AccentUnderline className="w-32" /></div>
-        </div>
-        <div className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+    <ModalShell
+      title={t("editLeg")}
+      onClose={onClose}
+      maxWidth="32rem"
+      footer={<><button className={btnSecondary} onClick={onClose}>{t("cancel")}</button><button className={btnAccent} onClick={handleSave}>{t("save")}</button></>}
+    >
+      <div className="min-w-0 space-y-3 overflow-x-hidden">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs font-medium text-neutral-600">{t("from")}</label>
               <input className={`${inputBase} mt-1`} value={draft.startPlace || ""} onChange={e => handleChange("startPlace", e.target.value)} list="leg-modal-locations" />
@@ -664,7 +672,7 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [], driverSugge
               <label className="text-xs font-medium text-neutral-600">{t("to")}</label>
               <input className={`${inputBase} mt-1`} value={draft.endPlace || ""} onChange={e => handleChange("endPlace", e.target.value)} list="leg-modal-locations" />
             </div>
-            <div className="col-span-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:col-span-2">
               <div className="mb-2 text-xs font-semibold text-neutral-700">Time</div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <TimeInput id="saved-leg-start-time" label={t("startTime")} value={draft.startTime || ""} onChange={(value) => handleTimeChange("startTime", value)} error={showTimeErrors ? timeValidation.errors.startTime : ""} />
@@ -693,16 +701,11 @@ function LegModal({ open, leg, onClose, onSave, t, suggestions = [], driverSugge
             <label className="text-xs font-medium text-neutral-600">{t("note")}</label>
             <input className={`${inputBase} mt-1`} value={draft.note || ""} onChange={e => handleChange("note", e.target.value)} />
           </div>
-        </div>
-        <div className="p-4 border-t border-neutral-100 flex justify-end gap-2">
-          <button className={btnSecondary} onClick={onClose}>{t("cancel")}</button>
-          <button className={btnAccent} onClick={handleSave}>{t("save")}</button>
-        </div>
         <datalist id="leg-modal-locations">
           {suggestions.map((s, i) => <option key={i} value={s} />)}
         </datalist>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

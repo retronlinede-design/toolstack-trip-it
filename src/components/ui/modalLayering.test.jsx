@@ -27,6 +27,18 @@ describe("modal interaction layering", () => {
     expect(css).toMatch(/\.modal-positioner[^}]*pointer-events:\s*none/s);
     expect(css).toMatch(/\.ts-modal, \.modal-panel[^}]*pointer-events:\s*auto/s);
     expect(css).toMatch(/\.ts-modal-backdrop > \.absolute\.inset-0[^}]*z-index:\s*0/s);
+    expect(css).toMatch(/\.ts-modal__header, \.ts-modal__footer[^}]*flex-shrink:\s*0/s);
+    expect(css).toMatch(/\.ts-modal__body[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*auto/s);
+  });
+
+  it("keeps shared modal headers and footers fixed while only the body scrolls", () => {
+    const modal = ModalShell({ title: "Edit leg", onClose: () => {}, children: <div>Form</div>, footer: <button type="button">Save</button>, maxWidth: "32rem" });
+    const panel = modal.props.children[1].props.children;
+    const [header, body, footer] = panel.props.children;
+    expect(panel.props.style).toEqual({ maxWidth: "32rem" });
+    expect(header.props.className).toBe("ts-modal__header");
+    expect(body.props.className).toBe("ts-modal__body");
+    expect(footer.props.className).toBe("ts-modal__footer");
   });
 
   it("covers export, preview, help, email, month and vehicle modal structures", () => {
