@@ -29,6 +29,7 @@ import { ExportActions } from "./components/reports/ExportActions.jsx";
 import { validateReportRange } from "./components/reports/reportUiUtils.js";
 import { buildPeopleSuggestionItems, freshLegPeople, migrateTripPeopleToLegs, normalizeDriver, normalizeLegPeople, normalizePassengers } from "./components/trips/tripPeople.js";
 import { createTripsCsv } from "./components/trips/tripExport.js";
+import { printReportWhenReady, REPORT_PRINT_STYLES } from "./reports/printReport.js";
 import { DriverProfiles } from "./components/drivers/DriverProfiles.jsx";
 import { duplicateDriverProfile, normalizeDriverProfile, normalizeDriverProfiles } from "./components/drivers/driverProfileUtils.js";
 
@@ -2706,40 +2707,9 @@ function TripIt() {
           </div>
         </div>
       )}
-      {/* Print rules */}
-      <style>{`
-        @media print {
-          body { background: white !important; }
-          .print\\:hidden { display: none !important; }
-        }
-      `}</style>
-
       {/* Print ONLY preview sheet when preview is open */}
       {previewOpen ? (
-        <style>{`
-          @media print {
-            /* 1. Hide everything on the page by default */
-            body * {
-              visibility: hidden !important;
-            }
-            /* 2. Make the printable area and its children visible */
-            #tripit-print,
-            #tripit-print * {
-              visibility: visible !important;
-            }
-            /* 3. Position the printable area to fill the page */
-            #tripit-print {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 100% !important;
-            }
-            /* 4. Make the modal containers "disappear" for layout purposes during print */
-            .fixed.inset-0.z-50, .fixed.inset-0.z-50 > .relative, .fixed.inset-0.z-50 .overflow-auto {
-                display: contents !important;
-            }
-          }
-        `}</style>
+        <style>{REPORT_PRINT_STYLES}</style>
       ) : null}
 
       <ConfirmModal
@@ -2821,7 +2791,7 @@ function TripIt() {
               <IconButton label="Close" onClick={() => setExportModalOpen(false)}>×</IconButton>
             </div>
             
-            <div className="ts-modal__body space-y-5"><ReportFilters config={previewConfig} onMode={updatePreviewMode} onChange={setPreviewConfig} vehicle={activeVehicle} resultCount={previewData.trips.length} /><ReportSummary trips={previewData.trips} fuel={previewData.fuel} wash={previewData.wash} /><ExportActions disabled={!reportRangeValidation.valid} onBackup={exportJSON} onImport={onImportPick} onReportJson={exportPreviewJSON} onCsv={exportPreviewCSV} onPrint={() => { setExportModalOpen(false); setPreviewOpen(true); setTimeout(() => window.print(), 500); }} onCopy={copySummary} onEmail={openEmail} /><details className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">Advanced backup details</summary><div className="mt-2 break-all font-mono">{persistence.lastSavedAt ? `Last verified save: ${persistence.lastSavedAt}` : "No verified save timestamp"}</div><div className="mt-1">{t("importJsonWarning")}</div></details></div>
+            <div className="ts-modal__body space-y-5"><ReportFilters config={previewConfig} onMode={updatePreviewMode} onChange={setPreviewConfig} vehicle={activeVehicle} resultCount={previewData.trips.length} /><ReportSummary trips={previewData.trips} fuel={previewData.fuel} wash={previewData.wash} /><ExportActions disabled={!reportRangeValidation.valid} onBackup={exportJSON} onImport={onImportPick} onReportJson={exportPreviewJSON} onCsv={exportPreviewCSV} onPrint={() => { setExportModalOpen(false); setPreviewOpen(true); printReportWhenReady(); }} onCopy={copySummary} onEmail={openEmail} /><details className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">Advanced backup details</summary><div className="mt-2 break-all font-mono">{persistence.lastSavedAt ? `Last verified save: ${persistence.lastSavedAt}` : "No verified save timestamp"}</div><div className="mt-1">{t("importJsonWarning")}</div></details></div>
           </div>
         </div>
       )}
@@ -3000,9 +2970,9 @@ function TripIt() {
             </div>
 
             {/* Printable Content Area */}
-            <div className="overflow-auto flex-1 bg-neutral-100 p-4 sm:p-8">
+            <div className="tripit-print-scroll overflow-auto flex-1 bg-neutral-100 p-4 sm:p-8">
               <div id="tripit-print" className="bg-white text-neutral-900 p-8 sm:p-12 shadow-[0_0_50px_rgba(0,0,0,0.5)] mx-auto max-w-4xl min-h-[800px]">
-                <div className="flex items-start justify-between gap-4">
+                <div className="print-keep-together flex items-start justify-between gap-4">
                   <div>
                     <img src={tripitLogo} alt="TripIt Logo" className="h-16 w-auto mb-4" />
                     <div className="text-sm text-neutral-700">
@@ -3022,7 +2992,7 @@ function TripIt() {
                   </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="print-keep-together mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-neutral-200 p-4">
                     <div className="text-sm text-neutral-700">{t("trips")}</div>
                     <div className="text-2xl font-semibold text-neutral-800 mt-1">{previewData.totals.tripCount}</div>
