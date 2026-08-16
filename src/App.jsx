@@ -3164,13 +3164,13 @@ function TripIt() {
           <div className="lg:col-span-2 space-y-3">
             
             {/* 1. Active Trip Card */}
-            <div className={`${card} ${activeTrip ? "ts-card--selected" : ""}`}>
-              <div className={`${cardHead} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+            <div className={`${card} ts-active-trip ${activeTrip ? "ts-card--selected" : ""}`}>
+              <div className={`${cardHead} ts-active-trip__header flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
                 <div className="flex flex-wrap items-center gap-2"><div className="font-semibold text-neutral-800">{activeTrip ? t("activeTrip") : t("startTrip")}</div>{activeTrip && <Badge variant="success">Active</Badge>}</div>
                 
                 <div className="flex flex-wrap items-center gap-3 justify-end">
                   {activeTrip ? (
-                    <button className="text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-800 px-2 py-1 border-2 border-red-100 bg-red-50 rounded-sm transition" onClick={() => setConfirm({ open: true, kind: "cancel", id: null })}>
+                    <button className={btnDanger} onClick={() => setConfirm({ open: true, kind: "cancel", id: null })}>
                       {t("cancelTrip")}
                     </button>
                   ) : null}
@@ -3182,15 +3182,24 @@ function TripIt() {
                 ) : activeTrip ? (
                   // Active Trip View
                   <div className="space-y-4">
-                    <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-neutral-700">
-                      <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-base text-neutral-800">{activeTrip.title || "Untitled Trip"}</div><div className="mt-1">{activeVehicle.name} · {activeTrip.startDate}</div><div className="mt-1">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div></div><div className="flex flex-wrap gap-2"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant="accent">{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</Badge><Badge variant={persistence.status === "saved" ? "success" : persistence.status === "saving" ? "warning" : "danger"}>{persistence.status}</Badge></div></div>
-                      {activeTrip.purpose ? <div className="text-xs text-neutral-500 mt-1">{t("purpose")} {activeTrip.purpose}</div> : null}
+                    <div className="ts-active-trip__overview">
+                      <div className="min-w-0 flex-1">
+                        <div className="ts-active-trip__eyebrow">{activeVehicle.name} · {activeTrip.startDate}</div>
+                        <div className="ts-active-trip__title">{activeTrip.title || "Untitled Trip"}</div>
+                        <div className="ts-active-trip__meta">{t("started")} {new Date(activeTrip.startedAt).toLocaleString()}</div>
+                        {activeTrip.purpose ? <div className="ts-active-trip__purpose">{t("purpose")} {activeTrip.purpose}</div> : null}
+                      </div>
+                      <div className="ts-active-trip__metric">
+                        <span>Distance</span>
+                        <strong>{activeTrip.legs.reduce((sum, leg) => sum + toNumber(leg.km), 0).toFixed(1)} km</strong>
+                      </div>
+                      <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end"><Badge>{activeTrip.legs.length} {t("legs")}</Badge><Badge variant={persistence.status === "saved" ? "success" : persistence.status === "saving" ? "warning" : "danger"}>{persistence.status}</Badge></div>
                     </div>
 
                     {/* List of Legs in Active Trip */}
                     <LegTimeline legs={activeTrip.legs} context="active" editingLegId={editingActiveLegId} onEdit={editActiveLeg} onDelete={(leg) => setConfirm({ open: true, kind: "active-leg", id: leg.id, payload: { title: "Delete leg?", message: deleteLegConfirmation(leg) } })} emptyMessage="No legs recorded yet. Enter the first route above." />
 
-                    <div className="border-t border-neutral-100 pt-4">
+                    <div className="ts-trip-composer border-t border-neutral-100 pt-4">
                       <LegComposer key={`${editingActiveLegId || "new"}-${activeTrip.legs.length}`} form={legForm} setField={(field, value) => field === "startTime" || field === "endTime" ? changeLegTime(field, value) : setLegForm((current) => ({ ...current, [field]: value }))} setPassengers={(passengers) => setLegForm((current) => ({ ...current, passengers }))} locationSuggestions={locationSuggestions} driverSuggestions={peopleSuggestions.drivers} passengerSuggestions={peopleSuggestions.passengers} tagSuggestions={legTags} previousLeg={activeTrip.legs.at(-1)} editingIndex={editingActiveLegId ? activeTrip.legs.findIndex((leg) => leg.id === editingActiveLegId) : null} timeErrors={showLegTimeErrors ? legTimeValidation.errors : {}} onSave={saveActiveLeg} onCancelEdit={cancelEditActiveLeg} onDuplicate={duplicateLastLeg} onReverse={swapLegPlaces} onCurrentLocation={getCurrentLocation} onTemplate={() => setTemplateModal({ open: true, type: "leg" })} onKeyDown={handleLegKeyDown} onFocus={handleFocus} t={t} />
                     </div>
 
@@ -3198,7 +3207,7 @@ function TripIt() {
                       {allLocations.map((s, i) => <option key={i} value={s} />)}
                     </datalist>
 
-                    <div className="pt-4 border-t border-neutral-100 flex justify-end">
+                    <div className="ts-trip-primary-action pt-4 border-t border-neutral-100 flex justify-end">
                       <button className={btnAccent} onClick={endTrip}>
                         {t("endTrip")}
                       </button>
@@ -3246,9 +3255,9 @@ function TripIt() {
             </div>
 
             {/* 2. Recent Trips List */}
-            <div className={card}>
+            <div className={`${card} ts-trip-history`}>
               <div 
-                className={`${cardHead} flex items-center justify-between cursor-pointer select-none ${recentTripsOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "ts-hover-accent"}`}
+                className={`${cardHead} ts-trip-history__toggle flex items-center justify-between cursor-pointer select-none ${recentTripsOpen ? "is-open" : "ts-hover-accent"}`}
                 onClick={() => setRecentTripsOpen(!recentTripsOpen)}
               >
                 <div className="font-semibold text-neutral-800 flex items-center gap-2">
