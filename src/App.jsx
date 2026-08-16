@@ -30,6 +30,8 @@ import { validateReportRange } from "./components/reports/reportUiUtils.js";
 import { buildPeopleSuggestionItems, freshLegPeople, migrateTripPeopleToLegs, normalizeDriver, normalizeLegPeople, normalizePassengers } from "./components/trips/tripPeople.js";
 import { createTripsCsv } from "./components/trips/tripExport.js";
 import { printReportWhenReady, REPORT_PRINT_STYLES } from "./reports/printReport.js";
+import { Dashboard } from "./components/dashboard/Dashboard.jsx";
+import { selectDashboardData } from "./components/dashboard/dashboardSelectors.js";
 import { DriverProfiles } from "./components/drivers/DriverProfiles.jsx";
 import { duplicateDriverProfile, normalizeDriverProfile, normalizeDriverProfiles } from "./components/drivers/driverProfileUtils.js";
 
@@ -287,9 +289,9 @@ function loadProfile() {
 }
 
 // ---------- Normalized top actions (Master Pack) ----------
-function ActionButton({ children, onClick, disabled, title }) {
+function ActionButton({ children, onClick, disabled, title, active = false }) {
   return (
-    <Button variant="ghost" onClick={onClick} title={title} disabled={disabled} className="print:hidden min-w-0">
+    <Button variant={active ? "primary" : "ghost"} onClick={onClick} title={title} disabled={disabled} aria-current={active ? "page" : undefined} className="print:hidden min-w-0">
       <span className="w-full text-center">{children}</span>
     </Button>
   );
@@ -1297,6 +1299,7 @@ function TripIt() {
   const [profile, setProfile] = useState(loadProfile);
   const verifiedProfileSerialization = useRef(null);
   const [app, setApp] = useState(emptyApp);
+  const [currentView, setCurrentView] = useState("dashboard");
   const [startupStatus, setStartupStatus] = useState("loading");
   const [storageGate, setStorageGate] = useState(null);
   const [persistence, setPersistence] = useState({
@@ -1548,6 +1551,7 @@ function TripIt() {
   }, [fuelForMonth]);
   const modernFuelStats = useMemo(() => fuelLogStats(fuelForMonth), [fuelForMonth]);
   const modernWashStats = useMemo(() => washLogStats(washLogs), [washLogs]);
+  const dashboardData = useMemo(() => selectDashboardData(app, { currentDate: toLocalISO(new Date()) }), [app]);
 
   const currentDatasetCounts = useMemo(() => validateApplicationPayload(app).counts || {
     vehicles: 0, completedTrips: 0, activeTrips: 0, legs: 0, fuelEntries: 0, washEntries: 0, templates: 0,
@@ -2393,6 +2397,34 @@ function TripIt() {
     setPreviewOpen(true);
   };
 
+  const openOperationsAt = (targetId) => {
+    setCurrentView("operations");
+    if (!targetId) return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
+  };
+
+  const openDashboardTripWorkflow = () => openOperationsAt("tripit-trip-workflow");
+  const openDashboardHistory = () => {
+    setMonth(dashboardData.month);
+    setRecentTripsOpen(true);
+    openOperationsAt("tripit-trip-history");
+  };
+  const openDashboardFuel = () => {
+    setFuelSectionOpen(true);
+    openOperationsAt("tripit-fuel-workflow");
+  };
+  const openDashboardWash = () => {
+    setWashSectionOpen(true);
+    openOperationsAt("tripit-wash-workflow");
+  };
+  const openDashboardJourney = (journey) => {
+    viewDriverTrip({ trip: journey, vehicleId: journey.vehicleId });
+    setRecentTripsOpen(true);
+    openOperationsAt("tripit-trip-history");
+  };
+
   const updatePreviewMode = (mode) => {
     if (mode === "custom") {
       setPreviewConfig(prev => ({ ...prev, mode }));
@@ -3084,6 +3116,12 @@ function TripIt() {
                 </div>
               </div>
               <nav className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-start lg:justify-end" aria-label="Application actions">
+                <ActionButton onClick={() => setCurrentView("dashboard")} active={currentView === "dashboard"}>
+                  Dashboard
+                </ActionButton>
+                <ActionButton onClick={() => setCurrentView("operations")} active={currentView === "operations"}>
+                  Operations
+                </ActionButton>
                 <ActionButton onClick={openHub} title={t("returnHub")}>
                   {t("hub")}
                 </ActionButton>
@@ -3095,10 +3133,24 @@ function TripIt() {
               </nav>
             </div>
           </div>
-          {activeVehicle && <div className="flex flex-wrap gap-2 border-t border-[var(--ts-border)] bg-[var(--ts-surface-muted)] px-4 py-3 sm:px-6"><Pill>{tripTotals.tripCount} {t("trips")}</Pill><Pill>{tripTotals.distance.toFixed(1)} km</Pill><Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill><Pill>{fuelTotals.liters.toFixed(2)} L</Pill></div>}
+          {activeVehicle && currentView === "operations" && <div className="flex flex-wrap gap-2 border-t border-[var(--ts-border)] bg-[var(--ts-surface-muted)] px-4 py-3 sm:px-6"><Pill>{tripTotals.tripCount} {t("trips")}</Pill><Pill>{tripTotals.distance.toFixed(1)} km</Pill><Pill tone="accent">{money(fuelTotals.spend, fuelTotals.currency)}</Pill><Pill>{fuelTotals.liters.toFixed(2)} L</Pill></div>}
         </header>
 
         {/* CONTENT */}
+        {currentView === "dashboard" ? (
+          <Dashboard
+            data={dashboardData}
+            persistenceStatus={persistence.status}
+            onStartTrip={openDashboardTripWorkflow}
+            onResumeTrip={openDashboardTripWorkflow}
+            onOpenHistory={openDashboardHistory}
+            onOpenFuel={openDashboardFuel}
+            onOpenWash={openDashboardWash}
+            onOpenReports={openExportModal}
+            onAddVehicle={openNewVehicle}
+            onOpenJourney={openDashboardJourney}
+          />
+        ) : (
         <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
           {/* Left: Vehicle + Month */}
           <div className="space-y-3">
@@ -3164,7 +3216,7 @@ function TripIt() {
           <div className="lg:col-span-2 space-y-3">
             
             {/* 1. Active Trip Card */}
-            <div className={`${card} ts-active-trip ${activeTrip ? "ts-card--selected" : ""}`}>
+            <div id="tripit-trip-workflow" className={`${card} ts-active-trip scroll-mt-4 ${activeTrip ? "ts-card--selected" : ""}`}>
               <div className={`${cardHead} ts-active-trip__header flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
                 <div className="flex flex-wrap items-center gap-2"><div className="font-semibold text-neutral-800">{activeTrip ? t("activeTrip") : t("startTrip")}</div>{activeTrip && <Badge variant="success">Active</Badge>}</div>
                 
@@ -3255,7 +3307,7 @@ function TripIt() {
             </div>
 
             {/* 2. Recent Trips List */}
-            <div className={`${card} ts-trip-history`}>
+            <div id="tripit-trip-history" className={`${card} ts-trip-history scroll-mt-4`}>
               <div 
                 className={`${cardHead} ts-trip-history__toggle flex items-center justify-between cursor-pointer select-none ${recentTripsOpen ? "is-open" : "ts-hover-accent"}`}
                 onClick={() => setRecentTripsOpen(!recentTripsOpen)}
@@ -3288,7 +3340,7 @@ function TripIt() {
             </div>
 
             {/* 3. Fuel (Updated Workflow) */}
-            <div className={card}>
+            <div id="tripit-fuel-workflow" className={`${card} scroll-mt-4`}>
               <div 
                 className={`${cardHead} flex items-center justify-between cursor-pointer select-none ${fuelSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "ts-hover-accent"}`}
                 onClick={() => setFuelSectionOpen(!fuelSectionOpen)}
@@ -3461,7 +3513,7 @@ function TripIt() {
             </div>
 
             {/* 4. Wash (Compact) */}
-            <div className={card}>
+            <div id="tripit-wash-workflow" className={`${card} scroll-mt-4`}>
               <div 
                 className={`${cardHead} flex items-center justify-between cursor-pointer select-none ${washSectionOpen ? "border-l-2 border-l-[var(--ts-accent)] bg-[var(--ts-surface-soft)]" : "ts-hover-accent"}`}
                 onClick={() => setWashSectionOpen(!washSectionOpen)}
@@ -3558,6 +3610,7 @@ function TripIt() {
             </div>
           </div>
         </div>
+        )}
 
         {toast ? (
           <div className="fixed bottom-6 right-6 rounded-2xl bg-neutral-800 text-white px-4 py-3 shadow-xl print:hidden">
