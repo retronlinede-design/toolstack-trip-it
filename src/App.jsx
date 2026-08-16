@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import tripitLogo from "./assets/tripit-logo-optimized.png";
-import { readJson, readRaw, writeVerified } from "./storage/storage.js";
-import { downloadRawRecovery, preserveRecoveryRaw, replaceCorruptWithEmpty } from "./storage/recovery.js";
-import { migrateLegacyTransactional } from "./storage/migration.js";
+import { writeVerified } from "./storage/storage.js";
+import { downloadRawRecovery, replaceCorruptWithEmpty } from "./storage/recovery.js";
+import { initializeStartup, shouldPersistApp } from "./storage/startup.js";
 import { canShowSavedFeedback, persistenceFromResult, requiresDestructiveConfirmation } from "./storage/persistence.js";
 import { createFullBackup, createReportExport, IMPORT_LIMITS } from "./import/backupSchema.js";
 import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateApplicationPayload } from "./import/backupValidator.js";
@@ -1115,58 +1115,6 @@ function migrateLegacyIfNeeded(saved) {
   };
 }
 
-function isNormalizedApp(value) {
-  return !!value && typeof value === "object" && Array.isArray(value.vehicles)
-    && value.tripsByVehicle && typeof value.tripsByVehicle === "object";
-}
-
-function loadInitialState() {
-  const primary = readJson(KEY);
-  if (primary.ok && primary.status === "valid") {
-    return { app: normalizeApp(primary.value), gate: null, source: "primary" };
-  }
-
-  if (!primary.ok && primary.status === "corrupt") {
-    const preserved = preserveRecoveryRaw(KEY, primary.raw);
-    return {
-      app: emptyApp(),
-      gate: { kind: "recovery", raw: primary.raw, preservation: preserved },
-      source: "corrupt",
-    };
-  }
-
-  if (!primary.ok) {
-    return {
-      app: emptyApp(),
-      gate: { kind: "storage-unavailable", result: primary },
-      source: "unavailable",
-    };
-  }
-
-  const legacy = readRaw(LEGACY_LS_KEY);
-  if (!legacy.ok) {
-    return {
-      app: emptyApp(),
-      gate: { kind: "storage-unavailable", result: legacy },
-      source: "unavailable",
-    };
-  }
-  if (legacy.status === "missing") return { app: emptyApp(), gate: null, source: "new" };
-
-  const migrated = migrateLegacyTransactional({
-    legacyKey: LEGACY_LS_KEY,
-    destinationKey: KEY,
-    transform: (value) => normalizeApp(migrateLegacyIfNeeded(value) || emptyApp()),
-    validate: isNormalizedApp,
-  });
-  if (migrated.ok) return { app: normalizeApp(migrated.data), gate: null, source: "migrated" };
-  return {
-    app: emptyApp(),
-    gate: { kind: "migration", result: migrated, legacyRaw: legacy.raw },
-    source: "legacy-error",
-  };
-}
-
 // A) Crash Overlay & Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -1233,40 +1181,41 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function BlockingStorageScreen({ gate, onRetry, onStartNew, onContinueLegacy }) {
-  const recovery = gate.kind === "recovery";
-  const migration = gate.kind === "migration";
-  const raw = recovery ? gate.raw : gate.legacyRaw;
-  const key = recovery ? gate.preservation?.recoveryKey : gate.result?.backupKey;
+function BlockingStorageScreen({ gate, onRetry, onStartNew }) {
+  const recovery = ["recovery", "startup-invalid", "startup-unsupported"].includes(gate.kind);
+  const migration = gate.kind === "startup-migration";
+  const raw = gate.raw;
+  const key = gate.preservation?.recoveryKey;
   const title = recovery
-    ? "Unreadable Trip-It data found"
+    ? (gate.kind === "recovery" ? "Unreadable Trip-It data found" : "Trip-It cannot safely load the stored data")
     : migration
-      ? "Legacy data migration could not be completed"
+      ? "Trip-It data migration could not be completed"
       : "Browser storage is unavailable";
   return (
     <div className="min-h-screen bg-[#f4f6f8] text-[#1f2933] flex items-center justify-center p-4">
       <main className="w-full max-w-2xl rounded-2xl border border-amber-300 bg-white p-6 shadow-xl" role="alert">
         <div className="mb-4 h-1 w-16 rounded-full bg-[var(--ts-accent)]" /><h1 className="text-2xl font-semibold text-amber-800">{title}</h1>
         <p className="mt-4 text-neutral-700">
-          {recovery && "Trip-It found saved data that cannot be parsed. The normal application is locked so the unreadable value cannot be overwritten."}
-          {migration && "Trip-It could not verify a safe copy at the new storage key. The original data remains unchanged under toolstack_tripit_v1."}
+          {gate.kind === "recovery" && "Trip-It found saved data that cannot be parsed. The normal application is locked so the unreadable value cannot be overwritten."}
+          {["startup-invalid", "startup-unsupported"].includes(gate.kind) && "Trip-It found parseable stored data that is invalid, ambiguous, or unsupported. It has not been normalized or overwritten."}
+          {migration && "Trip-It could not complete and verify a safe migration. Normal persistence remains locked and the recoverable source has not been intentionally discarded."}
           {gate.kind === "storage-unavailable" && "Trip-It cannot safely read browser storage. The application is locked to prevent accidental replacement of existing records."}
         </p>
-        {recovery && (
+        {raw !== null && raw !== undefined && (
           <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm">
             {gate.preservation?.ok
               ? <>Recovery copy: <span className="font-mono break-all">{key}</span><br />Preserved: {gate.preservation.timestamp}</>
               : "The in-browser recovery copy could not be verified. Download the raw value before taking any other action."}
           </div>
         )}
-        {migration && gate.result?.phase && <p className="mt-3 text-sm text-neutral-600">Failed step: {gate.result.phase}</p>}
+        {(migration || recovery) && gate.phase && <p className="mt-3 text-sm text-neutral-600">Failed step: {gate.phase}</p>}
+        {gate.classification?.reason?.message && <p className="mt-3 text-sm text-neutral-600">{gate.classification.reason.message}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
           {raw !== undefined && (
             <button className={btnAccent} onClick={() => downloadRawRecovery(raw, recovery ? "tripit-corrupt-recovery.txt" : "tripit-legacy-recovery.json")}>Download raw data</button>
           )}
-          <button className={btnSecondary} onClick={onRetry}>{migration ? "Retry migration" : "Retry reading storage"}</button>
-          {migration && <button className={btnSecondary} onClick={onContinueLegacy}>Continue from legacy source</button>}
-          {recovery && <button className={btnDanger} onClick={onStartNew}>Start with a new empty dataset</button>}
+          <button className={btnSecondary} onClick={onRetry}>{migration ? "Retry safe migration" : "Retry reading storage"}</button>
+          {raw !== null && raw !== undefined && <button className={btnDanger} onClick={onStartNew}>Start with a new empty dataset</button>}
         </div>
       </main>
     </div>
@@ -1343,17 +1292,19 @@ function TripIt() {
   const importInputRef = useRef(null);
 
   const [profile, setProfile] = useState(loadProfile);
-  const [initial] = useState(loadInitialState);
-  const [app, setApp] = useState(initial.app);
-  const [storageGate, setStorageGate] = useState(initial.gate);
+  const [app, setApp] = useState(emptyApp);
+  const [startupStatus, setStartupStatus] = useState("loading");
+  const [storageGate, setStorageGate] = useState(null);
   const [persistence, setPersistence] = useState({
-    status: initial.gate?.kind === "storage-unavailable" ? "unavailable" : "saved",
-    lastSavedAt: initial.source === "new" ? null : new Date().toISOString(),
+    status: "saving",
+    lastSavedAt: null,
     revision: 0,
     error: null,
   });
   const pendingSuccess = useRef(null);
   const appRevision = useRef(0);
+  const startupAttempted = useRef(false);
+  const hydratedApp = useRef(null);
 
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -1478,13 +1429,45 @@ function TripIt() {
     return true;
   }, [showToast]);
 
+  const runStartup = useCallback(() => {
+    const result = initializeStartup({
+      primaryKey: KEY,
+      legacyKey: LEGACY_LS_KEY,
+      emptyApp,
+      normalize: normalizeApp,
+      migrateLegacy: (value) => migrateLegacyIfNeeded(value) || emptyApp(),
+      validate: validateApplicationPayload,
+    });
+    if (result.status === "ready") {
+      hydratedApp.current = result.app;
+      setApp(result.app);
+      setStorageGate(null);
+      setStartupStatus("ready");
+      setPersistence({ status: "saved", lastSavedAt: result.source === "new" ? null : new Date().toISOString(), revision: 0, error: null });
+    } else {
+      setStorageGate(result.gate);
+      setStartupStatus("blocked");
+      setPersistence({ status: result.gate?.kind === "storage-unavailable" ? "unavailable" : "failed", lastSavedAt: null, revision: 0, error: result.gate?.result?.error || result.gate?.error || null });
+    }
+  }, []);
+
   useEffect(() => {
-    if (storageGate) return;
+    if (startupAttempted.current) return;
+    startupAttempted.current = true;
+    runStartup();
+  }, [runStartup]);
+
+  useEffect(() => {
+    if (!shouldPersistApp({ ready: startupStatus === "ready", app, hydratedApp: hydratedApp.current })) return;
     appRevision.current += 1;
     const revision = appRevision.current;
-    const timer = setTimeout(() => persistApp(app, revision), 0);
+    const value = app;
+    const timer = setTimeout(() => {
+      hydratedApp.current = value;
+      persistApp(value, revision);
+    }, 0);
     return () => clearTimeout(timer);
-  }, [app, storageGate, persistApp]);
+  }, [app, startupStatus, persistApp]);
 
   useEffect(() => {
     safeStorageSet(PROFILE_KEY, JSON.stringify(profile));
@@ -2611,18 +2594,12 @@ function TripIt() {
   };
 
   const retryStorageGate = () => {
-    const next = loadInitialState();
-    setApp(next.app);
-    setStorageGate(next.gate);
-    setPersistence((current) => ({
-      ...current,
-      status: next.gate?.kind === "storage-unavailable" ? "unavailable" : "saved",
-      error: next.gate?.result?.error || null,
-    }));
+    setStartupStatus("loading");
+    runStartup();
   };
 
   const startNewAfterRecovery = () => {
-    if (storageGate?.kind !== "recovery") return;
+    if (storageGate?.raw === null || storageGate?.raw === undefined) return;
     const next = emptyApp();
     const resolution = replaceCorruptWithEmpty({
       primaryKey: KEY,
@@ -2639,21 +2616,11 @@ function TripIt() {
       setPersistence({ status: resolution.status === "unavailable" ? "unavailable" : "failed", lastSavedAt: null, revision: 0, error: resolution.error });
       return;
     }
+    hydratedApp.current = next;
     setApp(next);
     setStorageGate(null);
+    setStartupStatus("ready");
     setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: 0, error: null });
-  };
-
-  const continueFromLegacy = () => {
-    if (storageGate?.kind !== "migration") return;
-    try {
-      const parsed = JSON.parse(storageGate.legacyRaw);
-      setApp(normalizeApp(migrateLegacyIfNeeded(parsed) || emptyApp()));
-      setStorageGate(null);
-      setPersistence({ status: "failed", lastSavedAt: null, revision: 0, error: new Error("Legacy source is loaded in memory; the original legacy key remains unchanged") });
-    } catch {
-      showToast("Legacy data is unreadable and cannot be continued safely.");
-    }
   };
 
   // ---------- Trip Details Expand ----------
@@ -2689,13 +2656,16 @@ function TripIt() {
     );
   };
 
+  if (startupStatus === "loading") {
+    return <div className="min-h-screen bg-[#f4f6f8] flex items-center justify-center p-4"><main className="rounded-2xl border border-neutral-200 bg-white p-6 text-neutral-700" role="status">Checking stored Trip-It data…</main></div>;
+  }
+
   if (storageGate) {
     return (
       <BlockingStorageScreen
         gate={storageGate}
         onRetry={retryStorageGate}
         onStartNew={startNewAfterRecovery}
-        onContinueLegacy={continueFromLegacy}
       />
     );
   }
