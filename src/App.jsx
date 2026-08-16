@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import tripitLogo from "./assets/tripit-logo-optimized.png";
+import tripitLogo from "./assets/tripit-logo.png";
 import { writeVerified } from "./storage/storage.js";
 import { downloadRawRecovery, replaceCorruptWithEmpty } from "./storage/recovery.js";
 import { initializeStartup, shouldPersistApp } from "./storage/startup.js";
@@ -3071,10 +3071,10 @@ function TripIt() {
 
       <div className="ts-shell">
         {/* Header */}
-        <header className="mb-4 overflow-hidden rounded-2xl border border-[var(--ts-border)] bg-white shadow-[0_6px_24px_rgba(31,41,51,0.07)]">
-          <div className="h-1.5 bg-[var(--ts-accent)]" aria-hidden="true" />
+        <header className="ts-app-header mb-4 overflow-hidden rounded-2xl border border-[var(--ts-border)]">
+          <div className="h-1 bg-[var(--ts-accent)]" aria-hidden="true" />
           <div className="flex flex-col items-start gap-3 px-3 py-3 sm:py-4 lg:flex-row lg:items-center lg:justify-between">
-            <img src={tripitLogo} alt="Trip-It" className="h-[8.1rem] w-auto max-w-full shrink-0 object-contain select-none sm:h-[10.4rem]" draggable="false" />
+            <img src={tripitLogo} alt="TripIt — Government Journey and Vehicle Operations" className="ts-brand-logo h-auto w-full max-w-[28rem] shrink-0 object-contain select-none lg:w-[25rem]" draggable="false" />
             <div className="flex w-full flex-col items-start gap-3 lg:w-auto lg:items-end">
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 {activeVehicle && <Badge variant="accent">Active vehicle: {activeVehicle.name}</Badge>}
