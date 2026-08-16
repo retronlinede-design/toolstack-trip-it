@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readJson, readRaw, writeVerified } from "./storage.js";
+import { readJson, readRaw, removeVerified, writeVerified } from "./storage.js";
 
 function memoryStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
@@ -25,4 +25,18 @@ describe("verified writing", () => {
   it("detects a silent failed write", () => expect(writeVerified("data", "value", { setItem() {}, getItem() { return null; } })).toMatchObject({ ok: false, status: "verification_failed" }));
   it("detects a different read-back value", () => expect(writeVerified("data", "value", { setItem() {}, getItem() { return "other"; } })).toMatchObject({ ok: false, status: "verification_failed", actual: "other" }));
   it("reports unavailable read-back", () => expect(writeVerified("data", "value", { setItem() {}, getItem() { throw new Error("blocked"); } })).toMatchObject({ ok: false, status: "readback_failed" }));
+});
+
+describe("verified removal", () => {
+  it("removes a key and verifies that it is absent", () => {
+    const storage = memoryStorage({ data: "value" });
+    expect(removeVerified("data", storage)).toMatchObject({ ok: true, status: "removed_verified" });
+    expect(storage.getItem("data")).toBeNull();
+  });
+
+  it("detects a silent failed removal", () => {
+    const storage = memoryStorage({ data: "value" });
+    storage.removeItem = () => {};
+    expect(removeVerified("data", storage)).toMatchObject({ ok: false, status: "remove_verification_failed", actual: "value" });
+  });
 });

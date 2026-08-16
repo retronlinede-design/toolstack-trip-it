@@ -52,6 +52,16 @@ export function identifyBackup(value) {
   return { ok: false, code: "UNKNOWN_EXPORT_TYPE", errors: [issue("UNKNOWN_EXPORT_TYPE", "$", "The file is not a recognized Trip-It full backup.")] };
 }
 
+export function validateBackupProfile(profile) {
+  if (profile === undefined || profile === null) return { ok: true, present: false, errors: [] };
+  if (!isPlainObject(profile)) return { ok: false, present: true, code: "INVALID_SCHEMA", errors: [issue("INVALID_SCHEMA", "profile", "Profile must be a plain object when present.")] };
+  const errors = [];
+  for (const field of ["org", "user", "language", "logo"]) {
+    if (profile[field] !== undefined && typeof profile[field] !== "string") errors.push(issue("INVALID_SCHEMA", `profile.${field}`, `${field} must be a string when present.`));
+  }
+  return { ok: errors.length === 0, present: true, code: errors[0]?.code || null, errors };
+}
+
 function inspectSafeTree(value, limits, errors, path = "$", depth = 0) {
   if (depth > limits.maxDepth) { errors.push(issue("INVALID_SCHEMA", path, `Maximum nesting depth of ${limits.maxDepth} exceeded.`)); return; }
   if (typeof value === "string" && value.length > limits.maxStringLength) errors.push(issue("INVALID_SCHEMA", path, `String exceeds ${limits.maxStringLength} characters.`));
@@ -226,10 +236,8 @@ export function prepareBackupImport({ text, size, normalize, limits }) {
   if (treeErrors.length) return { ok: false, code: "INVALID_SCHEMA", errors: treeErrors };
   const identified = identifyBackup(parsed);
   if (!identified.ok) return identified;
-  if (identified.profile !== undefined && identified.profile !== null) {
-    if (!isPlainObject(identified.profile)) return { ok: false, code: "INVALID_SCHEMA", errors: [issue("INVALID_SCHEMA", "profile", "Profile must be a plain object when present.")] };
-    for (const field of ["org", "user", "language", "logo"]) if (identified.profile[field] !== undefined && typeof identified.profile[field] !== "string") return { ok: false, code: "INVALID_SCHEMA", errors: [issue("INVALID_SCHEMA", `profile.${field}`, `${field} must be a string when present.`)] };
-  }
+  const profileValidation = validateBackupProfile(identified.profile);
+  if (!profileValidation.ok) return profileValidation;
   const sourceValidation = validateApplicationPayload(identified.payload, { limits: effectiveLimits });
   if (!sourceValidation.ok) return { ...sourceValidation, classification: identified };
   let candidate;

@@ -66,3 +66,14 @@ export function removeKey(key, storage) {
     return { ok: false, status: "remove_failed", error };
   }
 }
+
+export function removeVerified(key, storage) {
+  const removed = removeKey(key, storage);
+  if (!removed.ok) return removed;
+  const readBack = readRaw(key, storage);
+  if (!readBack.ok) return { ...readBack, status: "remove_readback_failed" };
+  if (readBack.status !== "missing") {
+    return { ok: false, status: "remove_verification_failed", actual: readBack.raw, error: new Error("Removed key is still present") };
+  }
+  return { ok: true, status: "removed_verified" };
+}

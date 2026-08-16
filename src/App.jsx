@@ -5,8 +5,9 @@ import { downloadRawRecovery, replaceCorruptWithEmpty } from "./storage/recovery
 import { initializeStartup, shouldPersistApp } from "./storage/startup.js";
 import { canShowSavedFeedback, persistenceFromResult, requiresDestructiveConfirmation } from "./storage/persistence.js";
 import { createFullBackup, createReportExport, IMPORT_LIMITS } from "./import/backupSchema.js";
-import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateApplicationPayload } from "./import/backupValidator.js";
-import { applyTransactionResult, replaceDatasetTransactional, rollbackTransactional } from "./import/importTransaction.js";
+import { prepareBackupImport, requiresEmptyReplacementConfirmation, validateApplicationPayload, validateBackupProfile } from "./import/backupValidator.js";
+import { applyTransactionResult } from "./import/importTransaction.js";
+import { replaceFullBackupTransactional, rollbackFullBackupTransactional } from "./import/fullReplaceTransaction.js";
 import { createMergePlan } from "./import/mergePlanner.js";
 import { mergeDatasetTransactional, rollbackMergeTransactional } from "./import/mergeTransaction.js";
 import { AlertBanner, Badge, Button, EmptyState, IconButton, ModalShell } from "./components/ui/index.jsx";
@@ -1271,6 +1272,7 @@ function ImportWorkflowModal({ state, currentCounts, onClose, onReplace, onMerge
           {(state.stage === "error" || state.stage === "transaction-failed") && (
             <div className="space-y-4">
               <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-950"><div className="font-bold">File rejected — {state.result?.code}</div><ul className="mt-2 list-disc pl-5 text-sm space-y-1">{(state.result?.errors || []).map((error, index) => <li key={`${error.path}-${index}`}><span className="font-mono">{error.path}</span>: {error.message}</li>)}</ul></div>
+              {state.result?.snapshotKey && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"><b>Recovery snapshot:</b> <span className="font-mono break-all">{state.result.snapshotKey}</span>{state.result.restoration && <div className="mt-2">Application restoration: {state.result.restoration.app?.ok ? "verified" : "failed"} · Profile restoration: {state.result.restoration.profile?.status === "untouched" ? "not required" : state.result.restoration.profile?.ok ? "verified" : "failed"}{state.result.restoration.partial && <div className="mt-1 font-semibold text-red-800">Only part of the stored generation could be restored. Keep the recovery snapshot and exported files.</div>}</div>}</div>}
               <div className="flex flex-wrap gap-2">
                 {state.stage === "transaction-failed" && <button className={btnAccent} onClick={onRetry}>Retry transaction</button>}
                 {state.currentSerialized && <button className={btnSecondary} onClick={onDownloadCurrent}>Download Current Backup</button>}
@@ -1292,6 +1294,7 @@ function TripIt() {
   const importInputRef = useRef(null);
 
   const [profile, setProfile] = useState(loadProfile);
+  const verifiedProfileSerialization = useRef(null);
   const [app, setApp] = useState(emptyApp);
   const [startupStatus, setStartupStatus] = useState("loading");
   const [storageGate, setStorageGate] = useState(null);
@@ -1470,7 +1473,12 @@ function TripIt() {
   }, [app, startupStatus, persistApp]);
 
   useEffect(() => {
-    safeStorageSet(PROFILE_KEY, JSON.stringify(profile));
+    const serialized = JSON.stringify(profile);
+    if (verifiedProfileSerialization.current === serialized) {
+      verifiedProfileSerialization.current = null;
+      return;
+    }
+    safeStorageSet(PROFILE_KEY, serialized);
   }, [profile]);
 
   const activeVehicle = useMemo(
@@ -2534,18 +2542,28 @@ function TripIt() {
     if (!prepared) return;
     if (requiresEmptyReplacementConfirmation(currentDatasetCounts, prepared.counts)
       && !window.confirm("The selected backup is empty while current Trip-It data is not. Confirm replacing all current records with an empty dataset.")) return;
-    const result = replaceDatasetTransactional({
+    const profileSupplied = prepared.profile !== undefined && prepared.profile !== null;
+    const result = replaceFullBackupTransactional({
       primaryKey: KEY,
+      profileKey: PROFILE_KEY,
       currentData: app,
+      currentProfile: profile,
       candidate: prepared.candidate,
-      validate: validateApplicationPayload,
+      importedProfile: prepared.profile,
+      profileSupplied,
+      validateApp: validateApplicationPayload,
+      validateProfile: validateBackupProfile,
     });
     if (!result.ok) {
       setImportWorkflow((current) => ({ ...current, stage: "transaction-failed", result, retryAction: "import", currentSerialized: result.currentSerialized || JSON.stringify(app), candidateSerialized: result.candidateSerialized || JSON.stringify(prepared.candidate) }));
       return;
     }
+    hydratedApp.current = result.data;
     applyTransactionResult(result, setApp);
-    if (prepared.profile && typeof prepared.profile === "object" && !Array.isArray(prepared.profile)) setProfile(prepared.profile);
+    if (result.profileApplied) {
+      verifiedProfileSerialization.current = JSON.stringify(result.profileData);
+      setProfile(result.profileData);
+    }
     setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: appRevision.current, error: null });
     setImportWorkflow((current) => ({ ...current, stage: "success", operation: "replace", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: result.candidateSerialized }));
   };
@@ -2582,13 +2600,19 @@ function TripIt() {
 
   const restorePreImportData = () => {
     if (!importWorkflow.rollbackKey) return;
-    const rollback = importWorkflow.operation === "merge" ? rollbackMergeTransactional : rollbackTransactional;
-    const result = rollback({ primaryKey: KEY, rollbackKey: importWorkflow.rollbackKey, currentData: app, validate: validateApplicationPayload });
+    const result = importWorkflow.operation === "merge"
+      ? rollbackMergeTransactional({ primaryKey: KEY, rollbackKey: importWorkflow.rollbackKey, currentData: app, validate: validateApplicationPayload })
+      : rollbackFullBackupTransactional({ primaryKey: KEY, profileKey: PROFILE_KEY, rollbackKey: importWorkflow.rollbackKey, currentData: app, currentProfile: profile, validateApp: validateApplicationPayload, validateProfile: validateBackupProfile });
     if (!result.ok) {
       setImportWorkflow((current) => ({ ...current, stage: "transaction-failed", result, retryAction: "rollback", currentSerialized: result.currentSerialized || JSON.stringify(app), candidateSerialized: result.candidateSerialized }));
       return;
     }
+    hydratedApp.current = result.data;
     applyTransactionResult(result, setApp);
+    if (result.profileApplied) {
+      verifiedProfileSerialization.current = JSON.stringify(result.profileData);
+      setProfile(result.profileData);
+    }
     setPersistence({ status: "saved", lastSavedAt: new Date().toISOString(), revision: appRevision.current, error: null });
     setImportWorkflow((current) => ({ ...current, stage: "success", result, rollbackKey: result.snapshotKey, currentSerialized: result.currentSerialized, candidateSerialized: result.candidateSerialized }));
   };
